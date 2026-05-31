@@ -1,5 +1,7 @@
 # Deploying The Method Casinos (Free Tier)
 
+**Quick start (after GitHub push):** [Render Blueprint](https://dashboard.render.com/select-repo?type=blueprint) → connect repo → set Discord env vars → set URLs after first deploy → add OAuth redirect in Discord portal.
+
 This guide covers a **split deployment** (recommended): static dashboard on **Cloudflare Pages** (free) and API + Discord bot on **Render** (free tier). You can also run **all-in-one** on Render by serving the built dashboard from Express.
 
 Replace placeholders like `https://your-app.pages.dev` with your real URLs after deploy.
