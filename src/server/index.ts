@@ -29,7 +29,7 @@ import { runDiscovery } from '../discovery/engine.js';
 import { requireAuth, requireAdmin, exchangeCode, getDiscordAuthUrl, getAvatarUrl } from './auth.js';
 import type { CasinoFeature, CasinoInput, BlockedSiteInput, UrlCheckResult } from '../shared/types.js';
 import { ensureHttps } from '../shared/utils.js';
-import { getAllowedCorsOrigins, getDashboardUrl } from '../shared/site.js';
+import { getAllowedCorsOrigins, getDashboardUrl, getDiscordRedirectUri, getApiUrl } from '../shared/site.js';
 
 export function createServer(): express.Application {
   const app = express();
@@ -60,6 +60,16 @@ export function createServer(): express.Application {
   }));
 
   // Auth routes
+  app.get('/auth/setup', (_req, res) => {
+    const redirectUri = getDiscordRedirectUri();
+    res.json({
+      redirectUri,
+      discordPortalHint:
+        'Discord Developer Portal → your app → OAuth2 → Redirects → add this exact URL (not just the site root)',
+      loginUrl: `${getApiUrl()}/auth/discord`,
+    });
+  });
+
   app.get('/auth/discord', (_req, res) => {
     const state = randomBytes(16).toString('hex');
     _req.session.oauthState = state;
@@ -338,5 +348,7 @@ export function startServer(): void {
   const app = createServer();
   app.listen(port, () => {
     console.log(`🌐 API + Dashboard server running on http://localhost:${port}`);
+    console.log(`🔐 Discord OAuth redirect URI: ${getDiscordRedirectUri()}`);
+    console.log(`   Add this exact URL in Discord Developer Portal → OAuth2 → Redirects`);
   });
 }

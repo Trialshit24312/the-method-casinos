@@ -37,6 +37,13 @@ export function getDiscordOAuthLoginUrl(): string {
   return `${getApiUrl()}/auth/discord`;
 }
 
+/** Exact URI sent to Discord — must match Developer Portal OAuth2 redirects. */
+export function getDiscordRedirectUri(): string {
+  const explicit = process.env.DISCORD_REDIRECT_URI?.trim();
+  if (explicit) return trimTrailingSlash(explicit);
+  return `${getApiUrl()}/auth/discord/callback`;
+}
+
 export function sitePage(path: string): string {
   const base = getPublicSiteUrl();
   const p = path.startsWith('/') ? path : `/${path}`;
