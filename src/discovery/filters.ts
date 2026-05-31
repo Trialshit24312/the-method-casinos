@@ -3,7 +3,7 @@
  * Only real sweepstakes casino operators pass validation.
  */
 
-import { casinoHostKey } from '../shared/utils.js';
+import { casinoHostKey, getOperatorRootHost } from '../shared/utils.js';
 
 const BLOCKED_DOMAIN_FRAGMENTS = [
   'google.', 'duckduckgo.', 'bing.', 'yahoo.', 'facebook.', 'twitter.', 'x.com',
@@ -11,7 +11,8 @@ const BLOCKED_DOMAIN_FRAGMENTS = [
   'instagram.', 'tiktok.', 'linkedin.', 'pinterest.', 'tumblr.',
   'cnn.com', 'bbc.', 'nytimes', 'forbes.', 'washingtonpost', 'theguardian',
   'reuters.', 'bloomberg.', 'cnbc.', 'espn.', 'foxnews.', 'nbcnews.',
-  'pokernews.', 'casino.org', 'gambling.com', 'covers.com', 'oddschecker.',
+  'pokernews.', 'casino.org', 'casino.guru', 'gambling.com', 'covers.com', 'oddschecker.',
+  'booming-games.', 'playson', 'evolution.com', 'netent.', 'pragmaticplay.',
   'trustpilot.', 'scamadviser.', 'whois.', 'virustotal.',
   'medium.com', 'substack.', 'wordpress.', 'blogspot.', 'tumblr.',
   'porn', 'xxx.', 'xvideos', 'xnxx', 'xhamster', 'redtube', 'onlyfans',
@@ -78,20 +79,21 @@ export function isCasinoCandidateUrl(url: string): boolean {
 export function isDiscoveryCandidateUrl(url: string): boolean {
   if (isBlockedDomain(url)) return false;
   try {
-    const host = new URL(url).hostname.toLowerCase().replace(/^www\./, '');
-    const parts = host.split('.');
-    if (parts.length > 4) return false;
+    const host = new URL(url.startsWith('http') ? url : `https://${url}`).hostname.toLowerCase().replace(/^www\./, '');
+    const operatorRoot = getOperatorRootHost(host);
+    if (!operatorRoot) return false;
 
-    if (STRONG_HOST_HINTS.some((hint) => host.includes(hint.replace('.', '')))) {
+    if (STRONG_HOST_HINTS.some((hint) => operatorRoot.includes(hint.replace('.', '')))) {
       return true;
     }
 
+    const parts = operatorRoot.split('.');
     const tld = parts[parts.length - 1] ?? '';
     const discoveryHints = [
       'sweep', 'sweeps', 'casino', 'slots', 'spin', 'coins', 'social',
       'play', 'win', 'luck', 'vegas', 'bonanza', 'fortune', 'million', 'jackpot', 'game',
     ];
-    if ((tld === 'us' || tld === 'com' || tld === 'io') && discoveryHints.some((h) => host.includes(h))) {
+    if ((tld === 'us' || tld === 'com' || tld === 'io') && discoveryHints.some((h) => operatorRoot.includes(h))) {
       return true;
     }
 

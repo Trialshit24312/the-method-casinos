@@ -53,3 +53,7 @@ services:
         sync: false
       - key: GEMINI_API_KEY
         sync: false
+      - key: REVALIDATE_INTERVAL_HOURS
+        sync: false
+      - key: DB_BACKUP_INTERVAL_HOURS
+        sync: false

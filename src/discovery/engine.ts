@@ -436,8 +436,14 @@ export async function runDiscovery(deep = false, onProgress?: DiscoveryProgressC
     knownHosts.has(host) || seenHosts.has(host) || sessionHosts.has(host);
 
   const enqueue = (url: string): boolean => {
-    const root = toCasinoRootUrl(url);
-    const host = casinoHostKey(root);
+    let root: string;
+    let host: string;
+    try {
+      root = toCasinoRootUrl(url);
+      host = casinoHostKey(root);
+    } catch {
+      return false;
+    }
     if (!isValidCasinoHost(host)) return false;
     if (shouldSkipHost(host) || queuedHosts.has(host)) return false;
 
@@ -494,7 +500,8 @@ export async function runDiscovery(deep = false, onProgress?: DiscoveryProgressC
     });
   }
 
-  setPhase('search', `Running ${searchQueries.length} unique searches (${config.searchPages} pages each)…`);
+  const searchEngineLabel = isSerperEnabled() ? 'Serper (Google)' : 'DuckDuckGo + Bing';
+  setPhase('search', `Running ${searchQueries.length} unique searches via ${searchEngineLabel} (${config.searchPages} pages each)…`);
   for (queryIndex = 0; queryIndex < searchQueries.length && timeLeft() > 0; queryIndex++) {
     throwIfCancelled();
     const query = searchQueries[queryIndex];
