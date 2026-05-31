@@ -7,6 +7,7 @@ import { getDiscordRedirectUri } from '../shared/site.js';
 declare module 'express-session' {
   interface SessionData {
     user?: DashboardUser;
+    loginRedirect?: string;
   }
 }
 

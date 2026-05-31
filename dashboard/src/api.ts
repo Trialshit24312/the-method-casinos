@@ -111,7 +111,10 @@ export const api = {
   }) => request<BlockedSite>('/api/blocked', { method: 'POST', body: JSON.stringify(data) }),
   deleteBlockedSite: (id: string) =>
     request<{ ok: boolean }>(`/api/blocked/${id}`, { method: 'DELETE' }),
-  loginUrl: () => `${API}/auth/discord`,
+  loginUrl: (next?: string) => {
+    const q = next?.startsWith('/') ? `?next=${encodeURIComponent(next)}` : '';
+    return `${API}/auth/discord${q}`;
+  },
   cancelDiscovery: () =>
     request<{ cancelled: boolean }>('/api/discover/cancel', { method: 'POST' }),
   getPendingCasinos: () => request<Casino[]>('/api/casinos/pending'),

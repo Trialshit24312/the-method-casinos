@@ -16,6 +16,7 @@ import {
   Star,
   Clock,
   Flag,
+  Bot,
 } from 'lucide-react';
 import { api } from '../api';
 import type { Stats, Casino } from '../types';
@@ -114,10 +115,10 @@ export default function DashboardPage() {
             { title: 'The Method Guides', desc: 'Step-by-step signup & safety workflows.', path: '/guides', icon: BookOpen, accent: 'border-[#b87333]/30 hover:border-[#b87333]/60' },
             { title: 'Blocked Sites', desc: 'Scam, phishing, and dangerous URLs.', path: '/blocked', icon: Ban, accent: 'border-red-500/30 hover:border-red-500/60' },
             { title: 'Tools Hub', desc: 'Temp mail, SMS, passwords, and more.', path: '/tools', icon: Wrench, accent: 'border-[#00aeef]/30 hover:border-[#00aeef]/60' },
-            ...(user?.isAdmin ? [
-              { title: 'Run Discovery', desc: 'Quick (~8 min) or deep (~30 min) scan — results go to review.', path: '/discovery', icon: Radar, accent: 'border-[#00aeef]/30 hover:border-[#00aeef]/60' },
-              { title: 'Review Queue', desc: 'Approve discoveries and user reports.', path: '/review', icon: Flag, accent: 'border-amber-500/30 hover:border-amber-500/60' },
-            ] : []),
+            { title: 'AI Assistant', desc: 'Ask about verified casinos — Groq-powered, catalog-only.', path: '/assistant', icon: Bot, accent: 'border-violet-500/30 hover:border-violet-500/60' },
+            { title: 'Legal Hub', desc: 'Terms, rules, privacy — same as Discord /legal.', path: '/legal', icon: Shield, accent: 'border-amber-500/30 hover:border-amber-500/60' },
+            { title: 'Discovery Scan', desc: user?.isAdmin ? 'Quick or deep web scan for new casinos.' : 'Admin sign-in required.', path: user?.isAdmin ? '/discovery' : '/login?next=/discovery', icon: Radar, accent: 'border-[#00aeef]/30 hover:border-[#00aeef]/60' },
+            { title: 'Review Queue', desc: user?.isAdmin ? 'Approve discoveries and user reports.' : 'Admin sign-in required.', path: user?.isAdmin ? '/review' : '/login?next=/review', icon: Flag, accent: 'border-amber-500/30 hover:border-amber-500/60' },
           ].map((item, i) => (
             <motion.div
               key={item.title}

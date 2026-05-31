@@ -385,7 +385,7 @@ export function buildHelpEmbed(): EmbedBuilder {
         `Use **/website** for links, tools, and Login with Discord.`,
     )
     .addFields(
-      { name: '🌐 Website & Legal', value: '`/website` `/dashboard` `/tools` `/terms` `/rules` `/privacy`', inline: false },
+      { name: '🌐 Website & Legal', value: '`/website` `/legal` `/terms` `/rules` `/privacy` `/tools`', inline: false },
       { name: '🔍 Search & Browse', value: '`/search` `/random` `/casino` `/similar` `/stats` `/ask`', inline: false },
       { name: '🏷️ Filters', value: '`/nophone` `/slots` `/live` `/vpn` `/fish` `/bingo` `/new` `/redeem`', inline: false },
       { name: '🛡️ Safety', value: '`/check` `/blocked` `/report` — `/block` (admin)', inline: false },

@@ -99,7 +99,8 @@ export default function Landing() {
             { to: '/casinos', title: 'Casino catalog', desc: 'Filter by features — slots, VPN, email-only, and more.', icon: Dices },
             { to: '/tools', title: 'Signup tools', desc: 'Email, phone, password generators and URL checker.', icon: Wrench },
             { to: '/assistant', title: 'AI Assistant', desc: 'Free Groq/Gemini chat — answers from verified catalog only.', icon: Bot },
-            { to: '/dashboard', title: 'Live dashboard', desc: 'Stats, similar casinos, guides, and blocklist.', icon: Radar },
+            { to: '/legal', title: 'Legal Hub', desc: 'Terms, rules, privacy — same as Discord /legal.', icon: Shield },
+            { to: '/discovery', title: 'Discovery (admin)', desc: 'Scan the web for new casino sites.', icon: Radar },
           ].map(({ to, title, desc, icon: Icon }) => (
             <Link key={to} to={to} className="glass-glow p-5 hover:border-glow/30 transition-colors group">
               <Icon className="w-6 h-6 text-glow mb-3" />

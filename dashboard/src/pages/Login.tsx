@@ -6,6 +6,7 @@ import { discordInviteUrl } from '../lib/site';
 export default function Login() {
   const [params] = useSearchParams();
   const error = params.get('error');
+  const next = params.get('next') || '/dashboard';
   const discordInvite = discordInviteUrl();
 
   const errorMessages: Record<string, string> = {
@@ -71,7 +72,7 @@ export default function Login() {
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.5 }}
-          href={api.loginUrl()}
+          href={api.loginUrl(next.startsWith('/') ? next : undefined)}
           whileHover={{ scale: 1.02 }}
           whileTap={{ scale: 0.98 }}
           className="inline-flex items-center gap-3 px-6 py-3 bg-[#5865F2] hover:bg-[#4752C4]

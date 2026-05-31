@@ -17,6 +17,8 @@ import {
   ShieldCheck,
   Sparkles,
   Bot,
+  Lock as LockIcon,
+  Scale,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import SiteFooter from './SiteFooter';
@@ -28,9 +30,12 @@ const mainNav = [
   { to: '/casinos', icon: Dices, label: 'Casinos' },
   { to: '/similar', icon: Sparkles, label: 'Similar Casinos' },
   { to: '/assistant', icon: Bot, label: 'AI Assistant' },
-  { to: '/discovery', icon: Radar, label: 'Discovery', adminOnly: true },
-  { to: '/review', icon: ShieldCheck, label: 'Review Queue', adminOnly: true },
   { to: '/blocked', icon: Ban, label: 'Blocked Sites' },
+];
+
+const adminNav = [
+  { to: '/discovery', icon: Radar, label: 'Discovery' },
+  { to: '/review', icon: ShieldCheck, label: 'Review Queue' },
 ];
 
 const toolsNav = [
@@ -43,46 +48,57 @@ const toolsNav = [
 ];
 
 const legalNav = [
+  { to: '/legal', icon: Scale, label: 'Legal Hub' },
   { to: '/rules', icon: Shield, label: 'Rules' },
   { to: '/terms', icon: ScrollText, label: 'Terms of Service' },
   { to: '/privacy', icon: ShieldCheck, label: 'Privacy' },
 ];
 
-function NavSection({ title, items, pendingCount = 0, reportCount = 0 }: {
+function NavSection({
+  title,
+  items,
+  pendingCount = 0,
+  reportCount = 0,
+  showAdminHint = false,
+}: {
   title: string;
   items: (typeof mainNav)[number][];
   pendingCount?: number;
   reportCount?: number;
+  showAdminHint?: boolean;
 }) {
   const { user } = useAuth();
-  const visible = items.filter((item) => !('adminOnly' in item && item.adminOnly) || user?.isAdmin);
-  if (!visible.length) return null;
+  if (!items.length) return null;
   return (
     <div className="mb-4">
       <p className="section-title">{title}</p>
       <div className="space-y-0.5">
-        {visible.map((item) => (
-          <NavLink
-            key={item.to}
-            to={item.to}
-            end={item.to === '/dashboard' || item.to === '/tools'}
-            className={({ isActive }) =>
-              `flex items-center gap-3 px-3 py-2 rounded-lg transition-all duration-200 ${
-                isActive
-                  ? 'bg-glow/10 text-glow border border-glow/30 shadow-method-glow'
-                  : 'text-gray-400 hover:text-gray-200 hover:bg-surface-overlay border border-transparent'
-              }`
-            }
-          >
-            <item.icon className="w-4 h-4 shrink-0" />
-            <span className="font-medium text-sm flex-1">{item.label}</span>
-            {'adminOnly' in item && item.to === '/review' && (pendingCount + reportCount) > 0 && (
-              <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-amber-500/20 text-amber-400">
-                {pendingCount + reportCount}
-              </span>
-            )}
-          </NavLink>
-        ))}
+        {items.map((item) => {
+          const needsAdmin = showAdminHint && !user?.isAdmin;
+          return (
+            <NavLink
+              key={item.to}
+              to={needsAdmin ? `/login?next=${encodeURIComponent(item.to)}` : item.to}
+              end={item.to === '/dashboard' || item.to === '/tools'}
+              className={({ isActive }) =>
+                `flex items-center gap-3 px-3 py-2 rounded-lg transition-all duration-200 ${
+                  isActive
+                    ? 'bg-glow/10 text-glow border border-glow/30 shadow-method-glow'
+                    : 'text-gray-400 hover:text-gray-200 hover:bg-surface-overlay border border-transparent'
+                }`
+              }
+            >
+              <item.icon className="w-4 h-4 shrink-0" />
+              <span className="font-medium text-sm flex-1">{item.label}</span>
+              {needsAdmin && <LockIcon className="w-3 h-3 text-gray-600" aria-label="Admin sign-in required" />}
+              {item.to === '/review' && user?.isAdmin && (pendingCount + reportCount) > 0 && (
+                <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-amber-500/20 text-amber-400">
+                  {pendingCount + reportCount}
+                </span>
+              )}
+            </NavLink>
+          );
+        })}
       </div>
     </div>
   );
@@ -127,7 +143,8 @@ export default function Layout() {
         </div>
 
         <nav className="flex-1 p-3 overflow-y-auto">
-          <NavSection title="Main" items={mainNav} pendingCount={pendingCount} reportCount={reportCount} />
+          <NavSection title="Main" items={mainNav} />
+          <NavSection title="Admin" items={adminNav} pendingCount={pendingCount} reportCount={reportCount} showAdminHint />
           <NavSection title="Tools" items={toolsNav} />
           <NavSection title="Legal" items={legalNav} />
           {discordInvite && (

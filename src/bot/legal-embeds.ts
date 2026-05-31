@@ -94,6 +94,62 @@ export function buildWebsiteButtons(): ActionRowBuilder<ButtonBuilder>[] {
   return rows;
 }
 
+export function buildLegalButtons(): ActionRowBuilder<ButtonBuilder>[] {
+  const rows: ActionRowBuilder<ButtonBuilder>[] = [
+    new ActionRowBuilder<ButtonBuilder>().addComponents(
+      new ButtonBuilder().setLabel('Terms').setStyle(ButtonStyle.Link).setURL(sitePage('/terms')).setEmoji('📜'),
+      new ButtonBuilder().setLabel('Rules').setStyle(ButtonStyle.Link).setURL(sitePage('/rules')).setEmoji('🛡️'),
+      new ButtonBuilder().setLabel('Privacy').setStyle(ButtonStyle.Link).setURL(sitePage('/privacy')).setEmoji('🔒'),
+      new ButtonBuilder().setLabel('Legal Hub').setStyle(ButtonStyle.Link).setURL(sitePage('/legal')).setEmoji('⚖️'),
+    ),
+  ];
+  const invite = getDiscordInviteUrl();
+  if (invite) {
+    rows.push(
+      new ActionRowBuilder<ButtonBuilder>().addComponents(
+        new ButtonBuilder().setLabel('Open Dashboard').setStyle(ButtonStyle.Link).setURL(getPublicSiteUrl()),
+      ),
+    );
+  }
+  return rows;
+}
+
+export function buildLegalHubEmbed(): EmbedBuilder {
+  const hub = sitePage('/legal');
+  const termsPreview = TERMS_SECTIONS.slice(0, 2).map((s) => `• **${s.title}** — ${truncate(s.body, 80)}`).join('\n');
+  const rulesPreview = RULES_DO_SUMMARY.slice(0, 3).map((s) => `• ${s}`).join('\n');
+  const privacyPreview = PRIVACY_SECTIONS.slice(0, 2).map((s) => `• **${s.title}**`).join('\n');
+
+  return new EmbedBuilder()
+    .setColor(LEGAL_GOLD)
+    .setTitle('⚖️ The Method — Legal & Policies')
+    .setDescription(
+      `Official policies for the Discord bot, web dashboard, and casino catalog.\n` +
+        `**Version ${LEGAL_VERSION}** · Updated ${LEGAL_LAST_UPDATED}\n\n` +
+        `**Full hub:** ${hub}`,
+    )
+    .addFields(
+      { name: '📜 Terms of Service', value: truncate(termsPreview, 1024), inline: false },
+      { name: '🛡️ Community Rules', value: truncate(rulesPreview, 1024), inline: false },
+      { name: '🔒 Privacy Policy', value: truncate(privacyPreview, 1024), inline: false },
+      {
+        name: 'Quick commands',
+        value: '`/legal terms` · `/legal rules` · `/legal privacy` · `/legal all`',
+        inline: false,
+      },
+      {
+        name: 'Disclaimer',
+        value: truncate(
+          'The Method provides research tools and a user-maintained catalog — not gambling advice, legal counsel, or guarantees about third-party casinos. Always verify URLs with `/check`.',
+          1024,
+        ),
+        inline: false,
+      },
+    )
+    .setFooter({ text: methodFooterText('/legal') })
+    .setTimestamp();
+}
+
 export function buildTermsEmbeds(): EmbedBuilder[] {
   const fullUrl = sitePage('/terms');
   const embeds: EmbedBuilder[] = [];

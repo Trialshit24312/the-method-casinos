@@ -115,9 +115,15 @@ export function createServer(): express.Application {
     res.json(getOAuthSetupInfo());
   });
 
-  app.get('/auth/discord', (_req, res) => {
+  app.get('/auth/discord', (req, res) => {
+    const next = typeof req.query.next === 'string' ? req.query.next : '';
+    if (next.startsWith('/') && !next.startsWith('//')) {
+      req.session.loginRedirect = next;
+    }
     const state = createOAuthState();
-    res.redirect(getDiscordAuthUrl(state));
+    req.session.save(() => {
+      res.redirect(getDiscordAuthUrl(state));
+    });
   });
 
   app.get('/auth/discord/callback', async (req, res) => {
@@ -141,7 +147,10 @@ export function createServer(): express.Application {
           res.redirect(`${getDashboardUrl()}/login?error=auth_failed`);
           return;
         }
-        res.redirect(`${getDashboardUrl()}/dashboard`);
+        const next = req.session.loginRedirect;
+        delete req.session.loginRedirect;
+        const dest = next?.startsWith('/') && !next.startsWith('//') ? next : '/dashboard';
+        res.redirect(`${getDashboardUrl()}${dest}`);
       });
     } catch {
       res.redirect(`${getDashboardUrl()}/login?error=auth_failed`);

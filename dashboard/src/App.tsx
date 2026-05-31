@@ -1,4 +1,4 @@
-import { Routes, Route, Navigate } from 'react-router-dom';
+import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import Layout from './components/Layout';
 import Login from './pages/Login';
@@ -19,10 +19,12 @@ import UrlChecker from './pages/tools/UrlChecker';
 import BlockedSites from './pages/BlockedSites';
 import SimilarCasinos from './pages/SimilarCasinos';
 import Privacy from './pages/Privacy';
+import LegalHub from './pages/LegalHub';
 import PublicLayout from './components/PublicLayout';
 
 function AdminRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
+  const location = useLocation();
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center app-background">
@@ -30,7 +32,9 @@ function AdminRoute({ children }: { children: React.ReactNode }) {
       </div>
     );
   }
-  if (!user?.isAdmin) return <Navigate to="/login" replace />;
+  if (!user?.isAdmin) {
+    return <Navigate to={`/login?next=${encodeURIComponent(location.pathname)}`} replace />;
+  }
   return <>{children}</>;
 }
 
@@ -57,6 +61,7 @@ export default function App() {
           <Route path="/tools/phone" element={<PhoneGenerator />} />
           <Route path="/tools/password" element={<PasswordGenerator />} />
           <Route path="/tools/checker" element={<UrlChecker />} />
+          <Route path="/legal" element={<LegalHub />} />
           <Route path="/discovery" element={<AdminRoute><Discovery /></AdminRoute>} />
           <Route path="/review" element={<AdminRoute><ReviewQueue /></AdminRoute>} />
         </Route>
