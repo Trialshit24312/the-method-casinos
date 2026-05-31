@@ -4,6 +4,9 @@
   "description": "Discord bot + local dashboard for discovering free sweepstakes casinos",
   "private": true,
   "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "dev": "concurrently \"npm run dev:server\" \"npm run dev:dashboard\"",
     "dev:server": "tsx watch src/index.ts",
@@ -11,6 +14,7 @@
     "build": "npm run build:dashboard && tsc",
     "build:all": "npm run build:dashboard && tsc",
     "build:dashboard": "npm run build --prefix dashboard",
+    "render-build": "npm ci --include=dev && npm ci --include=dev --prefix dashboard && npm run build:all",
     "start": "node dist/index.js",
     "start:prod": "node dist/index.js",
     "register-commands": "tsx src/bot/register-commands.ts",

@@ -8,7 +8,7 @@ services:
     plan: free
     region: oregon
     branch: main
-    buildCommand: npm install && npm run build:all
+    buildCommand: npm run render-build
     startCommand: npm run start:prod
     healthCheckPath: /api/stats
     envVars:
