@@ -162,9 +162,28 @@ export interface DiscoveryResult {
   durationMs: number;
   sourcesChecked: number;
   errors: string[];
+  mode: 'quick' | 'deep';
+  addedCasinos: { name: string; url: string }[];
+}
+
+export type DiscoveryPhase = 'curated' | 'search' | 'analyze' | 'crawl';
+
+export interface DiscoveryLiveStats {
+  scanned: number;
+  queued: number;
+  added: number;
+  rejected: number;
+  skipped: number;
+  blocked: number;
+  sourcesChecked: number;
+  phase: DiscoveryPhase;
+  queryIndex: number;
+  queryTotal: number;
 }
 
 export type DiscoveryProgressEvent =
+  | { type: 'phase'; phase: DiscoveryPhase; label: string }
+  | { type: 'progress'; stats: DiscoveryLiveStats }
   | { type: 'search_query'; query: string }
   | { type: 'search_engine'; engine: 'duckduckgo' | 'bing'; query: string }
   | { type: 'url_scanning'; url: string }

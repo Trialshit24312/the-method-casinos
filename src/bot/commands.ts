@@ -15,6 +15,7 @@ import {
   buildListEmbed,
   buildStatsEmbed,
   buildDiscoveryEmbed,
+  buildDiscoveryProgressEmbed,
   buildHelpEmbed,
   buildBlockedEmbed,
   buildSimilarEmbed,
@@ -277,9 +278,9 @@ export const commands: Command[] = [
   {
     data: new SlashCommandBuilder()
       .setName('discover')
-      .setDescription('Scan for NEW casinos only (admin — ~2 min quick, ~10 min deep)')
+      .setDescription('Scan for NEW casinos only (admin — quick ~4 min, deep ~15 min)')
       .addBooleanOption((o) =>
-        o.setName('deep').setDescription('Deep scan — runs ~10 minutes, finds more new sites').setRequired(false),
+        o.setName('deep').setDescription('Deep scan — all queries, page crawl, ~15 min').setRequired(false),
       ),
 
     async execute(interaction) {
@@ -290,15 +291,60 @@ export const commands: Command[] = [
 
       await interaction.deferReply();
       const deep = interaction.options.getBoolean('deep') ?? false;
+      const mode = deep ? 'deep' : 'quick';
+      const recentAdded: string[] = [];
+      let lastEdit = 0;
 
-      await interaction.editReply({
-        content: deep
-          ? '🔍 Deep scan started — searching the web for **new** casinos (~10 min)...'
-          : '🔍 Quick scan started — searching for **new** casinos (~2 min)...',
+      let liveStats = {
+        phase: 'curated',
+        scanned: 0,
+        added: 0,
+        rejected: 0,
+        queued: 0,
+        sourcesChecked: 0,
+        queryIndex: 0,
+        queryTotal: deep ? 17 : 8,
+      };
+
+      const maybeUpdate = async () => {
+        const now = Date.now();
+        if (now - lastEdit < 7000) return;
+        lastEdit = now;
+        try {
+          await interaction.editReply({
+            content: null,
+            embeds: [buildDiscoveryProgressEmbed({ ...liveStats, mode, recentAdded })],
+          });
+        } catch {
+          /* interaction token may expire on very long scans */
+        }
+      };
+
+      const result = await runDiscovery(deep, (event) => {
+        if (event.type === 'progress') {
+          liveStats = {
+            phase: event.stats.phase,
+            scanned: event.stats.scanned,
+            added: event.stats.added,
+            rejected: event.stats.rejected,
+            queued: event.stats.queued,
+            sourcesChecked: event.stats.sourcesChecked,
+            queryIndex: event.stats.queryIndex,
+            queryTotal: event.stats.queryTotal,
+          };
+          void maybeUpdate();
+        }
+        if (event.type === 'url_added') {
+          recentAdded.unshift(event.name);
+          if (recentAdded.length > 5) recentAdded.pop();
+          void maybeUpdate();
+        }
       });
 
-      const result = await runDiscovery(deep);
-      await interaction.editReply({ embeds: [buildDiscoveryEmbed(result)] });
+      await interaction.editReply({
+        content: null,
+        embeds: [buildDiscoveryEmbed(result)],
+      });
     },
   },
 

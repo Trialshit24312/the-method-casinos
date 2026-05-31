@@ -43,7 +43,7 @@ export const api = {
     request<DiscoveryResult>('/api/discover', {
       method: 'POST',
       body: JSON.stringify({ deep }),
-      signal: AbortSignal.timeout(deep ? 14 * 60 * 1000 : 4 * 60 * 1000),
+      signal: AbortSignal.timeout(deep ? 16 * 60 * 1000 : 5 * 60 * 1000),
     }),
   discoverStream: async (
     deep: boolean,

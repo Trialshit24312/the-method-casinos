@@ -208,35 +208,82 @@ export function buildDiscoveryEmbed(result: {
   sourcesChecked: number;
   durationMs: number;
   errors: string[];
+  mode?: 'quick' | 'deep';
+  addedCasinos?: { name: string; url: string }[];
 }): EmbedBuilder {
   const mins = Math.floor(result.durationMs / 60000);
   const secs = Math.round((result.durationMs % 60000) / 1000);
   const duration = mins > 0 ? `${mins}m ${secs}s` : `${secs}s`;
+  const modeLabel = result.mode === 'deep' ? 'Deep Scan' : 'Quick Scan';
 
   const embed = new EmbedBuilder()
     .setColor(result.added > 0 ? ACCENT_GREEN : BRAND_COLOR)
-    .setTitle('🔍 Discovery Complete')
-    .setDescription(`Scan finished in **${duration}** — only new sites are added.`)
+    .setTitle(`🔍 ${modeLabel} Complete`)
+    .setDescription(
+      result.added > 0
+        ? `Finished in **${duration}** — **${result.added}** new casino(s) added to the database.`
+        : `Finished in **${duration}** — no new casinos passed validation (already known or rejected).`,
+    )
     .addFields(
       { name: 'Search Sources', value: `${result.sourcesChecked}`, inline: true },
       { name: 'URLs Scanned', value: `${result.scanned}`, inline: true },
-      { name: 'New Found', value: `${result.found}`, inline: true },
-      { name: 'Added', value: `${result.added}`, inline: true },
-      { name: 'Already Known', value: `${result.skipped}`, inline: true },
+      { name: 'Candidates', value: `${result.found}`, inline: true },
+      { name: '✅ Added', value: `${result.added}`, inline: true },
+      { name: 'Skipped', value: `${result.skipped}`, inline: true },
       { name: 'Rejected', value: `${result.rejected}`, inline: true },
-      { name: 'Blocked/Scam', value: `${result.blocked}`, inline: true },
+      { name: 'Blocked', value: `${result.blocked}`, inline: true },
     )
-    .setFooter({ text: methodFooterText() })
+    .setFooter({ text: methodFooterText('Review new entries on the dashboard') })
     .setTimestamp();
+
+  if (result.addedCasinos?.length) {
+    const lines = result.addedCasinos.slice(0, 8).map((c) => `• **${c.name}** — ${c.url}`);
+    embed.addFields({ name: 'New Casinos', value: truncate(lines.join('\n'), 900) });
+  }
 
   if (result.errors.length) {
     embed.addFields({
-      name: '⚠️ Errors',
-      value: truncate(result.errors.join('\n'), 500),
+      name: '⚠️ Warnings',
+      value: truncate(result.errors.slice(0, 5).join('\n'), 500),
     });
   }
 
   return embed;
+}
+
+export function buildDiscoveryProgressEmbed(stats: {
+  phase: string;
+  scanned: number;
+  added: number;
+  rejected: number;
+  queued: number;
+  sourcesChecked: number;
+  queryIndex: number;
+  queryTotal: number;
+  mode: 'quick' | 'deep';
+  recentAdded: string[];
+}): EmbedBuilder {
+  const phaseLabels: Record<string, string> = {
+    curated: '📋 Syncing verified catalog',
+    search: '🔎 Searching DuckDuckGo + Bing',
+    analyze: '🔬 Validating sweepstakes pages',
+    crawl: '🕸️ Crawling related links',
+  };
+
+  return new EmbedBuilder()
+    .setColor(BRAND_COLOR)
+    .setTitle(stats.mode === 'deep' ? '⚡ Deep Scan Running' : '🔍 Quick Scan Running')
+    .setDescription(phaseLabels[stats.phase] ?? stats.phase)
+    .addFields(
+      { name: 'Added', value: `${stats.added}`, inline: true },
+      { name: 'Scanned', value: `${stats.scanned}`, inline: true },
+      { name: 'Rejected', value: `${stats.rejected}`, inline: true },
+      { name: 'In Queue', value: `${stats.queued}`, inline: true },
+      { name: 'Sources', value: `${stats.sourcesChecked}`, inline: true },
+      { name: 'Queries', value: `${stats.queryIndex}/${stats.queryTotal}`, inline: true },
+    )
+    .setFooter({ text: methodFooterText('Live scan in progress…') })
+    .setTimestamp();
 }
 
 export function buildBlockedEmbed(
@@ -319,7 +366,7 @@ export function buildHelpEmbed(): EmbedBuilder {
       { name: '🔍 Search & Browse', value: '`/search` `/random` `/casino` `/similar` `/stats`', inline: false },
       { name: '🏷️ Filters', value: '`/nophone` `/slots` `/live` `/vpn` `/fish` `/bingo` `/new` `/redeem`', inline: false },
       { name: '🛡️ Safety', value: '`/check` `/blocked` — `/block` (admin)', inline: false },
-      { name: '⚙️ Admin', value: '`/discover` — scan for new casinos', inline: false },
+      { name: '⚙️ Admin', value: '`/discover` — quick (~4m) or deep (~15m) scan for new casinos', inline: false },
     )
     .setFooter({ text: methodFooterText('/help') })
     .setTimestamp();

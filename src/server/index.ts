@@ -219,8 +219,8 @@ export function createServer(): express.Application {
   });
 
   app.post('/api/discover', requireAuth, requireAdmin, async (req, res) => {
-    req.setTimeout(15 * 60 * 1000);
-    res.setTimeout(15 * 60 * 1000);
+    req.setTimeout(18 * 60 * 1000);
+    res.setTimeout(18 * 60 * 1000);
 
     const deep = Boolean(req.body?.deep);
     const stream = req.query.stream === '1' || Boolean(req.body?.stream);
@@ -247,7 +247,7 @@ export function createServer(): express.Application {
       } else if (!stream) {
         res.status(500).json({ error: err instanceof Error ? err.message : 'Discovery failed' });
       } else {
-        res.write(`${JSON.stringify({ type: 'complete', result: { scanned: 0, found: 0, added: 0, skipped: 0, blocked: 0, rejected: 0, durationMs: 0, sourcesChecked: 0, errors: [err instanceof Error ? err.message : 'Discovery failed'] } })}\n`);
+        res.write(`${JSON.stringify({ type: 'complete', result: { scanned: 0, found: 0, added: 0, skipped: 0, blocked: 0, rejected: 0, durationMs: 0, sourcesChecked: 0, errors: [err instanceof Error ? err.message : 'Discovery failed'], mode: deep ? 'deep' : 'quick', addedCasinos: [] } })}\n`);
         res.end();
       }
     }

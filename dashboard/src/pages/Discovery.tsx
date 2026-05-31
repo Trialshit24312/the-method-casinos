@@ -1,8 +1,10 @@
 import { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
-import { Radar, Zap, CheckCircle, SkipForward, AlertTriangle, Clock, Search, Globe, Ban, XCircle, Terminal } from 'lucide-react';
+import {
+  Radar, Zap, CheckCircle, SkipForward, AlertTriangle, Clock, Search, Globe, Ban, XCircle, Terminal, StopCircle,
+} from 'lucide-react';
 import { api } from '../api';
-import type { DiscoveryResult, DiscoveryProgressEvent } from '../types';
+import type { DiscoveryResult, DiscoveryProgressEvent, DiscoveryLiveStats, Stats } from '../types';
 import PageHeader from '../components/PageHeader';
 import { useAuth } from '../context/AuthContext';
 
@@ -26,6 +28,13 @@ function shortUrl(url: string): string {
   }
 }
 
+const PHASE_LABELS: Record<string, string> = {
+  curated: 'Syncing verified catalog',
+  search: 'Searching DuckDuckGo + Bing',
+  analyze: 'Validating sweepstakes pages',
+  crawl: 'Crawling related links',
+};
+
 interface LogEntry {
   id: number;
   type: DiscoveryProgressEvent['type'];
@@ -35,24 +44,44 @@ interface LogEntry {
 
 function eventToLog(event: DiscoveryProgressEvent): LogEntry | null {
   switch (event.type) {
+    case 'phase':
+      return { id: Date.now(), type: event.type, message: `▸ ${event.label}`, tone: 'info' };
     case 'search_query':
       return { id: Date.now(), type: event.type, message: `Searching: "${event.query}"`, tone: 'info' };
     case 'search_engine':
-      return { id: Date.now(), type: event.type, message: `${event.engine === 'duckduckgo' ? 'DuckDuckGo' : 'Bing'} → ${event.query.slice(0, 50)}…`, tone: 'muted' };
+      return {
+        id: Date.now(),
+        type: event.type,
+        message: `${event.engine === 'duckduckgo' ? 'DuckDuckGo' : 'Bing'} → ${event.query.slice(0, 50)}…`,
+        tone: 'muted',
+      };
     case 'url_scanning':
       return { id: Date.now(), type: event.type, message: `Scanning ${shortUrl(event.url)}`, tone: 'info' };
     case 'url_added':
-      return { id: Date.now(), type: event.type, message: `Added ${event.name} (${shortUrl(event.url)})`, tone: 'success' };
+      return { id: Date.now(), type: event.type, message: `✓ Added ${event.name} (${shortUrl(event.url)})`, tone: 'success' };
     case 'url_rejected':
-      return { id: Date.now(), type: event.type, message: `Rejected ${shortUrl(event.url)} — ${event.reason}`, tone: 'warn' };
+      return { id: Date.now(), type: event.type, message: `✗ Rejected ${shortUrl(event.url)} — ${event.reason}`, tone: 'warn' };
     case 'url_skipped':
-      return { id: Date.now(), type: event.type, message: `Skipped ${shortUrl(event.url)} — ${event.reason}`, tone: 'muted' };
+      return { id: Date.now(), type: event.type, message: `– Skipped ${shortUrl(event.url)} — ${event.reason}`, tone: 'muted' };
     case 'url_blocked':
       return { id: Date.now(), type: event.type, message: `Blocked ${shortUrl(event.url)}`, tone: 'error' };
     default:
       return null;
   }
 }
+
+const emptyStats = (): DiscoveryLiveStats => ({
+  scanned: 0,
+  queued: 0,
+  added: 0,
+  rejected: 0,
+  skipped: 0,
+  blocked: 0,
+  sourcesChecked: 0,
+  phase: 'curated',
+  queryIndex: 0,
+  queryTotal: 8,
+});
 
 export default function DiscoveryPage() {
   const { user } = useAuth();
@@ -62,12 +91,20 @@ export default function DiscoveryPage() {
   const [error, setError] = useState('');
   const [elapsed, setElapsed] = useState(0);
   const [activityLog, setActivityLog] = useState<LogEntry[]>([]);
+  const [liveStats, setLiveStats] = useState<DiscoveryLiveStats>(emptyStats);
+  const [phaseLabel, setPhaseLabel] = useState('');
+  const [dbStats, setDbStats] = useState<Stats | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const logRef = useRef<HTMLDivElement>(null);
   const logIdRef = useRef(0);
+  const abortRef = useRef<AbortController | null>(null);
 
   const isScanning = running || deepRunning;
-  const maxSeconds = deepRunning ? 12 * 60 : 3 * 60;
+  const maxSeconds = deepRunning ? 15 * 60 : 4 * 60;
+
+  useEffect(() => {
+    api.getStats().then(setDbStats).catch(() => {});
+  }, [result]);
 
   useEffect(() => {
     if (isScanning) {
@@ -83,16 +120,24 @@ export default function DiscoveryPage() {
   }, [isScanning]);
 
   useEffect(() => {
-    if (logRef.current) {
-      logRef.current.scrollTop = logRef.current.scrollHeight;
-    }
+    if (logRef.current) logRef.current.scrollTop = logRef.current.scrollHeight;
   }, [activityLog]);
 
   const pushLog = (event: DiscoveryProgressEvent) => {
+    if (event.type === 'phase') {
+      setPhaseLabel(event.label);
+    }
+    if (event.type === 'progress') {
+      setLiveStats(event.stats);
+    }
     const entry = eventToLog(event);
     if (!entry) return;
     logIdRef.current += 1;
-    setActivityLog((prev) => [...prev.slice(-199), { ...entry, id: logIdRef.current }]);
+    setActivityLog((prev) => [...prev.slice(-249), { ...entry, id: logIdRef.current }]);
+  };
+
+  const cancelScan = () => {
+    abortRef.current?.abort();
   };
 
   const runScan = async (deep: boolean) => {
@@ -102,19 +147,31 @@ export default function DiscoveryPage() {
     setError('');
     setResult(null);
     setActivityLog([]);
+    setLiveStats({ ...emptyStats(), queryTotal: deep ? 17 : 8 });
+    setPhaseLabel('Starting…');
 
+    abortRef.current = new AbortController();
     try {
-      const res = await api.discoverStream(deep, pushLog);
+      const res = await api.discoverStream(deep, pushLog, abortRef.current.signal);
       setResult(res);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Discovery failed — scan may have timed out. Try again.');
+      if (err instanceof Error && err.name === 'AbortError') {
+        setError('Scan cancelled.');
+      } else {
+        setError(err instanceof Error ? err.message : 'Discovery failed — scan may have timed out.');
+      }
     } finally {
       setRunning(false);
       setDeepRunning(false);
+      abortRef.current = null;
     }
   };
 
-  const progress = Math.min(100, (elapsed / maxSeconds) * 100);
+  const workProgress = liveStats.queryTotal
+    ? Math.min(100, ((liveStats.queryIndex / liveStats.queryTotal) * 40) + (liveStats.scanned * 2))
+    : 0;
+  const timeProgress = Math.min(100, (elapsed / maxSeconds) * 100);
+  const progress = isScanning ? Math.max(workProgress, timeProgress * 0.6) : 0;
 
   const toneClass: Record<LogEntry['tone'], string> = {
     info: 'text-[#00aeef]',
@@ -132,67 +189,122 @@ export default function DiscoveryPage() {
         subtitle="Strict validation — only real sweepstakes casinos pass. News, adult, and listicle URLs are blocked."
       />
 
+      {dbStats && (
+        <p className="text-xs text-gray-500 mb-6 text-center">
+          Database: {dbStats.totalCasinos} casinos ({dbStats.verifiedCasinos} verified)
+          {dbStats.lastDiscoveryAt && (
+            <> · Last scan: {new Date(dbStats.lastDiscoveryAt).toLocaleString()}</>
+          )}
+        </p>
+      )}
+
       <div className="grid md:grid-cols-2 gap-6 mb-8">
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
-          className="glass-glow p-6 border-[#00aeef]/20">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="glass-glow p-6 border-[#00aeef]/20"
+        >
           <div className="flex items-center gap-3 mb-4">
             <div className="p-3 rounded-xl bg-[#00aeef]/10 border border-[#00aeef]/30">
               <Radar className="w-6 h-6 text-[#00aeef]" />
             </div>
             <div>
               <h3 className="font-display font-semibold text-lg">Quick Scan</h3>
-              <p className="text-sm text-gray-500">~3 min · 10 search queries · curated list</p>
+              <p className="text-sm text-gray-500">~4 min · 8 searches · 30 page checks</p>
             </div>
           </div>
           <ul className="text-xs text-gray-600 space-y-1 mb-4">
-            <li>• 30+ verified real operators in curated list</li>
+            <li>• Syncs 36 verified operators from catalog first</li>
             <li>• DuckDuckGo + Bing with strict URL filters</li>
             <li>• validateSweepstakesPage() before any add</li>
           </ul>
-          <button onClick={() => runScan(false)} disabled={isScanning || !user?.isAdmin}
-            className="btn-primary w-full disabled:opacity-40">
-            {running ? 'Quick Scan Running...' : 'Run Quick Scan'}
+          <button
+            onClick={() => runScan(false)}
+            disabled={isScanning || !user?.isAdmin}
+            className="btn-primary w-full disabled:opacity-40"
+          >
+            {running ? 'Quick Scan Running…' : 'Run Quick Scan'}
           </button>
         </motion.div>
 
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}
-          className="glass-glow p-6 border-[#b87333]/20">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.1 }}
+          className="glass-glow p-6 border-[#b87333]/20"
+        >
           <div className="flex items-center gap-3 mb-4">
             <div className="p-3 rounded-xl bg-[#b87333]/10 border border-[#b87333]/30">
               <Zap className="w-6 h-6 text-[#d4956a]" />
             </div>
             <div>
               <h3 className="font-display font-semibold text-lg">Deep Scan</h3>
-              <p className="text-sm text-gray-500">~12 min · all queries · crawl new sites</p>
+              <p className="text-sm text-gray-500">~15 min · all 17 queries · crawl + 200 checks</p>
             </div>
           </div>
           <ul className="text-xs text-gray-600 space-y-1 mb-4">
-            <li>• Full 17-query search rotation</li>
-            <li>• Crawls validated sites for more links</li>
-            <li>• Live activity log with reject reasons</li>
+            <li>• Full search rotation + extra rounds</li>
+            <li>• Crawls validated sites for related links</li>
+            <li>• Best for finding brand-new operators</li>
           </ul>
-          <button onClick={() => runScan(true)} disabled={isScanning || !user?.isAdmin}
-            className="btn-glow w-full disabled:opacity-40">
-            {deepRunning ? 'Deep Scan Running...' : 'Run Deep Scan'}
+          <button
+            onClick={() => runScan(true)}
+            disabled={isScanning || !user?.isAdmin}
+            className="btn-glow w-full disabled:opacity-40"
+          >
+            {deepRunning ? 'Deep Scan Running…' : 'Run Deep Scan'}
           </button>
         </motion.div>
       </div>
 
       {isScanning && (
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="glass-glow p-8 mb-8">
-          <div className="flex items-center justify-between mb-4">
-            <p className="text-gray-300 font-medium">
-              {deepRunning ? 'Deep scanning the web...' : 'Quick scanning...'}
-            </p>
-            <span className="font-mono text-[#00aeef]">{formatElapsed(elapsed)} / {formatElapsed(maxSeconds)}</span>
+          <div className="flex items-center justify-between mb-2 gap-4 flex-wrap">
+            <div>
+              <p className="text-gray-300 font-medium">
+                {deepRunning ? 'Deep scan in progress' : 'Quick scan in progress'}
+              </p>
+              <p className="text-xs text-[#00aeef] mt-1">
+                {phaseLabel || PHASE_LABELS[liveStats.phase] || liveStats.phase}
+              </p>
+            </div>
+            <div className="flex items-center gap-3">
+              <span className="font-mono text-[#00aeef]">
+                {formatElapsed(elapsed)} / {formatElapsed(maxSeconds)}
+              </span>
+              <button
+                type="button"
+                onClick={cancelScan}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg border border-red-500/40 text-red-400 hover:bg-red-500/10"
+              >
+                <StopCircle className="w-3.5 h-3.5" /> Cancel
+              </button>
+            </div>
           </div>
+
           <div className="h-2 rounded-full bg-[#1a1a22] overflow-hidden mb-4">
             <motion.div
               className="h-full bg-gradient-to-r from-[#b87333] to-[#00aeef]"
               initial={{ width: 0 }}
               animate={{ width: `${progress}%` }}
-              transition={{ duration: 0.5 }}
+              transition={{ duration: 0.4 }}
             />
+          </div>
+
+          <div className="grid grid-cols-3 sm:grid-cols-6 gap-2 mb-4">
+            {[
+              { label: 'Added', value: liveStats.added, color: 'text-emerald-400' },
+              { label: 'Scanned', value: liveStats.scanned, color: 'text-[#00aeef]' },
+              { label: 'Rejected', value: liveStats.rejected, color: 'text-amber-400' },
+              { label: 'Queue', value: liveStats.queued, color: 'text-gray-400' },
+              { label: 'Sources', value: liveStats.sourcesChecked, color: 'text-[#d4956a]' },
+              { label: 'Queries', value: `${liveStats.queryIndex}/${liveStats.queryTotal}`, color: 'text-gray-300' },
+            ].map(({ label, value, color }) => (
+              <div key={label} className="text-center p-2 rounded-lg bg-[#1a1a22] border border-[#2a2a35]">
+                <p className={`text-lg font-bold ${color}`}>{value}</p>
+                <p className="text-[10px] text-gray-600 uppercase">{label}</p>
+              </div>
+            ))}
           </div>
 
           <div className="rounded-xl border border-[#2a2a35] bg-[#0d0d12] overflow-hidden">
@@ -201,7 +313,7 @@ export default function DiscoveryPage() {
               <span className="text-xs font-medium text-gray-400 uppercase tracking-wide">Live Activity</span>
               <span className="text-xs text-gray-600 ml-auto">{activityLog.length} events</span>
             </div>
-            <div ref={logRef} className="h-48 overflow-y-auto p-3 font-mono text-xs space-y-1">
+            <div ref={logRef} className="h-56 overflow-y-auto p-3 font-mono text-xs space-y-1">
               {activityLog.length === 0 ? (
                 <p className="text-gray-600 text-center py-8">Waiting for scan events…</p>
               ) : (
@@ -222,8 +334,10 @@ export default function DiscoveryPage() {
 
       {result && (
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="glass-glow p-6">
-          <div className="flex items-center justify-between mb-6">
-            <h3 className="font-display font-semibold text-xl text-white">Scan Complete</h3>
+          <div className="flex items-center justify-between mb-6 flex-wrap gap-2">
+            <h3 className="font-display font-semibold text-xl text-white">
+              {result.mode === 'deep' ? 'Deep' : 'Quick'} Scan Complete
+            </h3>
             <span className="text-sm text-gray-500 flex items-center gap-1">
               <Clock className="w-4 h-4" /> {formatDuration(result.durationMs)}
             </span>
@@ -232,7 +346,7 @@ export default function DiscoveryPage() {
             {[
               { icon: Globe, label: 'Sources', value: result.sourcesChecked, color: 'text-[#d4956a]' },
               { icon: Search, label: 'Scanned', value: result.scanned, color: 'text-[#00aeef]' },
-              { icon: Radar, label: 'New Found', value: result.found, color: 'text-[#00aeef]' },
+              { icon: Radar, label: 'Found', value: result.found, color: 'text-[#00aeef]' },
               { icon: CheckCircle, label: 'Added', value: result.added, color: 'text-emerald-400' },
               { icon: SkipForward, label: 'Skipped', value: result.skipped, color: 'text-gray-500' },
               { icon: XCircle, label: 'Rejected', value: result.rejected, color: 'text-amber-400' },
@@ -245,11 +359,29 @@ export default function DiscoveryPage() {
               </div>
             ))}
           </div>
-          {result.added > 0 && (
-            <p className="text-sm text-emerald-400 mb-4">
-              Added {result.added} new casino(s) — check the Casinos page to review them.
+
+          {result.addedCasinos.length > 0 && (
+            <div className="mb-4 p-4 rounded-xl bg-emerald-500/5 border border-emerald-500/20">
+              <p className="text-sm text-emerald-400 font-medium mb-2">New casinos added:</p>
+              <ul className="text-sm text-gray-300 space-y-1">
+                {result.addedCasinos.map((c) => (
+                  <li key={c.url}>
+                    <a href={c.url} target="_blank" rel="noreferrer" className="text-glow hover:underline">
+                      {c.name}
+                    </a>
+                    <span className="text-gray-600 text-xs ml-2">{shortUrl(c.url)}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {result.added === 0 && (
+            <p className="text-sm text-gray-500 mb-4">
+              No new casinos added — all candidates were already known or failed validation.
             </p>
           )}
+
           {result.errors.length > 0 && (
             <div className="p-3 rounded-lg bg-amber-500/10 border border-amber-500/20">
               <div className="flex items-center gap-2 text-amber-400 mb-2 text-sm">
@@ -257,7 +389,9 @@ export default function DiscoveryPage() {
                 {result.errors.length} warning(s)
               </div>
               <ul className="text-xs text-gray-500 space-y-1 max-h-32 overflow-y-auto">
-                {result.errors.slice(0, 8).map((e, i) => <li key={i}>{e}</li>)}
+                {result.errors.slice(0, 8).map((e, i) => (
+                  <li key={i}>{e}</li>
+                ))}
               </ul>
             </div>
           )}
