@@ -1,4 +1,5 @@
 import type { Request, Response, NextFunction } from 'express';
+import { createHmac, randomBytes, timingSafeEqual } from 'crypto';
 import type { DashboardUser } from '../shared/types.js';
 import { parseAdminIds } from '../shared/utils.js';
 import { getDiscordRedirectUri } from '../shared/site.js';
@@ -6,7 +7,6 @@ import { getDiscordRedirectUri } from '../shared/site.js';
 declare module 'express-session' {
   interface SessionData {
     user?: DashboardUser;
-    oauthState?: string;
   }
 }
 
@@ -27,6 +27,33 @@ export function requireAdmin(req: Request, res: Response, next: NextFunction): v
 }
 
 const DISCORD_API = 'https://discord.com/api/v10';
+
+function oauthSecret(): string {
+  return process.env.SESSION_SECRET || 'dev-secret-change-me';
+}
+
+/** Signed state — survives OAuth without relying on session cookie round-trip. */
+export function createOAuthState(): string {
+  const nonce = randomBytes(16).toString('hex');
+  const sig = createHmac('sha256', oauthSecret()).update(nonce).digest('hex');
+  return `${nonce}.${sig}`;
+}
+
+export function verifyOAuthState(state: string): boolean {
+  const dot = state.lastIndexOf('.');
+  if (dot <= 0) return false;
+
+  const nonce = state.slice(0, dot);
+  const sig = state.slice(dot + 1);
+  if (!/^[a-f0-9]{32}$/.test(nonce) || !/^[a-f0-9]{64}$/.test(sig)) return false;
+
+  const expected = createHmac('sha256', oauthSecret()).update(nonce).digest('hex');
+  try {
+    return timingSafeEqual(Buffer.from(sig, 'hex'), Buffer.from(expected, 'hex'));
+  } catch {
+    return false;
+  }
+}
 
 export async function exchangeCode(code: string): Promise<DashboardUser> {
   const clientId = process.env.DISCORD_CLIENT_ID!;

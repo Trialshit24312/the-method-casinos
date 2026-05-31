@@ -3,7 +3,6 @@ import cors from 'cors';
 import cookieParser from 'cookie-parser';
 import session from 'express-session';
 import path from 'path';
-import { randomBytes } from 'crypto';
 import {
   getAllCasinos,
   searchCasinos,
@@ -26,13 +25,17 @@ import {
   resetCatalogToVerified,
 } from '../database/index.js';
 import { runDiscovery } from '../discovery/engine.js';
-import { requireAuth, requireAdmin, exchangeCode, getDiscordAuthUrl, getAvatarUrl } from './auth.js';
+import { requireAuth, requireAdmin, exchangeCode, getDiscordAuthUrl, getAvatarUrl, createOAuthState, verifyOAuthState } from './auth.js';
 import type { CasinoFeature, CasinoInput, BlockedSiteInput, UrlCheckResult } from '../shared/types.js';
 import { ensureHttps } from '../shared/utils.js';
 import { getAllowedCorsOrigins, getDashboardUrl, getDiscordRedirectUri, getOAuthSetupInfo } from '../shared/site.js';
 
 export function createServer(): express.Application {
   const app = express();
+
+  if (process.env.NODE_ENV === 'production' || process.env.RENDER) {
+    app.set('trust proxy', 1);
+  }
 
   const corsOrigins = getAllowedCorsOrigins();
   app.use(cors({
@@ -69,8 +72,7 @@ export function createServer(): express.Application {
   });
 
   app.get('/auth/discord', (_req, res) => {
-    const state = randomBytes(16).toString('hex');
-    _req.session.oauthState = state;
+    const state = createOAuthState();
     res.redirect(getDiscordAuthUrl(state));
   });
 
@@ -82,7 +84,7 @@ export function createServer(): express.Application {
       return;
     }
 
-    if (state !== req.session.oauthState) {
+    if (!state || typeof state !== 'string' || !verifyOAuthState(state)) {
       res.redirect(`${getDashboardUrl()}/login?error=invalid_state`);
       return;
     }
@@ -90,8 +92,13 @@ export function createServer(): express.Application {
     try {
       const user = await exchangeCode(code);
       req.session.user = user;
-      delete req.session.oauthState;
-      res.redirect(getDashboardUrl());
+      req.session.save((err) => {
+        if (err) {
+          res.redirect(`${getDashboardUrl()}/login?error=auth_failed`);
+          return;
+        }
+        res.redirect(getDashboardUrl());
+      });
     } catch {
       res.redirect(`${getDashboardUrl()}/login?error=auth_failed`);
     }
