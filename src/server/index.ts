@@ -23,6 +23,7 @@ import {
   findSimilarCasinos,
   findSimilarCasinosByQuery,
   resetCatalogToVerified,
+  clearDiscoverySeen,
 } from '../database/index.js';
 import { runDiscovery } from '../discovery/engine.js';
 import { requireAuth, requireAdmin, exchangeCode, getDiscordAuthUrl, getAvatarUrl, createOAuthState, verifyOAuthState } from './auth.js';
@@ -219,8 +220,8 @@ export function createServer(): express.Application {
   });
 
   app.post('/api/discover', requireAuth, requireAdmin, async (req, res) => {
-    req.setTimeout(18 * 60 * 1000);
-    res.setTimeout(18 * 60 * 1000);
+    req.setTimeout(35 * 60 * 1000);
+    res.setTimeout(35 * 60 * 1000);
 
     const deep = Boolean(req.body?.deep);
     const stream = req.query.stream === '1' || Boolean(req.body?.stream);
@@ -331,6 +332,11 @@ export function createServer(): express.Application {
   app.post('/api/admin/reset-catalog', requireAuth, requireAdmin, (_req, res) => {
     const result = resetCatalogToVerified();
     res.json(result);
+  });
+
+  app.post('/api/admin/clear-discovery-seen', requireAuth, requireAdmin, (_req, res) => {
+    const cleared = clearDiscoverySeen();
+    res.json({ cleared });
   });
 
   // Serve dashboard in production (skip in dev — Vite handles frontend)

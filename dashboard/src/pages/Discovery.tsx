@@ -100,7 +100,7 @@ export default function DiscoveryPage() {
   const abortRef = useRef<AbortController | null>(null);
 
   const isScanning = running || deepRunning;
-  const maxSeconds = deepRunning ? 15 * 60 : 4 * 60;
+  const maxSeconds = deepRunning ? 30 * 60 : 8 * 60;
 
   useEffect(() => {
     api.getStats().then(setDbStats).catch(() => {});
@@ -210,13 +210,13 @@ export default function DiscoveryPage() {
             </div>
             <div>
               <h3 className="font-display font-semibold text-lg">Quick Scan</h3>
-              <p className="text-sm text-gray-500">~4 min · 8 searches · 30 page checks</p>
+              <p className="text-sm text-gray-500">~8 min · 45+ unique searches · 200 URL checks</p>
             </div>
           </div>
           <ul className="text-xs text-gray-600 space-y-1 mb-4">
-            <li>• Syncs 36 verified operators from catalog first</li>
-            <li>• DuckDuckGo + Bing with strict URL filters</li>
-            <li>• validateSweepstakesPage() before any add</li>
+            <li>• Skips already-scanned URLs (no repeat noise)</li>
+            <li>• Mines links from known casinos + search pages</li>
+            <li>• Rotating query list — different every scan</li>
           </ul>
           <button
             onClick={() => runScan(false)}
@@ -239,13 +239,13 @@ export default function DiscoveryPage() {
             </div>
             <div>
               <h3 className="font-display font-semibold text-lg">Deep Scan</h3>
-              <p className="text-sm text-gray-500">~15 min · all 17 queries · crawl + 200 checks</p>
+              <p className="text-sm text-gray-500">~30 min · 120+ searches · 800 URL checks</p>
             </div>
           </div>
           <ul className="text-xs text-gray-600 space-y-1 mb-4">
-            <li>• Full search rotation + extra rounds</li>
-            <li>• Crawls validated sites for related links</li>
-            <li>• Best for finding brand-new operators</li>
+            <li>• 5 search pages per query (DDG + Bing)</li>
+            <li>• Crawls 80+ known casinos for new links</li>
+            <li>• Remembers rejected URLs — only new candidates</li>
           </ul>
           <button
             onClick={() => runScan(true)}

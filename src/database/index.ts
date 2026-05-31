@@ -76,6 +76,15 @@ export function initDatabase(): Database.Database {
 
     CREATE INDEX IF NOT EXISTS idx_blocked_url_normalized ON blocked_sites(url_normalized);
     CREATE INDEX IF NOT EXISTS idx_blocked_active ON blocked_sites(active);
+
+    CREATE TABLE IF NOT EXISTS discovery_seen (
+      url_normalized TEXT PRIMARY KEY,
+      outcome TEXT NOT NULL,
+      reason TEXT NOT NULL DEFAULT '',
+      last_seen_at TEXT NOT NULL
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_discovery_seen_at ON discovery_seen(last_seen_at);
   `);
 
   migrateSchema();
@@ -396,6 +405,30 @@ export function findSimilarCasinosByQuery(query: string, limit = 8): { source: C
 export function getKnownUrls(): Set<string> {
   const rows = db.prepare('SELECT url_normalized FROM casinos').all() as { url_normalized: string }[];
   return new Set(rows.map((r) => r.url_normalized));
+}
+
+/** URLs already scanned and rejected/skipped — skip re-checking every run. */
+export function getDiscoverySeenUrls(): Set<string> {
+  const rows = db.prepare('SELECT url_normalized FROM discovery_seen').all() as { url_normalized: string }[];
+  return new Set(rows.map((r) => r.url_normalized));
+}
+
+export function markDiscoverySeen(url: string, outcome: string, reason = ''): void {
+  const urlNormalized = normalizeUrl(ensureHttps(url));
+  const now = new Date().toISOString();
+  db.prepare(`
+    INSERT INTO discovery_seen (url_normalized, outcome, reason, last_seen_at)
+    VALUES (@urlNormalized, @outcome, @reason, @lastSeenAt)
+    ON CONFLICT(url_normalized) DO UPDATE SET
+      outcome = excluded.outcome,
+      reason = excluded.reason,
+      last_seen_at = excluded.last_seen_at
+  `).run({ urlNormalized, outcome, reason, lastSeenAt: now });
+}
+
+export function clearDiscoverySeen(): number {
+  const result = db.prepare('DELETE FROM discovery_seen').run();
+  return result.changes;
 }
 
 export function urlExists(url: string): boolean {

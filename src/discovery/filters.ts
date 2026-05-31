@@ -69,11 +69,31 @@ export function isBlockedDomain(url: string): boolean {
 }
 
 export function isCasinoCandidateUrl(url: string): boolean {
+  return isDiscoveryCandidateUrl(url);
+}
+
+/** Broader net for discovery queue — strict page validation still required before add. */
+export function isDiscoveryCandidateUrl(url: string): boolean {
   if (isBlockedDomain(url)) return false;
   try {
     const host = new URL(url).hostname.toLowerCase().replace(/^www\./, '');
-    if (host.split('.').length > 3) return false;
-    return STRONG_HOST_HINTS.some((hint) => host.includes(hint.replace('.', '')));
+    const parts = host.split('.');
+    if (parts.length > 4) return false;
+
+    if (STRONG_HOST_HINTS.some((hint) => host.includes(hint.replace('.', '')))) {
+      return true;
+    }
+
+    const tld = parts[parts.length - 1] ?? '';
+    const discoveryHints = [
+      'sweep', 'sweeps', 'casino', 'slots', 'spin', 'coins', 'social',
+      'play', 'win', 'luck', 'vegas', 'bonanza', 'fortune', 'million', 'jackpot', 'game',
+    ];
+    if ((tld === 'us' || tld === 'com' || tld === 'io') && discoveryHints.some((h) => host.includes(h))) {
+      return true;
+    }
+
+    return false;
   } catch {
     return false;
   }

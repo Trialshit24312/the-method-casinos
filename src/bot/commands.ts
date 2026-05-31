@@ -278,7 +278,7 @@ export const commands: Command[] = [
   {
     data: new SlashCommandBuilder()
       .setName('discover')
-      .setDescription('Scan for NEW casinos only (admin — quick ~4 min, deep ~15 min)')
+      .setDescription('Scan for NEW casinos (admin — quick ~8 min, deep ~30 min, hundreds of URLs)')
       .addBooleanOption((o) =>
         o.setName('deep').setDescription('Deep scan — all queries, page crawl, ~15 min').setRequired(false),
       ),

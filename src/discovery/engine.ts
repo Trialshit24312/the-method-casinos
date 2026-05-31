@@ -1,15 +1,16 @@
 import * as cheerio from 'cheerio';
 import type { CasinoFeature, DiscoveryProgressEvent, DiscoveryResult, DiscoveryPhase, DiscoveryLiveStats } from '../shared/types.js';
-import { addCasino, getKnownUrls, logDiscovery, getBlockedUrls, isUrlBlocked } from '../database/index.js';
+import { addCasino, getKnownUrls, logDiscovery, getBlockedUrls, isUrlBlocked, getDiscoverySeenUrls, markDiscoverySeen, getAllCasinos } from '../database/index.js';
 import { ensureHttps, normalizeUrl } from '../shared/utils.js';
 import { inferRating } from '../shared/rating.js';
 import {
-  isCasinoCandidateUrl,
+  isDiscoveryCandidateUrl,
   isBlockedDomain,
   validateSweepstakesPage,
   sanitizeCasinoName,
 } from './filters.js';
 import { getVerifiedCuratedDiscoveries } from '../shared/verified-casinos.js';
+import { buildSearchQueries, SEARCH_PAGES_DEEP, SEARCH_PAGES_QUICK } from './queries.js';
 
 export type DiscoveryProgressCallback = (event: DiscoveryProgressEvent) => void;
 
@@ -28,27 +29,30 @@ interface ScanConfig {
   mode: 'quick' | 'deep';
   maxDurationMs: number;
   delayMs: number;
-  queryLimit: number;
   maxWebAnalyzes: number;
+  searchPages: number;
   crawlLinks: boolean;
+  crawlKnownCasinos: boolean;
 }
 
 const QUICK_CONFIG: ScanConfig = {
   mode: 'quick',
-  maxDurationMs: 4 * 60 * 1000,
-  delayMs: 280,
-  queryLimit: 8,
-  maxWebAnalyzes: 30,
+  maxDurationMs: 8 * 60 * 1000,
+  delayMs: 200,
+  maxWebAnalyzes: 200,
+  searchPages: SEARCH_PAGES_QUICK,
   crawlLinks: false,
+  crawlKnownCasinos: true,
 };
 
 const DEEP_CONFIG: ScanConfig = {
   mode: 'deep',
-  maxDurationMs: 15 * 60 * 1000,
-  delayMs: 380,
-  queryLimit: 17,
-  maxWebAnalyzes: 200,
+  maxDurationMs: 30 * 60 * 1000,
+  delayMs: 250,
+  maxWebAnalyzes: 800,
+  searchPages: SEARCH_PAGES_DEEP,
   crawlLinks: true,
+  crawlKnownCasinos: true,
 };
 
 const FETCH_TIMEOUT_MS = 12_000;
@@ -61,26 +65,6 @@ const SLOT_KEYWORDS = ['slots', 'slot games', 'spin', 'jackpot'];
 const LIVE_KEYWORDS = ['live dealer', 'live casino', 'live games'];
 
 const URL_IN_TEXT_REGEX = /https?:\/\/(?:www\.)?[a-z0-9][-a-z0-9]{0,62}\.[a-z]{2,24}(?:\/[^\s"'<>]*)?/gi;
-
-const SEARCH_QUERIES = [
-  'sweepstakes casino no phone required 2026',
-  'new social casino sweeps coins list',
-  'free sweeps casino email signup',
-  'best sweepstakes slots casino usa',
-  'sweepstakes casino live dealer',
-  'alternative chumba pulsz new casino',
-  'sweepstakes casino no verification',
-  'social casino gold coins free',
-  'new sweepstakes gaming sites',
-  'no purchase sweepstakes casino',
-  'sweepstakes casino vpn',
-  'free social casino instant play',
-  'sweepstakes poker casino',
-  'sweepstakes casino gift card redeem',
-  'low minimum redeem sweepstakes',
-  'wow vegas alternatives sweepstakes',
-  'mcluck pulsz similar casinos',
-];
 
 const CURATED_DISCOVERIES: RawDiscovery[] = getVerifiedCuratedDiscoveries();
 
@@ -125,7 +109,7 @@ function extractUrlsFromHtml(html: string, baseUrl: string): string[] {
     const href = $(el).attr('href');
     if (!href) return;
     const resolved = resolveRedirectUrl(href, baseUrl);
-    if (resolved && isCasinoCandidateUrl(resolved) && !isBlockedDomain(resolved)) {
+    if (resolved && isDiscoveryCandidateUrl(resolved) && !isBlockedDomain(resolved)) {
       links.add(ensureHttps(resolved.split('#')[0].replace(/\/+$/, '') || resolved));
     }
   });
@@ -134,7 +118,7 @@ function extractUrlsFromHtml(html: string, baseUrl: string): string[] {
     const href = $(el).attr('href') || $(el).text();
     if (!href) return;
     const resolved = resolveRedirectUrl(href.startsWith('http') ? href : `https://${href}`, baseUrl);
-    if (resolved && isCasinoCandidateUrl(resolved) && !isBlockedDomain(resolved)) {
+    if (resolved && isDiscoveryCandidateUrl(resolved) && !isBlockedDomain(resolved)) {
       links.add(ensureHttps(resolved.split('#')[0].replace(/\/+$/, '') || resolved));
     }
   });
@@ -142,7 +126,7 @@ function extractUrlsFromHtml(html: string, baseUrl: string): string[] {
   const textUrls = html.match(URL_IN_TEXT_REGEX) || [];
   for (const raw of textUrls) {
     const clean = raw.replace(/[),.;]+$/, '');
-    if (isCasinoCandidateUrl(clean) && !isBlockedDomain(clean)) {
+    if (isDiscoveryCandidateUrl(clean) && !isBlockedDomain(clean)) {
       links.add(ensureHttps(clean.split('#')[0]));
     }
   }
@@ -232,17 +216,19 @@ async function fetchPage(url: string, retries = 1): Promise<string | null> {
   return null;
 }
 
-function buildDdgUrl(query: string): string {
-  return `https://html.duckduckgo.com/html/?q=${encodeURIComponent(query)}`;
+function buildDdgUrl(query: string, page = 0): string {
+  const base = `https://html.duckduckgo.com/html/?q=${encodeURIComponent(query)}`;
+  return page > 0 ? `${base}&s=${page * 30}` : base;
 }
 
-function buildBingUrl(query: string): string {
-  return `https://www.bing.com/search?q=${encodeURIComponent(query)}&count=30`;
+function buildBingUrl(query: string, page = 0): string {
+  const first = 1 + page * 10;
+  return `https://www.bing.com/search?q=${encodeURIComponent(query)}&first=${first}&count=50`;
 }
 
 async function analyzeUrl(url: string, knownUrls: Set<string>): Promise<{ raw: RawDiscovery | null; rejectReason?: string }> {
   if (knownUrls.has(normalizeUrl(url))) return { raw: null, rejectReason: 'already known' };
-  if (isBlockedDomain(url) || !isCasinoCandidateUrl(url)) {
+  if (isBlockedDomain(url) || !isDiscoveryCandidateUrl(url)) {
     return { raw: null, rejectReason: 'not a casino candidate URL' };
   }
 
@@ -298,30 +284,61 @@ function ingestDiscovery(raw: RawDiscovery, knownUrls: Set<string>): boolean {
 async function collectFromSearch(
   query: string,
   knownUrls: Set<string>,
+  seenUrls: Set<string>,
   urls: Set<string>,
+  searchPages: number,
   onProgress?: DiscoveryProgressCallback,
 ): Promise<number> {
   let checked = 0;
-  const engines: { engine: 'duckduckgo' | 'bing'; url: string }[] = [
-    { engine: 'duckduckgo', url: buildDdgUrl(query) },
-    { engine: 'bing', url: buildBingUrl(query) },
-  ];
 
-  for (const { engine, url: searchUrl } of engines) {
-    checked++;
-    onProgress?.({ type: 'search_engine', engine, query });
-    const html = await fetchPage(searchUrl);
-    if (html) {
-      for (const link of extractUrlsFromHtml(html, searchUrl)) {
-        if (!knownUrls.has(normalizeUrl(link))) urls.add(link);
+  for (let page = 0; page < searchPages; page++) {
+    const engines: { engine: 'duckduckgo' | 'bing'; url: string }[] = [
+      { engine: 'duckduckgo', url: buildDdgUrl(query, page) },
+      { engine: 'bing', url: buildBingUrl(query, page) },
+    ];
+
+    for (const { engine, url: searchUrl } of engines) {
+      checked++;
+      onProgress?.({ type: 'search_engine', engine, query: page > 0 ? `${query} (p${page + 1})` : query });
+      const html = await fetchPage(searchUrl);
+      if (html) {
+        for (const link of extractUrlsFromHtml(html, searchUrl)) {
+          const key = normalizeUrl(link);
+          if (!knownUrls.has(key) && !seenUrls.has(key)) urls.add(link);
+        }
       }
+      await sleep(180);
     }
   }
+
   return checked;
 }
 
+async function crawlKnownCasinosForLinks(
+  enqueue: (url: string) => void,
+  onProgress?: DiscoveryProgressCallback,
+  limit = 40,
+): Promise<number> {
+  const casinos = getAllCasinos();
+  const shuffled = casinos.sort(() => Math.random() - 0.5).slice(0, limit);
+  let crawled = 0;
+
+  for (const casino of shuffled) {
+    onProgress?.({ type: 'url_scanning', url: casino.url });
+    const html = await fetchPage(casino.url);
+    crawled++;
+    if (html) {
+      for (const link of extractUrlsFromHtml(html, casino.url)) enqueue(link);
+    }
+    await sleep(150);
+  }
+
+  return crawled;
+}
+
 export async function runDiscovery(deep = false, onProgress?: DiscoveryProgressCallback): Promise<DiscoveryResult> {
-  const config = deep ? { ...DEEP_CONFIG, queryLimit: SEARCH_QUERIES.length } : QUICK_CONFIG;
+  const config = deep ? DEEP_CONFIG : QUICK_CONFIG;
+  const searchQueries = buildSearchQueries(deep);
   const startTime = Date.now();
   const errors: string[] = [];
   let scanned = 0;
@@ -332,21 +349,23 @@ export async function runDiscovery(deep = false, onProgress?: DiscoveryProgressC
   let rejected = 0;
   let sourcesChecked = 0;
   let webAnalyzes = 0;
-  let phase: DiscoveryPhase = 'curated';
+  let phase: DiscoveryPhase = 'search';
   let queryIndex = 0;
   const addedCasinos: { name: string; url: string }[] = [];
 
   const knownUrls = getKnownUrls();
+  const seenUrls = getDiscoverySeenUrls();
   const blockedUrls = getBlockedUrls();
   const urlQueue: string[] = [];
   const queued = new Set<string>();
   const pendingFromSearch = new Set<string>();
   const curatedByUrl = new Map(CURATED_DISCOVERIES.map((c) => [normalizeUrl(c.url), c]));
+  const sessionSeen = new Set<string>();
 
   const emitProgress = () => {
     const stats: DiscoveryLiveStats = {
       scanned,
-      queued: Math.max(0, urlQueue.length - (scanned + skipped + rejected + blocked)),
+      queued: urlQueue.length - queueIndex,
       added,
       rejected,
       skipped,
@@ -354,7 +373,7 @@ export async function runDiscovery(deep = false, onProgress?: DiscoveryProgressC
       sourcesChecked,
       phase,
       queryIndex,
-      queryTotal: config.queryLimit,
+      queryTotal: searchQueries.length,
     };
     onProgress?.({ type: 'progress', stats });
   };
@@ -365,214 +384,166 @@ export async function runDiscovery(deep = false, onProgress?: DiscoveryProgressC
     emitProgress();
   };
 
-  const enqueue = (url: string) => {
+  const shouldSkipUrl = (key: string): boolean =>
+    knownUrls.has(key) || seenUrls.has(key) || sessionSeen.has(key);
+
+  const enqueue = (url: string, silent = false): boolean => {
     const key = normalizeUrl(url);
+    if (shouldSkipUrl(key) || queued.has(key)) return false;
+
     if (blockedUrls.has(key) || isUrlBlocked(url)) {
       blocked++;
-      onProgress?.({ type: 'url_blocked', url });
-      emitProgress();
-      return;
+      markDiscoverySeen(url, 'blocked', 'blocklist');
+      if (!silent) onProgress?.({ type: 'url_blocked', url });
+      return false;
     }
-    if (!isCasinoCandidateUrl(url) || isBlockedDomain(url)) {
-      rejected++;
-      onProgress?.({ type: 'url_rejected', url, reason: 'failed URL pre-filter' });
-      emitProgress();
-      return;
+
+    if (!isDiscoveryCandidateUrl(url) || isBlockedDomain(url)) {
+      markDiscoverySeen(url, 'rejected', 'URL pre-filter');
+      return false;
     }
-    if (!knownUrls.has(key) && !queued.has(key)) {
-      queued.add(key);
-      urlQueue.push(ensureHttps(url));
-      emitProgress();
-    }
+
+    queued.add(key);
+    urlQueue.push(ensureHttps(url));
+    emitProgress();
+    return true;
   };
 
   const timeLeft = () => config.maxDurationMs - (Date.now() - startTime);
-
-  setPhase('curated', 'Syncing verified casino catalog…');
-  for (const raw of CURATED_DISCOVERIES) enqueue(raw.url);
-
-  // Process curated entries first (fast, no fetch)
   let queueIndex = 0;
-  while (queueIndex < urlQueue.length && timeLeft() > 0) {
-    const url = urlQueue[queueIndex++];
-    const key = normalizeUrl(url);
-    const curated = curatedByUrl.get(key);
-    if (!curated) break;
 
-    if (knownUrls.has(key)) {
-      skipped++;
-      onProgress?.({ type: 'url_skipped', url, reason: 'already in database' });
-      continue;
-    }
-    if (blockedUrls.has(key) || isUrlBlocked(url)) {
-      blocked++;
-      onProgress?.({ type: 'url_blocked', url });
-      continue;
-    }
-
-    scanned++;
-    onProgress?.({ type: 'url_scanning', url });
-    found++;
-    if (ingestDiscovery(curated, knownUrls)) {
+  // Only add missing verified operators (silent — no re-scanning known catalog)
+  setPhase('curated', 'Checking for missing verified operators…');
+  for (const raw of CURATED_DISCOVERIES) {
+    const key = normalizeUrl(raw.url);
+    if (knownUrls.has(key)) continue;
+    if (ingestDiscovery(raw, knownUrls)) {
       added++;
-      addedCasinos.push({ name: curated.name, url: curated.url });
-      onProgress?.({ type: 'url_added', url, name: curated.name });
-    } else {
-      skipped++;
-      onProgress?.({ type: 'url_skipped', url, reason: 'duplicate or blocked' });
+      found++;
+      addedCasinos.push({ name: raw.name, url: raw.url });
+      onProgress?.({ type: 'url_added', url: raw.url, name: raw.name });
     }
-    emitProgress();
-    await sleep(config.delayMs / 2);
+  }
+  emitProgress();
+
+  if (config.crawlKnownCasinos) {
+    setPhase('crawl', `Mining links from ${deep ? 'all' : 'sample'} known casinos…`);
+    sourcesChecked += await crawlKnownCasinosForLinks(
+      (url) => { enqueue(url, true); },
+      onProgress,
+      deep ? 80 : 25,
+    );
   }
 
-  setPhase('search', `Running ${config.queryLimit} web searches (DDG + Bing)…`);
-  for (queryIndex = 0; queryIndex < config.queryLimit && timeLeft() > 0; queryIndex++) {
-    const query = SEARCH_QUERIES[queryIndex];
+  setPhase('search', `Running ${searchQueries.length} unique searches (${config.searchPages} pages each)…`);
+  for (queryIndex = 0; queryIndex < searchQueries.length && timeLeft() > 0; queryIndex++) {
+    const query = searchQueries[queryIndex];
     onProgress?.({ type: 'search_query', query });
     try {
-      sourcesChecked += await collectFromSearch(query, knownUrls, pendingFromSearch, onProgress);
-      for (const u of pendingFromSearch) enqueue(u);
+      sourcesChecked += await collectFromSearch(
+        query,
+        knownUrls,
+        seenUrls,
+        pendingFromSearch,
+        config.searchPages,
+        onProgress,
+      );
+      for (const u of pendingFromSearch) enqueue(u, true);
       pendingFromSearch.clear();
     } catch (e) {
       errors.push(`Search: ${e instanceof Error ? e.message : 'unknown'}`);
     }
     emitProgress();
+
+    // Analyze queue between searches so we don't only search forever
+    while (queueIndex < urlQueue.length && timeLeft() > 0 && webAnalyzes < config.maxWebAnalyzes) {
+      const processed = await processQueueBatch(1);
+      if (processed === 0) break;
+    }
+
     await sleep(config.delayMs);
   }
 
-  setPhase('analyze', deep ? 'Deep-validating pages + crawling links…' : 'Validating candidate URLs…');
-  while (queueIndex < urlQueue.length && timeLeft() > 0) {
-    const url = urlQueue[queueIndex++];
-    const key = normalizeUrl(url);
+  setPhase('analyze', 'Validating remaining candidate URLs…');
+  while (queueIndex < urlQueue.length && timeLeft() > 0 && webAnalyzes < config.maxWebAnalyzes) {
+    await processQueueBatch(1);
+  }
 
-    if (knownUrls.has(key)) {
-      skipped++;
-      onProgress?.({ type: 'url_skipped', url, reason: 'already in database' });
-      emitProgress();
-      continue;
-    }
-    if (blockedUrls.has(key) || isUrlBlocked(url)) {
-      blocked++;
-      onProgress?.({ type: 'url_blocked', url });
-      emitProgress();
-      continue;
-    }
+  async function processQueueBatch(batchSize: number): Promise<number> {
+    let processed = 0;
 
-    const curated = curatedByUrl.get(key);
-    if (curated) {
-      found++;
-      if (ingestDiscovery(curated, knownUrls)) {
-        added++;
-        addedCasinos.push({ name: curated.name, url: curated.url });
-        onProgress?.({ type: 'url_added', url, name: curated.name });
-      } else {
-        skipped++;
-        onProgress?.({ type: 'url_skipped', url, reason: 'duplicate or blocked' });
-      }
-      emitProgress();
-      continue;
-    }
+    while (processed < batchSize && queueIndex < urlQueue.length && timeLeft() > 0 && webAnalyzes < config.maxWebAnalyzes) {
+      const url = urlQueue[queueIndex++];
+      const key = normalizeUrl(url);
+      sessionSeen.add(key);
 
-    if (webAnalyzes >= config.maxWebAnalyzes) {
-      skipped++;
-      onProgress?.({ type: 'url_skipped', url, reason: 'quick scan URL limit reached' });
-      emitProgress();
-      continue;
-    }
+      if (knownUrls.has(key)) continue;
 
-    scanned++;
-    webAnalyzes++;
-    onProgress?.({ type: 'url_scanning', url });
-    emitProgress();
-
-    try {
-      const { raw: analyzed, rejectReason } = await analyzeUrl(url, knownUrls);
-      if (!analyzed) {
-        rejected++;
-        onProgress?.({ type: 'url_rejected', url, reason: rejectReason ?? 'not a sweepstakes casino' });
-        emitProgress();
-        await sleep(config.delayMs / 2);
+      if (blockedUrls.has(key) || isUrlBlocked(url)) {
+        blocked++;
+        markDiscoverySeen(url, 'blocked', 'blocklist');
         continue;
       }
 
-      found++;
-      if (ingestDiscovery(analyzed, knownUrls)) {
-        added++;
-        addedCasinos.push({ name: analyzed.name, url: analyzed.url });
-        onProgress?.({ type: 'url_added', url, name: analyzed.name });
-        if (config.crawlLinks) {
-          setPhase('crawl', `Crawling ${analyzed.name} for related links…`);
-          const pageHtml = await fetchPage(analyzed.url);
-          if (pageHtml) {
-            for (const link of extractUrlsFromHtml(pageHtml, analyzed.url)) enqueue(link);
-          }
-          setPhase('analyze', 'Deep-validating pages + crawling links…');
+      const curated = curatedByUrl.get(key);
+      if (curated) {
+        found++;
+        if (ingestDiscovery(curated, knownUrls)) {
+          added++;
+          addedCasinos.push({ name: curated.name, url: curated.url });
+          onProgress?.({ type: 'url_added', url, name: curated.name });
         }
-      } else {
-        skipped++;
-        onProgress?.({ type: 'url_skipped', url, reason: 'duplicate or blocked' });
+        continue;
       }
-    } catch (e) {
-      rejected++;
-      errors.push(`${url.slice(0, 60)}: ${e instanceof Error ? e.message : 'fail'}`);
-      onProgress?.({ type: 'url_rejected', url, reason: 'scan error' });
-    }
 
-    emitProgress();
-    await sleep(config.delayMs);
-  }
+      if (seenUrls.has(key)) continue;
 
-  // Deep scan: continue search rounds while time remains
-  if (deep) {
-    while (queryIndex < SEARCH_QUERIES.length && timeLeft() > 0) {
-      setPhase('search', `Extra search round ${queryIndex + 1}/${SEARCH_QUERIES.length}…`);
-      const query = SEARCH_QUERIES[queryIndex++];
-      onProgress?.({ type: 'search_query', query });
-      try {
-        sourcesChecked += await collectFromSearch(query, knownUrls, pendingFromSearch, onProgress);
-        for (const u of pendingFromSearch) enqueue(u);
-        pendingFromSearch.clear();
-      } catch (e) {
-        errors.push(`Search round: ${e instanceof Error ? e.message : 'unknown'}`);
-        break;
-      }
+      scanned++;
+      webAnalyzes++;
+      onProgress?.({ type: 'url_scanning', url });
       emitProgress();
-      await sleep(config.delayMs);
 
-      while (queueIndex < urlQueue.length && timeLeft() > 0 && webAnalyzes < config.maxWebAnalyzes) {
-        const url = urlQueue[queueIndex++];
-        const key = normalizeUrl(url);
-        if (knownUrls.has(key) || curatedByUrl.has(key)) continue;
-        if (blockedUrls.has(key) || isUrlBlocked(url)) {
-          blocked++;
-          continue;
-        }
-
-        scanned++;
-        webAnalyzes++;
-        onProgress?.({ type: 'url_scanning', url });
+      try {
         const { raw: analyzed, rejectReason } = await analyzeUrl(url, knownUrls);
         if (!analyzed) {
           rejected++;
+          markDiscoverySeen(url, 'rejected', rejectReason ?? 'validation failed');
           onProgress?.({ type: 'url_rejected', url, reason: rejectReason ?? 'not a sweepstakes casino' });
-        } else {
-          found++;
-          if (ingestDiscovery(analyzed, knownUrls)) {
-            added++;
-            addedCasinos.push({ name: analyzed.name, url: analyzed.url });
-            onProgress?.({ type: 'url_added', url, name: analyzed.name });
+          await sleep(config.delayMs / 3);
+          processed++;
+          continue;
+        }
+
+        found++;
+        if (ingestDiscovery(analyzed, knownUrls)) {
+          added++;
+          markDiscoverySeen(url, 'added', 'verified sweeps');
+          addedCasinos.push({ name: analyzed.name, url: analyzed.url });
+          onProgress?.({ type: 'url_added', url, name: analyzed.name });
+
+          if (config.crawlLinks) {
             const pageHtml = await fetchPage(analyzed.url);
             if (pageHtml) {
-              for (const link of extractUrlsFromHtml(pageHtml, analyzed.url)) enqueue(link);
+              for (const link of extractUrlsFromHtml(pageHtml, analyzed.url)) enqueue(link, true);
             }
-          } else {
-            skipped++;
           }
+        } else {
+          skipped++;
+          markDiscoverySeen(url, 'skipped', 'duplicate');
         }
-        emitProgress();
-        await sleep(config.delayMs);
+      } catch (e) {
+        rejected++;
+        markDiscoverySeen(url, 'rejected', 'scan error');
+        errors.push(`${url.slice(0, 60)}: ${e instanceof Error ? e.message : 'fail'}`);
+        onProgress?.({ type: 'url_rejected', url, reason: 'scan error' });
       }
+
+      emitProgress();
+      processed++;
+      await sleep(config.delayMs);
     }
+
+    return processed;
   }
 
   const durationMs = Date.now() - startTime;
@@ -589,7 +560,7 @@ export async function runDiscovery(deep = false, onProgress?: DiscoveryProgressC
     sourcesChecked,
     errors,
     mode: config.mode,
-    addedCasinos: addedCasinos.slice(0, 20),
+    addedCasinos: addedCasinos.slice(0, 50),
   };
   onProgress?.({ type: 'complete', result });
   return result;
