@@ -1,0 +1,89 @@
+import { useState } from 'react';
+import { motion } from 'framer-motion';
+import { KeyRound, Copy, Check, RefreshCw } from 'lucide-react';
+import PageHeader from '../../components/PageHeader';
+import { generateSecurePassword, passwordStrength } from '../../lib/generators';
+
+export default function PasswordGeneratorPage() {
+  const [length, setLength] = useState(16);
+  const [uppercase, setUppercase] = useState(true);
+  const [lowercase, setLowercase] = useState(true);
+  const [numbers, setNumbers] = useState(true);
+  const [symbols, setSymbols] = useState(true);
+  const [password, setPassword] = useState(() => generateSecurePassword());
+  const [copied, setCopied] = useState(false);
+
+  const regenerate = () => {
+    setPassword(generateSecurePassword({ length, uppercase, lowercase, numbers, symbols }));
+    setCopied(false);
+  };
+
+  const strength = passwordStrength(password);
+
+  const copy = async () => {
+    await navigator.clipboard.writeText(password);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  return (
+    <div className="p-8 max-w-3xl mx-auto">
+      <PageHeader
+        icon={<KeyRound className="w-6 h-6 text-[#d4956a]" />}
+        title="Password Generator"
+        subtitle="Create strong unique passwords for every casino account — never reuse passwords"
+      />
+
+      <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} className="glass-glow p-6 border-[#b87333]/20">
+        <div className="flex items-center gap-2 p-4 rounded-xl bg-[#1a1a22] border border-[#2a2a35] mb-6">
+          <code className="flex-1 text-lg text-[#00aeef] font-mono break-all">{password}</code>
+          <button onClick={copy} className="p-2 text-gray-400 hover:text-[#00aeef] shrink-0">
+            {copied ? <Check className="w-5 h-5 text-emerald-400" /> : <Copy className="w-5 h-5" />}
+          </button>
+        </div>
+
+        <div className="flex items-center justify-between mb-6">
+          <span className="text-sm text-gray-500">Strength</span>
+          <span className={`text-sm font-semibold ${strength.color}`}>{strength.label}</span>
+        </div>
+
+        <div className="mb-6">
+          <label className="text-xs text-gray-500 uppercase tracking-wide mb-2 block">
+            Length: {length}
+          </label>
+          <input
+            type="range"
+            min={8}
+            max={64}
+            value={length}
+            onChange={(e) => setLength(parseInt(e.target.value))}
+            className="w-full accent-[#b87333]"
+          />
+        </div>
+
+        <div className="grid grid-cols-2 gap-3 mb-6">
+          {[
+            { label: 'Uppercase', checked: uppercase, set: setUppercase },
+            { label: 'Lowercase', checked: lowercase, set: setLowercase },
+            { label: 'Numbers', checked: numbers, set: setNumbers },
+            { label: 'Symbols', checked: symbols, set: setSymbols },
+          ].map(({ label, checked, set }) => (
+            <label key={label} className="flex items-center gap-2 p-3 rounded-lg bg-[#1a1a22] border border-[#2a2a35] cursor-pointer text-sm text-gray-400">
+              <input type="checkbox" checked={checked} onChange={(e) => set(e.target.checked)} />
+              {label}
+            </label>
+          ))}
+        </div>
+
+        <button onClick={regenerate} className="btn-primary w-full flex items-center justify-center gap-2">
+          <RefreshCw className="w-4 h-4" /> Generate Password
+        </button>
+      </motion.div>
+
+      <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.2 }}
+        className="text-sm text-gray-600 mt-6 text-center">
+        Tip: Use a password manager (Bitwarden, Proton Pass) to store one unique password per casino.
+      </motion.p>
+    </div>
+  );
+}

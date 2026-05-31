@@ -1,0 +1,366 @@
+import {
+  EmbedBuilder,
+  ActionRowBuilder,
+  ButtonBuilder,
+  ButtonStyle,
+  type ChatInputCommandInteraction,
+  type AutocompleteInteraction,
+} from 'discord.js';
+import type { Casino, CasinoFeature } from '../shared/types.js';
+import { FEATURE_EMOJI, FEATURE_LABELS } from '../shared/types.js';
+import { truncate } from '../shared/utils.js';
+import { buildTrackablesText } from '../shared/trackables.js';
+import type { SimilarCasinoMatch } from '../shared/similarity.js';
+import { methodFooterText, sitePage } from '../shared/site.js';
+
+const BRAND_COLOR = 0x7c3aed;
+const ACCENT_GREEN = 0x10b981;
+const ACCENT_GOLD = 0xf59e0b;
+
+function starRating(rating: number): string {
+  const full = Math.floor(rating);
+  const half = rating - full >= 0.5 ? 1 : 0;
+  const empty = 5 - full - half;
+  return '★'.repeat(full) + (half ? '½' : '') + '☆'.repeat(empty);
+}
+
+function vpnStatus(features: CasinoFeature[]): string {
+  const parts: string[] = [];
+  if (features.includes('vpn_blocked')) parts.push('🚫 VPN Blocked');
+  else if (features.includes('vpn_allowed')) parts.push('🛡️ VPN Allowed');
+  else parts.push('❓ VPN Unknown');
+
+  if (features.includes('geo_restricted')) parts.push('🌍 Geo Restricted');
+
+  return parts.join(' • ');
+}
+
+export function buildCasinoEmbed(casino: Casino, index?: number, total?: number): EmbedBuilder {
+  const featureBadges = casino.features
+    .map((f) => `${FEATURE_EMOJI[f]} ${FEATURE_LABELS[f]}`)
+    .join('\n');
+
+  const embed = new EmbedBuilder()
+    .setColor(casino.verified ? ACCENT_GREEN : BRAND_COLOR)
+    .setTitle(`${casino.verified ? '✅ ' : '🎰 '}${casino.name}`)
+    .setURL(casino.url)
+    .setDescription(truncate(casino.description || 'No description available.', 300))
+    .addFields(
+      {
+        name: '⭐ Rating',
+        value: `${starRating(casino.rating)} (${casino.rating.toFixed(1)}/5)`,
+        inline: true,
+      },
+      {
+        name: '📝 Sign Up',
+        value: casino.signupRequirements.length
+          ? casino.signupRequirements.join(' + ')
+          : 'Email + Password',
+        inline: true,
+      },
+      {
+        name: '🎁 Bonus',
+        value: casino.bonusInfo || 'Check site for current offers',
+        inline: true,
+      },
+      {
+        name: '🔐 VPN / Access',
+        value: vpnStatus(casino.features),
+        inline: true,
+      },
+      {
+        name: '📈 Trackables',
+        value: truncate(
+          buildTrackablesText(casino.cashOutBeforeBlocked, casino.trackables),
+          400,
+        ),
+        inline: false,
+      },
+      {
+        name: '🏷️ Features',
+        value: featureBadges || 'None listed',
+        inline: false,
+      },
+    )
+    .setFooter({
+      text: methodFooterText(
+        `${index !== undefined && total !== undefined ? `${index + 1}/${total}` : ''}${casino.verified ? ' • Verified' : ''}`.trim() || undefined,
+      ),
+    })
+    .setTimestamp(new Date(casino.updatedAt));
+
+  return embed;
+}
+
+export function buildCasinoButtons(casino: Casino): ActionRowBuilder<ButtonBuilder> {
+  return new ActionRowBuilder<ButtonBuilder>().addComponents(
+    new ButtonBuilder()
+      .setLabel('Visit Casino')
+      .setStyle(ButtonStyle.Link)
+      .setURL(casino.url)
+      .setEmoji('🔗'),
+    new ButtonBuilder()
+      .setLabel('Share')
+      .setStyle(ButtonStyle.Secondary)
+      .setCustomId(`share:${casino.id}`)
+      .setEmoji('📤'),
+  );
+}
+
+export function buildListEmbed(
+  casinos: Casino[],
+  title: string,
+  description: string,
+): EmbedBuilder {
+  const lines = casinos.slice(0, 15).map((c, i) => {
+    const icons = c.features
+      .slice(0, 3)
+      .map((f) => FEATURE_EMOJI[f])
+      .join('');
+    return `\`${String(i + 1).padStart(2, ' ')}\` ${c.verified ? '✅' : '◻️'} **${c.name}** ${icons} — ${c.rating.toFixed(1)}★`;
+  });
+
+  if (casinos.length > 15) {
+    lines.push(`\n*...and ${casinos.length - 15} more*`);
+  }
+
+  return new EmbedBuilder()
+    .setColor(BRAND_COLOR)
+    .setTitle(`🎰 ${title}`)
+    .setDescription(`${description}\n\n${lines.join('\n') || 'No casinos found.'}`)
+    .setFooter({ text: methodFooterText(`${casinos.length} result(s)`) })
+    .setTimestamp();
+}
+
+export function buildSimilarEmbed(
+  source: Casino,
+  matches: SimilarCasinoMatch[],
+): EmbedBuilder {
+  const lines = matches.slice(0, 10).map((m, i) => {
+    const icons = m.sharedFeatures.slice(0, 3).map((f) => FEATURE_EMOJI[f]).join('');
+    return `\`${String(i + 1).padStart(2, ' ')}\` **${m.matchPercent}%** ${m.casino.verified ? '✅' : '◻️'} **${m.casino.name}** ${icons}\n↳ ${m.casino.url}`;
+  });
+
+  const embed = new EmbedBuilder()
+    .setColor(ACCENT_GOLD)
+    .setTitle(`✨ Similar to ${source.name}`)
+    .setDescription(
+      matches.length
+        ? `Matched by features, VPN access, signup style & rating:\n\n${lines.join('\n\n')}`
+        : 'No close matches in the database yet.',
+    )
+    .setFooter({ text: methodFooterText('/similar') })
+    .setTimestamp();
+
+  if (matches[0]) {
+    embed.addFields({
+      name: 'Top match',
+      value: `${matches[0].reasons.slice(0, 3).join(' • ') || 'Feature overlap'}`,
+      inline: false,
+    });
+  }
+
+  return embed;
+}
+
+export function buildStatsEmbed(stats: {
+  totalCasinos: number;
+  verifiedCasinos: number;
+  noPhoneCasinos: number;
+  emailOnlyCasinos: number;
+  withSlots: number;
+  withLiveGames: number;
+  vpnAllowedCasinos: number;
+  vpnBlockedCasinos: number;
+  blockedSites: number;
+  lastDiscoveryAt: string | null;
+}): EmbedBuilder {
+  return new EmbedBuilder()
+    .setColor(ACCENT_GOLD)
+    .setTitle('📊 The Method Casinos — Stats')
+    .addFields(
+      { name: '🎰 Total Casinos', value: `${stats.totalCasinos}`, inline: true },
+      { name: '✅ Verified', value: `${stats.verifiedCasinos}`, inline: true },
+      { name: '📵 No Phone', value: `${stats.noPhoneCasinos}`, inline: true },
+      { name: '✉️ Email Only', value: `${stats.emailOnlyCasinos}`, inline: true },
+      { name: '🎰 With Slots', value: `${stats.withSlots}`, inline: true },
+      { name: '🎲 Live Games', value: `${stats.withLiveGames}`, inline: true },
+      { name: '🛡️ VPN Allowed', value: `${stats.vpnAllowedCasinos}`, inline: true },
+      { name: '🚫 VPN Blocked', value: `${stats.vpnBlockedCasinos}`, inline: true },
+      { name: '⛔ Blocked Sites', value: `${stats.blockedSites}`, inline: true },
+    )
+    .setFooter({ text: methodFooterText() })
+    .setTimestamp()
+    .setDescription(
+      stats.lastDiscoveryAt
+        ? `Last discovery scan: <t:${Math.floor(new Date(stats.lastDiscoveryAt).getTime() / 1000)}:R>`
+        : 'No discovery scans yet. Use `/discover` to find new casinos.',
+    );
+}
+
+export function buildDiscoveryEmbed(result: {
+  scanned: number;
+  found: number;
+  added: number;
+  skipped: number;
+  blocked: number;
+  rejected: number;
+  sourcesChecked: number;
+  durationMs: number;
+  errors: string[];
+}): EmbedBuilder {
+  const mins = Math.floor(result.durationMs / 60000);
+  const secs = Math.round((result.durationMs % 60000) / 1000);
+  const duration = mins > 0 ? `${mins}m ${secs}s` : `${secs}s`;
+
+  const embed = new EmbedBuilder()
+    .setColor(result.added > 0 ? ACCENT_GREEN : BRAND_COLOR)
+    .setTitle('🔍 Discovery Complete')
+    .setDescription(`Scan finished in **${duration}** — only new sites are added.`)
+    .addFields(
+      { name: 'Search Sources', value: `${result.sourcesChecked}`, inline: true },
+      { name: 'URLs Scanned', value: `${result.scanned}`, inline: true },
+      { name: 'New Found', value: `${result.found}`, inline: true },
+      { name: 'Added', value: `${result.added}`, inline: true },
+      { name: 'Already Known', value: `${result.skipped}`, inline: true },
+      { name: 'Rejected', value: `${result.rejected}`, inline: true },
+      { name: 'Blocked/Scam', value: `${result.blocked}`, inline: true },
+    )
+    .setFooter({ text: methodFooterText() })
+    .setTimestamp();
+
+  if (result.errors.length) {
+    embed.addFields({
+      name: '⚠️ Errors',
+      value: truncate(result.errors.join('\n'), 500),
+    });
+  }
+
+  return embed;
+}
+
+export function buildBlockedEmbed(
+  sites: import('../shared/types.js').BlockedSite[],
+  query?: string,
+): EmbedBuilder {
+  const embed = new EmbedBuilder()
+    .setColor(0xef4444)
+    .setTitle('⛔ Blocked & Dangerous Sites')
+    .setDescription(
+      query
+        ? `Search: **${query}** — ${sites.length} result(s)`
+        : `${sites.length} known scam/phishing/dangerous URLs. Never sign up on these.`,
+    )
+    .setFooter({ text: methodFooterText('Use /block to add (admin)') })
+    .setTimestamp();
+
+  if (!sites.length) {
+    embed.addFields({ name: 'Results', value: 'No blocked sites found.' });
+    return embed;
+  }
+
+  const lines = sites.slice(0, 15).map((s) =>
+    `**${s.name}** (${s.severity})\n↳ ${s.url}\n_${s.reason.replace(/_/g, ' ')}_`,
+  );
+
+  embed.addFields({ name: 'Blocklist', value: truncate(lines.join('\n\n'), 4000) });
+  if (sites.length > 15) {
+    embed.addFields({ name: 'More', value: `+${sites.length - 15} more on dashboard` });
+  }
+
+  return embed;
+}
+
+export function buildUrlCheckEmbed(result: import('../shared/types.js').UrlCheckResult): EmbedBuilder {
+  if (result.blocked) {
+    return new EmbedBuilder()
+      .setColor(0xef4444)
+      .setTitle('⛔ DANGEROUS URL')
+      .setDescription(`**Do not visit:** ${result.url}`)
+      .addFields(
+        result.blockedSite
+          ? { name: 'Reason', value: `${result.blockedSite.name}\n${result.blockedSite.reason.replace(/_/g, ' ')} (${result.blockedSite.severity})`, inline: false }
+          : { name: 'Status', value: 'On blocklist', inline: false },
+      )
+      .setFooter({ text: methodFooterText() });
+  }
+
+  if (result.casino) {
+    return new EmbedBuilder()
+      .setColor(result.safe ? ACCENT_GREEN : ACCENT_GOLD)
+      .setTitle(result.safe ? '✅ Verified Casino' : '⚠️ In Database (Unverified)')
+      .setDescription(`**${result.casino.name}**`)
+      .addFields(
+        { name: 'Rating', value: `${result.casino.rating.toFixed(1)}/5`, inline: true },
+        { name: 'URL', value: result.url, inline: false },
+      )
+      .setFooter({ text: methodFooterText() });
+  }
+
+  return new EmbedBuilder()
+    .setColor(ACCENT_GOLD)
+    .setTitle('❓ Unknown URL')
+    .setDescription(`${result.url}\n\nNot in database or blocklist. Proceed with caution.`)
+    .setFooter({ text: methodFooterText('Use /blocked for known scams') });
+}
+
+export function buildHelpEmbed(): EmbedBuilder {
+  const site = sitePage('/');
+  return new EmbedBuilder()
+    .setColor(BRAND_COLOR)
+    .setTitle('🎰 The Method Casinos — Commands')
+    .setDescription(
+      `Find free sweepstakes casinos with easy signup — no phone required.\n\n` +
+        `**Web dashboard:** ${site}\n` +
+        `Use **/website** for links, tools, and Login with Discord.`,
+    )
+    .addFields(
+      { name: '🌐 Website & Legal', value: '`/website` `/dashboard` `/tools` `/terms` `/rules` `/privacy`', inline: false },
+      { name: '🔍 Search & Browse', value: '`/search` `/random` `/casino` `/similar` `/stats`', inline: false },
+      { name: '🏷️ Filters', value: '`/nophone` `/slots` `/live` `/vpn` `/fish` `/bingo` `/new` `/redeem`', inline: false },
+      { name: '🛡️ Safety', value: '`/check` `/blocked` — `/block` (admin)', inline: false },
+      { name: '⚙️ Admin', value: '`/discover` — scan for new casinos', inline: false },
+    )
+    .setFooter({ text: methodFooterText('/help') })
+    .setTimestamp();
+}
+
+export function parseFeatureChoices(values: string[]): CasinoFeature[] {
+  const valid: CasinoFeature[] = [
+    'no_phone', 'email_only', 'slots', 'live_games',
+    'sweepstakes', 'table_games', 'sports', 'crypto', 'instant_play',
+    'vpn_allowed', 'vpn_blocked', 'geo_restricted', 'no_kyc', 'fast_payout',
+    'daily_bonus', 'referral_bonus', 'low_min_redeem', 'gift_card_redeem',
+    'paypal_redeem', 'bank_transfer', 'mobile_app',
+    'bingo', 'fish_games', 'poker', 'wheel_spin', 'no_deposit_bonus',
+    'venmo_redeem', 'apple_pay', 'us_only', 'new_casino', 'progressive_jackpot',
+    'social_features', 'web_only', 'cash_app', 'zelle_redeem', 'scratch_cards',
+    'tournaments', 'vip_program', 'android_app', 'ios_app', 'plinko', 'keno',
+    'free_spins', 'loyalty_program', 'blackjack', 'roulette', 'crash_games',
+    'megaways', 'hold_and_win', 'debit_card_redeem', 'ach_redeem', 'live_chat',
+  ];
+  return values.filter((v): v is CasinoFeature => valid.includes(v as CasinoFeature));
+}
+
+export async function replyWithCasino(
+  interaction: ChatInputCommandInteraction,
+  casino: Casino,
+): Promise<void> {
+  const embed = buildCasinoEmbed(casino);
+  const row = buildCasinoButtons(casino);
+  await interaction.reply({ embeds: [embed], components: [row] });
+}
+
+export async function handleCasinoAutocomplete(
+  interaction: AutocompleteInteraction,
+  casinos: Casino[],
+): Promise<void> {
+  const focused = interaction.options.getFocused().toLowerCase();
+  const filtered = casinos
+    .filter((c) => c.name.toLowerCase().includes(focused))
+    .slice(0, 25);
+
+  await interaction.respond(
+    filtered.map((c) => ({ name: c.name, value: c.name })),
+  );
+}

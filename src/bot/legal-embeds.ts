@@ -1,0 +1,242 @@
+import { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } from 'discord.js';
+import {
+  TERMS_SECTIONS,
+  TERMS_FAQ,
+  PRIVACY_SECTIONS,
+  RULES_CATEGORIES,
+  RULES_DO_SUMMARY,
+  RULES_DONT_SUMMARY,
+  RULES_CONSEQUENCES,
+  WEBSITE_FEATURES,
+  TOOLS_PATHS,
+  LEGAL_LAST_UPDATED,
+  LEGAL_VERSION,
+} from '../shared/legal.js';
+import { getPublicSiteUrl, getDiscordInviteUrl, getDiscordOAuthLoginUrl, methodFooterText, sitePage } from '../shared/site.js';
+import { truncate } from '../shared/utils.js';
+
+const BRAND_COLOR = 0x7c3aed;
+const LEGAL_GOLD = 0xf59e0b;
+const PRIVACY_BLUE = 0x0ea5e9;
+
+export function buildWebsiteEmbed(): EmbedBuilder {
+  const site = getPublicSiteUrl();
+  const login = getDiscordOAuthLoginUrl();
+  const invite = getDiscordInviteUrl();
+
+  const featureList = WEBSITE_FEATURES.map(
+    (f) => `• **${f.name}** — ${f.desc}`,
+  ).join('\n');
+
+  const embed = new EmbedBuilder()
+    .setColor(BRAND_COLOR)
+    .setTitle('🌐 The Method Casinos — Dashboard')
+    .setDescription(
+      `Browse sweepstakes casinos, tools, and safety lists on the web dashboard.\n\n` +
+        `**Site:** ${site}`,
+    )
+    .addFields(
+      { name: 'What you can do', value: truncate(featureList, 1000), inline: false },
+      {
+        name: 'Sign in',
+        value:
+          `Dashboard uses **Login with Discord** (OAuth).\n` +
+          `Open the site → Sign in with Discord, or use:\n${login}`,
+        inline: false,
+      },
+    )
+    .setFooter({ text: methodFooterText('/website') })
+    .setTimestamp();
+
+  if (invite) {
+    embed.addFields({
+      name: 'Join our Discord',
+      value: invite,
+      inline: false,
+    });
+  }
+
+  return embed;
+}
+
+export function buildWebsiteButtons(): ActionRowBuilder<ButtonBuilder>[] {
+  const site = getPublicSiteUrl();
+  const rows: ActionRowBuilder<ButtonBuilder>[] = [
+    new ActionRowBuilder<ButtonBuilder>().addComponents(
+      new ButtonBuilder().setLabel('Open Dashboard').setStyle(ButtonStyle.Link).setURL(site).setEmoji('🔗'),
+      new ButtonBuilder()
+        .setLabel('Tools Hub')
+        .setStyle(ButtonStyle.Link)
+        .setURL(sitePage('/tools'))
+        .setEmoji('🛠️'),
+      new ButtonBuilder()
+        .setLabel('Terms')
+        .setStyle(ButtonStyle.Link)
+        .setURL(sitePage('/terms'))
+        .setEmoji('📜'),
+    ),
+  ];
+
+  const invite = getDiscordInviteUrl();
+  if (invite) {
+    rows.push(
+      new ActionRowBuilder<ButtonBuilder>().addComponents(
+        new ButtonBuilder().setLabel('Join Discord Server').setStyle(ButtonStyle.Link).setURL(invite),
+      ),
+    );
+  }
+
+  return rows;
+}
+
+export function buildTermsEmbeds(): EmbedBuilder[] {
+  const fullUrl = sitePage('/terms');
+  const embeds: EmbedBuilder[] = [];
+
+  const part1 = new EmbedBuilder()
+    .setColor(LEGAL_GOLD)
+    .setTitle('📜 Terms of Service (1/2)')
+    .setDescription(
+      `**The Method Casinos** — v${LEGAL_VERSION} — Updated ${LEGAL_LAST_UPDATED}\n\n` +
+        `Read the full document: ${fullUrl}`,
+    )
+    .addFields(
+      TERMS_SECTIONS.slice(0, 5).map((s) => ({
+        name: s.title,
+        value: truncate(`${s.body}\n• ${s.bullets.slice(0, 2).join('\n• ')}`, 1024),
+        inline: false,
+      })),
+    )
+    .setFooter({ text: methodFooterText('/terms') });
+
+  const part2 = new EmbedBuilder()
+    .setColor(LEGAL_GOLD)
+    .setTitle('📜 Terms of Service (2/2)')
+    .addFields(
+      TERMS_SECTIONS.slice(5).map((s) => ({
+        name: s.title,
+        value: truncate(`${s.body}\n• ${s.bullets.slice(0, 2).join('\n• ')}`, 1024),
+        inline: false,
+      })),
+    )
+    .setFooter({ text: `Full terms: ${fullUrl}` });
+
+  embeds.push(part1, part2);
+
+  const faqText = TERMS_FAQ.slice(0, 4)
+    .map((f) => `**${f.q}**\n${f.a}`)
+    .join('\n\n');
+
+  embeds.push(
+    new EmbedBuilder()
+      .setColor(LEGAL_GOLD)
+      .setTitle('📜 Terms — FAQ')
+      .setDescription(truncate(faqText, 4000))
+      .setFooter({ text: methodFooterText() }),
+  );
+
+  return embeds;
+}
+
+export function buildRulesEmbed(): EmbedBuilder {
+  const fullUrl = sitePage('/rules');
+  const highlights = RULES_CATEGORIES.flatMap((c) =>
+    c.rules.map((r) => `**${r.title}** — ${truncate(r.body, 120)}`),
+  ).slice(0, 6);
+
+  return new EmbedBuilder()
+    .setColor(BRAND_COLOR)
+    .setTitle('🛡️ Community Rules')
+    .setDescription(
+      `**The Method Standard** — keep the database accurate and the community trustworthy.\n\n` +
+        `Full rules: ${fullUrl}`,
+    )
+    .addFields(
+      {
+        name: '✅ Do',
+        value: RULES_DO_SUMMARY.map((s) => `• ${s}`).join('\n'),
+        inline: true,
+      },
+      {
+        name: '❌ Never',
+        value: RULES_DONT_SUMMARY.map((s) => `• ${s}`).join('\n'),
+        inline: true,
+      },
+      {
+        name: 'Key rules',
+        value: truncate(highlights.join('\n\n'), 1024),
+        inline: false,
+      },
+      {
+        name: 'Enforcement',
+        value: RULES_CONSEQUENCES.map((c) => `**${c.level}** — ${c.desc}`).join('\n'),
+        inline: false,
+      },
+    )
+    .setFooter({ text: methodFooterText('/rules') })
+    .setTimestamp();
+}
+
+export function buildPrivacyEmbed(): EmbedBuilder {
+  const fullUrl = sitePage('/privacy');
+
+  return new EmbedBuilder()
+    .setColor(PRIVACY_BLUE)
+    .setTitle('🔒 Privacy Policy')
+    .setDescription(
+      `How The Method handles your data. Updated ${LEGAL_LAST_UPDATED}.\n\n` +
+        `**Full policy:** ${fullUrl}`,
+    )
+    .addFields(
+      PRIVACY_SECTIONS.map((s) => ({
+        name: s.title,
+        value: truncate(`${s.body}\n• ${s.bullets.join('\n• ')}`, 1024),
+        inline: false,
+      })),
+    )
+    .setFooter({ text: methodFooterText('/privacy') })
+    .setTimestamp();
+}
+
+export function buildToolsEmbed(): EmbedBuilder {
+  const hub = sitePage('/tools');
+  const lines = TOOLS_PATHS.map((t) => `• **${t.name}** — ${sitePage(t.path)}`);
+
+  return new EmbedBuilder()
+    .setColor(0x00aeef)
+    .setTitle('🛠️ Tools Hub')
+    .setDescription(
+      `Signup research tools on the dashboard — temp-mail lists, SMS receivers, password gen, URL checker.\n\n` +
+        `**Open hub:** ${hub}`,
+    )
+    .addFields(
+      { name: 'Pages', value: truncate(lines.join('\n'), 1024), inline: false },
+      {
+        name: 'Discord shortcuts',
+        value:
+          '• `/check` — safety check a casino URL\n' +
+          '• `/blocked` — view scam/phishing list\n' +
+          '• `/search` — find casinos in the database',
+        inline: false,
+      },
+    )
+    .setFooter({ text: methodFooterText('/tools') })
+    .setTimestamp();
+}
+
+export function buildToolsButtons(): ActionRowBuilder<ButtonBuilder> {
+  return new ActionRowBuilder<ButtonBuilder>().addComponents(
+    new ButtonBuilder()
+      .setLabel('Tools Hub')
+      .setStyle(ButtonStyle.Link)
+      .setURL(sitePage('/tools')),
+    new ButtonBuilder()
+      .setLabel('URL Checker')
+      .setStyle(ButtonStyle.Link)
+      .setURL(sitePage('/tools/checker')),
+    new ButtonBuilder()
+      .setLabel('Email Tools')
+      .setStyle(ButtonStyle.Link)
+      .setURL(sitePage('/tools/email')),
+  );
+}

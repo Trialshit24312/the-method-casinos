@@ -1,0 +1,39 @@
+services:
+  - type: web
+    name: the-method-casinos
+    runtime: node
+    plan: free
+    buildCommand: npm install && npm run build:all
+    startCommand: npm run start:prod
+    healthCheckPath: /api/stats
+    # Persist SQLite database across deploys
+    disk:
+      name: method-data
+      mountPath: /opt/render/project/src/data
+      sizeGB: 1
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DISCORD_BOT_TOKEN
+        sync: false
+      - key: DISCORD_CLIENT_ID
+        sync: false
+      - key: DISCORD_CLIENT_SECRET
+        sync: false
+      - key: DISCORD_REDIRECT_URI
+        sync: false
+      - key: DISCORD_GUILD_ID
+        sync: false
+      - key: ADMIN_DISCORD_IDS
+        sync: false
+      - key: SESSION_SECRET
+        generateValue: true
+      # All-in-one: set these three to your Render URL after first deploy
+      - key: PUBLIC_SITE_URL
+        sync: false
+      - key: DASHBOARD_URL
+        sync: false
+      - key: API_URL
+        sync: false
+      - key: DISCORD_INVITE_URL
+        sync: false
