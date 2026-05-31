@@ -1,16 +1,16 @@
+# Render Blueprint — https://github.com/Trialshit24312/the-method-casinos
+# New Blueprint → connect repo → Render reads render.yaml from main.
+
 services:
   - type: web
     name: the-method-casinos
     runtime: node
     plan: free
+    region: oregon
+    branch: main
     buildCommand: npm install && npm run build:all
     startCommand: npm run start:prod
     healthCheckPath: /api/stats
-    # Persist SQLite database across deploys
-    disk:
-      name: method-data
-      mountPath: /opt/render/project/src/data
-      sizeGB: 1
     envVars:
       - key: NODE_ENV
         value: production
@@ -28,7 +28,6 @@ services:
         sync: false
       - key: SESSION_SECRET
         generateValue: true
-      # All-in-one: set these three to your Render URL after first deploy
       - key: PUBLIC_SITE_URL
         sync: false
       - key: DASHBOARD_URL
