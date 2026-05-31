@@ -29,7 +29,7 @@ import { runDiscovery } from '../discovery/engine.js';
 import { requireAuth, requireAdmin, exchangeCode, getDiscordAuthUrl, getAvatarUrl } from './auth.js';
 import type { CasinoFeature, CasinoInput, BlockedSiteInput, UrlCheckResult } from '../shared/types.js';
 import { ensureHttps } from '../shared/utils.js';
-import { getAllowedCorsOrigins, getDashboardUrl, getDiscordRedirectUri, getApiUrl } from '../shared/site.js';
+import { getAllowedCorsOrigins, getDashboardUrl, getDiscordRedirectUri, getOAuthSetupInfo } from '../shared/site.js';
 
 export function createServer(): express.Application {
   const app = express();
@@ -61,13 +61,11 @@ export function createServer(): express.Application {
 
   // Auth routes
   app.get('/auth/setup', (_req, res) => {
-    const redirectUri = getDiscordRedirectUri();
-    res.json({
-      redirectUri,
-      discordPortalHint:
-        'Discord Developer Portal → your app → OAuth2 → Redirects → add this exact URL (not just the site root)',
-      loginUrl: `${getApiUrl()}/auth/discord`,
-    });
+    res.json(getOAuthSetupInfo());
+  });
+
+  app.get('/api/oauth-setup', (_req, res) => {
+    res.json(getOAuthSetupInfo());
   });
 
   app.get('/auth/discord', (_req, res) => {
