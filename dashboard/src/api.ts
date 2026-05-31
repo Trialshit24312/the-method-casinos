@@ -1,4 +1,4 @@
-import type { Casino, Stats, User, DiscoveryResult, DiscoveryProgressEvent, BlockedSite, BlockReason, BlockSeverity, UrlCheckResult, SimilarCasinosResult, SiteReport, DiscoveryHistoryEntry } from './types';
+import type { Casino, Stats, User, DiscoveryResult, DiscoveryProgressEvent, DiscoveryLiveStats, BlockedSite, BlockReason, BlockSeverity, UrlCheckResult, SimilarCasinosResult, SiteReport, DiscoveryHistoryEntry } from './types';
 
 import { apiBaseUrl } from './lib/site';
 
@@ -57,7 +57,7 @@ export const api = {
       credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ deep, stream: true }),
-      signal: signal ?? AbortSignal.timeout(deep ? 32 * 60 * 1000 : 10 * 60 * 1000),
+      signal,
     });
 
     if (!res.ok) {
@@ -71,6 +71,20 @@ export const api = {
     const decoder = new TextDecoder();
     let buffer = '';
     let finalResult: DiscoveryResult | null = null;
+    const streamState = { lastProgress: null as DiscoveryLiveStats | null };
+
+    const parseLine = (line: string) => {
+      if (!line.trim()) return;
+      try {
+        const event = JSON.parse(line) as DiscoveryProgressEvent;
+        if (event.type === 'heartbeat') return;
+        if (event.type === 'progress') streamState.lastProgress = event.stats;
+        onEvent(event);
+        if (event.type === 'complete') finalResult = event.result;
+      } catch {
+        /* skip malformed chunk */
+      }
+    };
 
     while (true) {
       const { done, value } = await reader.read();
@@ -78,22 +92,31 @@ export const api = {
       buffer += decoder.decode(value, { stream: true });
       const lines = buffer.split('\n');
       buffer = lines.pop() ?? '';
-      for (const line of lines) {
-        if (!line.trim()) continue;
-        const event = JSON.parse(line) as DiscoveryProgressEvent;
-        onEvent(event);
-        if (event.type === 'complete') finalResult = event.result;
-      }
+      for (const line of lines) parseLine(line);
     }
 
-    if (buffer.trim()) {
-      const event = JSON.parse(buffer) as DiscoveryProgressEvent;
-      onEvent(event);
-      if (event.type === 'complete') finalResult = event.result;
+    if (buffer.trim()) parseLine(buffer);
+
+    if (finalResult) return finalResult;
+
+    const partial = streamState.lastProgress;
+    if (partial) {
+      return {
+        scanned: partial.scanned,
+        found: partial.added + partial.rejected + partial.skipped,
+        added: partial.added,
+        skipped: partial.skipped,
+        blocked: partial.blocked,
+        rejected: partial.rejected,
+        durationMs: 0,
+        sourcesChecked: partial.sourcesChecked,
+        errors: ['Connection closed before final summary — showing partial results'],
+        mode: deep ? 'deep' : 'quick',
+        addedCasinos: [],
+      };
     }
 
-    if (!finalResult) throw new Error('Discovery stream ended without result');
-    return finalResult;
+    throw new Error('Discovery stream ended without result — try again or use Quick Scan');
   },
   getBlockedSites: (q?: string) =>
     request<BlockedSite[]>(q ? `/api/blocked?q=${encodeURIComponent(q)}` : '/api/blocked'),

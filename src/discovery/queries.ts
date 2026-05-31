@@ -97,7 +97,7 @@ export function buildSearchQueries(deep: boolean): string[] {
   }
 
   const shuffled = shuffle(uniqueStrings(queries));
-  const limit = deep ? shuffled.length : Math.min(45, shuffled.length);
+  const limit = deep ? Math.min(90, shuffled.length) : Math.min(45, shuffled.length);
   return shuffled.slice(0, limit);
 }
 

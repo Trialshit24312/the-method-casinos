@@ -399,6 +399,7 @@ export async function runDiscovery(deep = false, onProgress?: DiscoveryProgressC
   let phase: DiscoveryPhase = 'search';
   let queryIndex = 0;
   const addedCasinos: { name: string; url: string }[] = [];
+  let heartbeat: ReturnType<typeof setInterval> | undefined;
 
   try {
   const knownHosts = getKnownHosts();
@@ -409,6 +410,10 @@ export async function runDiscovery(deep = false, onProgress?: DiscoveryProgressC
   const pendingFromSearch = new Set<string>();
   const curatedByHost = new Map(CURATED_DISCOVERIES.map((c) => [casinoHostKey(c.url), c]));
   const sessionHosts = new Set<string>();
+
+  heartbeat = setInterval(() => {
+    onProgress?.({ type: 'heartbeat', ts: Date.now() });
+  }, 15_000);
 
   const emitProgress = () => {
     const stats: DiscoveryLiveStats = {
@@ -668,6 +673,7 @@ export async function runDiscovery(deep = false, onProgress?: DiscoveryProgressC
     onProgress?.({ type: 'complete', result });
     return result;
   } finally {
+    if (heartbeat) clearInterval(heartbeat);
     endDiscoveryRun();
   }
 }

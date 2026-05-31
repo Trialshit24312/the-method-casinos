@@ -187,6 +187,7 @@ export type DiscoveryProgressEvent =
   | { type: 'url_added'; url: string; name: string }
   | { type: 'url_skipped'; url: string; reason: string }
   | { type: 'url_blocked'; url: string }
+  | { type: 'heartbeat'; ts: number }
   | { type: 'complete'; result: DiscoveryResult };
 
 export interface SiteReport {

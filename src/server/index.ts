@@ -37,7 +37,7 @@ import { runDiscovery } from '../discovery/engine.js';
 import { cancelDiscoveryRun, isDiscoveryRunning } from '../discovery/run-state.js';
 import { runRevalidationBatch } from '../discovery/revalidate.js';
 import { requireAuth, requireAdmin, exchangeCode, getDiscordAuthUrl, getAvatarUrl, createOAuthState, verifyOAuthState } from './auth.js';
-import type { CasinoFeature, CasinoInput, BlockedSiteInput } from '../shared/types.js';
+import type { CasinoFeature, CasinoInput, BlockedSiteInput, DiscoveryResult } from '../shared/types.js';
 import { getAllowedCorsOrigins, getDashboardUrl, getDiscordRedirectUri, getOAuthSetupInfo } from '../shared/site.js';
 import { applySecurityMiddleware } from './middleware.js';
 import { SqliteSessionStore } from './session-store.js';
@@ -347,17 +347,56 @@ export function createServer(): express.Application {
     const deep = Boolean(req.body?.deep);
     const stream = req.query.stream === '1' || Boolean(req.body?.stream);
 
+    const emptyDiscoveryResult = (errors: string[]): DiscoveryResult => ({
+      scanned: 0,
+      found: 0,
+      added: 0,
+      skipped: 0,
+      blocked: 0,
+      rejected: 0,
+      durationMs: 0,
+      sourcesChecked: 0,
+      errors,
+      mode: deep ? 'deep' : 'quick',
+      addedCasinos: [],
+    });
+
     try {
       if (stream) {
-        res.setHeader('Content-Type', 'application/x-ndjson');
-        res.setHeader('Cache-Control', 'no-cache');
+        res.setHeader('Content-Type', 'application/x-ndjson; charset=utf-8');
+        res.setHeader('Cache-Control', 'no-cache, no-transform');
         res.setHeader('Connection', 'keep-alive');
+        res.setHeader('X-Accel-Buffering', 'no');
         res.flushHeaders();
 
-        await runDiscovery(deep, (event) => {
-          res.write(`${JSON.stringify(event)}\n`);
-        });
-        res.end();
+        let completed = false;
+        const writeEvent = (event: { type: string; result?: DiscoveryResult }) => {
+          if (res.writableEnded) return;
+          try {
+            res.write(`${JSON.stringify(event)}\n`);
+            (res as typeof res & { flush?: () => void }).flush?.();
+          } catch {
+            /* client disconnected */
+          }
+          if (event.type === 'complete') completed = true;
+        };
+
+        try {
+          await runDiscovery(deep, writeEvent);
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : 'Discovery failed';
+          if (!completed) {
+            writeEvent({ type: 'complete', result: emptyDiscoveryResult([msg]) });
+          }
+        } finally {
+          if (!completed && !res.writableEnded) {
+            writeEvent({
+              type: 'complete',
+              result: emptyDiscoveryResult(['Connection closed before scan finished — partial progress may be lost']),
+            });
+          }
+          if (!res.writableEnded) res.end();
+        }
         return;
       }
 
@@ -368,9 +407,6 @@ export function createServer(): express.Application {
         res.status(500).json({ error: err instanceof Error ? err.message : 'Discovery failed' });
       } else if (!stream) {
         res.status(500).json({ error: err instanceof Error ? err.message : 'Discovery failed' });
-      } else {
-        res.write(`${JSON.stringify({ type: 'complete', result: { scanned: 0, found: 0, added: 0, skipped: 0, blocked: 0, rejected: 0, durationMs: 0, sourcesChecked: 0, errors: [err instanceof Error ? err.message : 'Discovery failed'], mode: deep ? 'deep' : 'quick', addedCasinos: [] } })}\n`);
-        res.end();
       }
     }
   });

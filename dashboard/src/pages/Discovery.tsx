@@ -165,6 +165,9 @@ export default function DiscoveryPage() {
     try {
       const res = await api.discoverStream(deep, pushLog, abortRef.current.signal);
       setResult(res);
+      if (res.errors.some((e) => e.includes('partial') || e.includes('Connection closed'))) {
+        setError('Scan ended early — partial results shown below.');
+      }
     } catch (err) {
       if (err instanceof Error && err.name === 'AbortError') {
         setError('Scan cancelled.');
@@ -253,7 +256,7 @@ export default function DiscoveryPage() {
             </div>
             <div>
               <h3 className="font-display font-semibold text-lg">Deep Scan</h3>
-              <p className="text-sm text-gray-500">~30 min · 120+ searches · 800 URL checks</p>
+              <p className="text-sm text-gray-500">~15 min · 90 searches · 800 URL checks</p>
             </div>
           </div>
           <ul className="text-xs text-gray-600 space-y-1 mb-4">
