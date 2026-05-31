@@ -70,6 +70,11 @@ export function buildWebsiteButtons(): ActionRowBuilder<ButtonBuilder>[] {
         .setURL(sitePage('/tools'))
         .setEmoji('🛠️'),
       new ButtonBuilder()
+        .setLabel('AI Assistant')
+        .setStyle(ButtonStyle.Link)
+        .setURL(sitePage('/assistant'))
+        .setEmoji('🤖'),
+      new ButtonBuilder()
         .setLabel('Terms')
         .setStyle(ButtonStyle.Link)
         .setURL(sitePage('/terms'))
@@ -215,6 +220,7 @@ export function buildToolsEmbed(): EmbedBuilder {
         name: 'Discord shortcuts',
         value:
           '• `/check` — safety check a casino URL\n' +
+          '• `/ask` — AI assistant (verified catalog only)\n' +
           '• `/blocked` — view scam/phishing list\n' +
           '• `/search` — find casinos in the database',
         inline: false,

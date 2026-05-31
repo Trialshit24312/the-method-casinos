@@ -2,6 +2,8 @@ import 'dotenv/config';
 import { initDatabase } from './database/index.js';
 import { startBot } from './bot/index.js';
 import { startServer } from './server/index.js';
+import { setupGracefulShutdown } from './shared/shutdown.js';
+import { scheduleBackgroundJobs } from './shared/scheduler.js';
 
 async function main(): Promise<void> {
   console.log('🎰 Starting The Method Casinos...\n');
@@ -9,7 +11,9 @@ async function main(): Promise<void> {
   initDatabase();
   console.log('✅ Database initialized');
 
+  setupGracefulShutdown();
   startServer();
+  scheduleBackgroundJobs();
 
   try {
     await startBot();

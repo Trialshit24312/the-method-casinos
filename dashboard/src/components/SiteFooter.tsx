@@ -13,6 +13,8 @@ export default function SiteFooter() {
         </a>
       </p>
       <div className="flex flex-wrap justify-center gap-4">
+        <Link to="/" className="text-glow hover:underline">Home</Link>
+        <Link to="/casinos" className="text-glow hover:underline">Casinos</Link>
         <Link to="/terms" className="text-glow hover:underline">
           Terms
         </Link>

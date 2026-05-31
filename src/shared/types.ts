@@ -99,6 +99,8 @@ export interface Trackable {
   value: number;
 }
 
+export type ReviewStatus = 'approved' | 'pending' | 'rejected';
+
 export interface Casino {
   id: string;
   name: string;
@@ -113,6 +115,7 @@ export interface Casino {
   rating: number;
   source: string;
   verified: boolean;
+  reviewStatus: ReviewStatus;
   active: boolean;
   createdAt: string;
   updatedAt: string;
@@ -125,6 +128,7 @@ export interface UrlCheckResult {
   blockedSite: BlockedSite | null;
   casino: Casino | null;
   safe: boolean;
+  pendingReview?: boolean;
 }
 
 export interface CasinoInput {
@@ -139,6 +143,7 @@ export interface CasinoInput {
   rating?: number;
   source?: string;
   verified?: boolean;
+  reviewStatus?: ReviewStatus;
 }
 
 export interface SearchFilters {
@@ -147,6 +152,8 @@ export interface SearchFilters {
   noPhone?: boolean;
   emailOnly?: boolean;
   verifiedOnly?: boolean;
+  pendingOnly?: boolean;
+  catalogOnly?: boolean;
   vpnAllowed?: boolean;
   limit?: number;
   offset?: number;
@@ -185,13 +192,29 @@ export type DiscoveryProgressEvent =
   | { type: 'phase'; phase: DiscoveryPhase; label: string }
   | { type: 'progress'; stats: DiscoveryLiveStats }
   | { type: 'search_query'; query: string }
-  | { type: 'search_engine'; engine: 'duckduckgo' | 'bing'; query: string }
+  | { type: 'search_engine'; engine: 'duckduckgo' | 'bing' | 'serper'; query: string }
   | { type: 'url_scanning'; url: string }
+  | { type: 'crawl_summary'; crawled: number; linksQueued: number; label: string }
   | { type: 'url_rejected'; url: string; reason: string }
   | { type: 'url_added'; url: string; name: string }
   | { type: 'url_skipped'; url: string; reason: string }
   | { type: 'url_blocked'; url: string }
   | { type: 'complete'; result: DiscoveryResult };
+
+export interface SiteReport {
+  id: string;
+  url: string;
+  reason: string;
+  reportedBy: string;
+  status: 'open' | 'reviewed' | 'dismissed';
+  createdAt: string;
+}
+
+export interface SiteReportInput {
+  url: string;
+  reason?: string;
+  reportedBy?: string;
+}
 
 export interface DashboardUser {
   id: string;
@@ -204,6 +227,8 @@ export interface DashboardUser {
 export interface Stats {
   totalCasinos: number;
   verifiedCasinos: number;
+  pendingReview: number;
+  openReports: number;
   noPhoneCasinos: number;
   emailOnlyCasinos: number;
   withSlots: number;
@@ -212,6 +237,7 @@ export interface Stats {
   vpnBlockedCasinos: number;
   blockedSites: number;
   lastDiscoveryAt: string | null;
+  staleCatalogCasinos: number;
 }
 
 export const ALL_FEATURES: CasinoFeature[] = [

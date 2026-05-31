@@ -166,6 +166,7 @@ export function buildSimilarEmbed(
 export function buildStatsEmbed(stats: {
   totalCasinos: number;
   verifiedCasinos: number;
+  pendingReview: number;
   noPhoneCasinos: number;
   emailOnlyCasinos: number;
   withSlots: number;
@@ -174,6 +175,8 @@ export function buildStatsEmbed(stats: {
   vpnBlockedCasinos: number;
   blockedSites: number;
   lastDiscoveryAt: string | null;
+  openReports?: number;
+  staleCatalogCasinos?: number;
 }): EmbedBuilder {
   return new EmbedBuilder()
     .setColor(ACCENT_GOLD)
@@ -181,6 +184,9 @@ export function buildStatsEmbed(stats: {
     .addFields(
       { name: '🎰 Total Casinos', value: `${stats.totalCasinos}`, inline: true },
       { name: '✅ Verified', value: `${stats.verifiedCasinos}`, inline: true },
+      { name: '⏳ Pending Review', value: `${stats.pendingReview ?? 0}`, inline: true },
+      { name: '📋 Open Reports', value: `${stats.openReports ?? 0}`, inline: true },
+      { name: '🕐 Stale Catalog', value: `${stats.staleCatalogCasinos ?? 0}`, inline: true },
       { name: '📵 No Phone', value: `${stats.noPhoneCasinos}`, inline: true },
       { name: '✉️ Email Only', value: `${stats.emailOnlyCasinos}`, inline: true },
       { name: '🎰 With Slots', value: `${stats.withSlots}`, inline: true },
@@ -333,9 +339,14 @@ export function buildUrlCheckEmbed(result: import('../shared/types.js').UrlCheck
   }
 
   if (result.casino) {
+    const title = result.safe
+      ? '✅ Verified Casino'
+      : result.pendingReview
+        ? '⏳ Pending Review'
+        : '⚠️ In Database (Unverified)';
     return new EmbedBuilder()
       .setColor(result.safe ? ACCENT_GREEN : ACCENT_GOLD)
-      .setTitle(result.safe ? '✅ Verified Casino' : '⚠️ In Database (Unverified)')
+      .setTitle(title)
       .setDescription(`**${result.casino.name}**`)
       .addFields(
         { name: 'Rating', value: `${result.casino.rating.toFixed(1)}/5`, inline: true },
@@ -348,7 +359,19 @@ export function buildUrlCheckEmbed(result: import('../shared/types.js').UrlCheck
     .setColor(ACCENT_GOLD)
     .setTitle('❓ Unknown URL')
     .setDescription(`${result.url}\n\nNot in database or blocklist. Proceed with caution.`)
-    .setFooter({ text: methodFooterText('Use /blocked for known scams') });
+    .setFooter({ text: methodFooterText('Use /report for suspicious URLs') });
+}
+
+export function buildAskEmbed(question: string, answer: string, provider: string): EmbedBuilder {
+  return new EmbedBuilder()
+    .setColor(BRAND_COLOR)
+    .setTitle('🤖 Casino AI')
+    .addFields(
+      { name: 'Question', value: truncate(question, 500) },
+      { name: 'Answer', value: truncate(answer, 3900) },
+    )
+    .setFooter({ text: methodFooterText(`Powered by ${provider} · verified catalog only`) })
+    .setTimestamp();
 }
 
 export function buildHelpEmbed(): EmbedBuilder {
@@ -363,10 +386,10 @@ export function buildHelpEmbed(): EmbedBuilder {
     )
     .addFields(
       { name: '🌐 Website & Legal', value: '`/website` `/dashboard` `/tools` `/terms` `/rules` `/privacy`', inline: false },
-      { name: '🔍 Search & Browse', value: '`/search` `/random` `/casino` `/similar` `/stats`', inline: false },
+      { name: '🔍 Search & Browse', value: '`/search` `/random` `/casino` `/similar` `/stats` `/ask`', inline: false },
       { name: '🏷️ Filters', value: '`/nophone` `/slots` `/live` `/vpn` `/fish` `/bingo` `/new` `/redeem`', inline: false },
-      { name: '🛡️ Safety', value: '`/check` `/blocked` — `/block` (admin)', inline: false },
-      { name: '⚙️ Admin', value: '`/discover` — quick (~4m) or deep (~15m) scan for new casinos', inline: false },
+      { name: '🛡️ Safety', value: '`/check` `/blocked` `/report` — `/block` (admin)', inline: false },
+      { name: '⚙️ Admin', value: '`/discover` `/pending` `/approve` `/reject` `/dismissreport`', inline: false },
     )
     .setFooter({ text: methodFooterText('/help') })
     .setTimestamp();

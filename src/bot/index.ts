@@ -2,16 +2,21 @@ import { Client, GatewayIntentBits, ActivityType } from 'discord.js';
 import { setupCommandHandler, registerSlashCommands } from './commands.js';
 import { getStats } from '../database/index.js';
 import { getPublicSiteUrl } from '../shared/site.js';
+import { setBotClient, setBotReady } from './state.js';
+import { registerBotForShutdown } from '../shared/shutdown.js';
 
 export async function startBot(): Promise<Client> {
   const token = process.env.DISCORD_BOT_TOKEN;
   if (!token) throw new Error('DISCORD_BOT_TOKEN is required');
 
   const client = new Client({ intents: [GatewayIntentBits.Guilds] });
+  setBotClient(client);
+  registerBotForShutdown(client);
 
   setupCommandHandler(client);
 
   client.once('clientReady', async () => {
+    setBotReady(true);
     console.log(`🤖 Bot logged in as ${client.user?.tag}`);
 
     const stats = getStats();

@@ -4,7 +4,7 @@ import {
   Radar, Zap, CheckCircle, SkipForward, AlertTriangle, Clock, Search, Globe, Ban, XCircle, Terminal, StopCircle,
 } from 'lucide-react';
 import { api } from '../api';
-import type { DiscoveryResult, DiscoveryProgressEvent, DiscoveryLiveStats, Stats } from '../types';
+import type { DiscoveryResult, DiscoveryProgressEvent, DiscoveryLiveStats, Stats, DiscoveryHistoryEntry } from '../types';
 import PageHeader from '../components/PageHeader';
 import { useAuth } from '../context/AuthContext';
 
@@ -22,15 +22,15 @@ function formatElapsed(seconds: number): string {
 
 function shortUrl(url: string): string {
   try {
-    return new URL(url).hostname.replace(/^www\./, '');
+    return new URL(url.includes('://') ? url : `https://${url}`).hostname.replace(/^www\./, '');
   } catch {
-    return url.slice(0, 40);
+    return url.replace(/^www\./, '').split('/')[0].slice(0, 40);
   }
 }
 
 const PHASE_LABELS: Record<string, string> = {
   curated: 'Syncing verified catalog',
-  search: 'Searching DuckDuckGo + Bing',
+  search: 'Searching the web',
   analyze: 'Validating sweepstakes pages',
   crawl: 'Crawling related links',
 };
@@ -48,17 +48,25 @@ function eventToLog(event: DiscoveryProgressEvent): LogEntry | null {
       return { id: Date.now(), type: event.type, message: `▸ ${event.label}`, tone: 'info' };
     case 'search_query':
       return { id: Date.now(), type: event.type, message: `Searching: "${event.query}"`, tone: 'info' };
-    case 'search_engine':
+    case 'search_engine': {
+      const engineLabel = event.engine === 'serper'
+        ? 'Serper'
+        : event.engine === 'duckduckgo'
+          ? 'DuckDuckGo'
+          : 'Bing';
       return {
         id: Date.now(),
         type: event.type,
-        message: `${event.engine === 'duckduckgo' ? 'DuckDuckGo' : 'Bing'} → ${event.query.slice(0, 50)}…`,
+        message: `${engineLabel} → ${event.query.slice(0, 50)}…`,
         tone: 'muted',
       };
+    }
     case 'url_scanning':
       return { id: Date.now(), type: event.type, message: `Scanning ${shortUrl(event.url)}`, tone: 'info' };
+    case 'crawl_summary':
+      return { id: Date.now(), type: event.type, message: `▸ ${event.label}`, tone: 'muted' };
     case 'url_added':
-      return { id: Date.now(), type: event.type, message: `✓ Added ${event.name} (${shortUrl(event.url)})`, tone: 'success' };
+      return { id: Date.now(), type: event.type, message: `✓ Queued for review: ${event.name} (${shortUrl(event.url)})`, tone: 'success' };
     case 'url_rejected':
       return { id: Date.now(), type: event.type, message: `✗ Rejected ${shortUrl(event.url)} — ${event.reason}`, tone: 'warn' };
     case 'url_skipped':
@@ -94,6 +102,7 @@ export default function DiscoveryPage() {
   const [liveStats, setLiveStats] = useState<DiscoveryLiveStats>(emptyStats);
   const [phaseLabel, setPhaseLabel] = useState('');
   const [dbStats, setDbStats] = useState<Stats | null>(null);
+  const [history, setHistory] = useState<DiscoveryHistoryEntry[]>([]);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const logRef = useRef<HTMLDivElement>(null);
   const logIdRef = useRef(0);
@@ -104,6 +113,7 @@ export default function DiscoveryPage() {
 
   useEffect(() => {
     api.getStats().then(setDbStats).catch(() => {});
+    api.getDiscoveryHistory(10).then(setHistory).catch(() => {});
   }, [result]);
 
   useEffect(() => {
@@ -138,6 +148,7 @@ export default function DiscoveryPage() {
 
   const cancelScan = () => {
     abortRef.current?.abort();
+    void api.cancelDiscovery().catch(() => {});
   };
 
   const runScan = async (deep: boolean) => {
@@ -147,7 +158,7 @@ export default function DiscoveryPage() {
     setError('');
     setResult(null);
     setActivityLog([]);
-    setLiveStats({ ...emptyStats(), queryTotal: deep ? 17 : 8 });
+    setLiveStats({ ...emptyStats(), queryTotal: 0 });
     setPhaseLabel('Starting…');
 
     abortRef.current = new AbortController();
@@ -192,6 +203,9 @@ export default function DiscoveryPage() {
       {dbStats && (
         <p className="text-xs text-gray-500 mb-6 text-center">
           Database: {dbStats.totalCasinos} casinos ({dbStats.verifiedCasinos} verified)
+          {(dbStats.staleCatalogCasinos ?? 0) > 0 && (
+            <> · <span className="text-orange-400">{dbStats.staleCatalogCasinos} stale (90d+)</span></>
+          )}
           {dbStats.lastDiscoveryAt && (
             <> · Last scan: {new Date(dbStats.lastDiscoveryAt).toLocaleString()}</>
           )}
@@ -398,9 +412,78 @@ export default function DiscoveryPage() {
         </motion.div>
       )}
 
-      {!user?.isAdmin && (
-        <p className="text-sm text-gray-600 text-center mt-6">Admin access required to run scans</p>
+      {history.length > 0 && (
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="glass-glow p-6 mt-8">
+          <h3 className="font-display font-semibold mb-3">Recent discovery runs</h3>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm text-left">
+              <thead>
+                <tr className="text-gray-500 text-xs border-b border-surface-border">
+                  <th className="py-2 pr-4">When</th>
+                  <th className="py-2 pr-4">Mode</th>
+                  <th className="py-2 pr-4">Added</th>
+                  <th className="py-2 pr-4">Rejected</th>
+                  <th className="py-2">Duration</th>
+                </tr>
+              </thead>
+              <tbody>
+                {history.map((h) => (
+                  <tr key={h.id} className="border-b border-surface-border/40 text-gray-300">
+                    <td className="py-2 pr-4 text-xs">{new Date(h.ranAt).toLocaleString()}</td>
+                    <td className="py-2 pr-4 capitalize">{h.mode}</td>
+                    <td className="py-2 pr-4 text-accent-green">{h.added}</td>
+                    <td className="py-2 pr-4 text-amber-400">{h.rejected}</td>
+                    <td className="py-2 text-xs text-gray-500">{formatDuration(h.durationMs)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </motion.div>
       )}
+
+      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="glass-glow p-6 mt-8">
+        <h3 className="font-display font-semibold mb-3">Admin tools</h3>
+        <p className="text-xs text-gray-500 mb-4">
+          New discoveries go to the <a href="/review" className="text-glow hover:underline">review queue</a> before appearing in the public catalog.
+        </p>
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            className="btn-secondary text-sm"
+            onClick={async () => {
+              if (!confirm('Re-check up to 10 stale verified casinos (homepage fetch)?')) return;
+              const r = await api.revalidateCatalog(10);
+              alert(`Revalidated ${r.passed}/${r.checked} OK (${r.failed} failed)`);
+              api.getStats().then(setDbStats).catch(() => {});
+            }}
+          >
+            Revalidate stale catalog
+          </button>
+          <button
+            type="button"
+            className="btn-secondary text-sm"
+            onClick={async () => {
+              if (!confirm('Clear discovery memory? Next scan will re-check previously rejected hosts.')) return;
+              await api.clearDiscoverySeen();
+              alert('Discovery memory cleared.');
+            }}
+          >
+            Clear discovery memory
+          </button>
+          <button
+            type="button"
+            className="btn-secondary text-sm text-accent-red border-accent-red/30"
+            onClick={async () => {
+              if (!confirm('Reset catalog to verified seeds only? Pending discoveries will be removed. Blocklist is kept.')) return;
+              const r = await api.resetCatalog();
+              alert(`Reset complete: ${r.casinosAdded} verified casinos loaded.`);
+            }}
+          >
+            Reset to verified catalog
+          </button>
+        </div>
+      </motion.div>
     </div>
   );
 }

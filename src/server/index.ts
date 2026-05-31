@@ -19,17 +19,34 @@ import {
   deleteBlockedSite,
   isUrlBlocked,
   getCasinoByUrl,
-  getBlockedSiteByUrl,
   findSimilarCasinos,
   findSimilarCasinosByQuery,
   resetCatalogToVerified,
   clearDiscoverySeen,
+  getPendingCasinos,
+  approveCasino,
+  rejectCasino,
+  addSiteReport,
+  getOpenSiteReports,
+  dismissSiteReport,
+  markSiteReportReviewed,
+  getDiscoveryHistory,
+  getDatabase,
 } from '../database/index.js';
 import { runDiscovery } from '../discovery/engine.js';
+import { cancelDiscoveryRun, isDiscoveryRunning } from '../discovery/run-state.js';
+import { runRevalidationBatch } from '../discovery/revalidate.js';
 import { requireAuth, requireAdmin, exchangeCode, getDiscordAuthUrl, getAvatarUrl, createOAuthState, verifyOAuthState } from './auth.js';
-import type { CasinoFeature, CasinoInput, BlockedSiteInput, UrlCheckResult } from '../shared/types.js';
-import { ensureHttps } from '../shared/utils.js';
+import type { CasinoFeature, CasinoInput, BlockedSiteInput } from '../shared/types.js';
 import { getAllowedCorsOrigins, getDashboardUrl, getDiscordRedirectUri, getOAuthSetupInfo } from '../shared/site.js';
+import { applySecurityMiddleware } from './middleware.js';
+import { SqliteSessionStore } from './session-store.js';
+import { getBotHealth } from '../bot/state.js';
+import { registerHttpServer } from '../shared/shutdown.js';
+import { askCasinoAssistant, getAiProvider, isAiConfigured } from '../ai/assistant.js';
+import { notifySiteReport, notifyCasinoApproved } from '../shared/notify.js';
+import { checkCasinoUrl } from '../shared/url-check.js';
+import { isSerperEnabled } from '../discovery/serper.js';
 
 export function createServer(): express.Application {
   const app = express();
@@ -51,8 +68,10 @@ export function createServer(): express.Application {
   }));
   app.use(express.json());
   app.use(cookieParser());
+  applySecurityMiddleware(app);
   app.use(session({
     secret: process.env.SESSION_SECRET || 'dev-secret-change-me',
+    store: new SqliteSessionStore(),
     resave: false,
     saveUninitialized: false,
     cookie: {
@@ -62,6 +81,30 @@ export function createServer(): express.Application {
       sameSite: 'lax',
     },
   }));
+
+  app.get('/health', (_req, res) => {
+    try {
+      getDatabase().prepare('SELECT 1').get();
+      const bot = getBotHealth();
+      const stats = getStats();
+      res.json({
+        ok: true,
+        db: true,
+        bot: bot.connected,
+        botTag: bot.tag,
+        discoveryRunning: isDiscoveryRunning(),
+        serper: isSerperEnabled(),
+        ai: isAiConfigured(),
+        aiProvider: getAiProvider(),
+        pendingReview: stats.pendingReview,
+        openReports: stats.openReports,
+        staleCatalog: stats.staleCatalogCasinos,
+        uptime: process.uptime(),
+      });
+    } catch {
+      res.status(503).json({ ok: false, db: false });
+    }
+  });
 
   // Auth routes
   app.get('/auth/setup', (_req, res) => {
@@ -98,7 +141,7 @@ export function createServer(): express.Application {
           res.redirect(`${getDashboardUrl()}/login?error=auth_failed`);
           return;
         }
-        res.redirect(getDashboardUrl());
+        res.redirect(`${getDashboardUrl()}/dashboard`);
       });
     } catch {
       res.redirect(`${getDashboardUrl()}/login?error=auth_failed`);
@@ -129,17 +172,77 @@ export function createServer(): express.Application {
     res.json(getStats());
   });
 
+  app.get('/api/ai/status', (_req, res) => {
+    res.json({
+      available: isAiConfigured(),
+      provider: getAiProvider(),
+    });
+  });
+
+  app.post('/api/ask', async (req, res) => {
+    const query = req.body?.query as string | undefined;
+    const history = req.body?.history as { role: 'user' | 'assistant'; content: string }[] | undefined;
+    if (!query?.trim()) {
+      res.status(400).json({ error: 'query required' });
+      return;
+    }
+    try {
+      const result = await askCasinoAssistant(query, history);
+      res.json(result);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'AI request failed';
+      const status = message.includes('not configured') ? 503 : 500;
+      res.status(status).json({ error: message });
+    }
+  });
+
   app.get('/api/casinos', (req, res) => {
     const query = req.query.q as string | undefined;
     const features = req.query.features
       ? (req.query.features as string).split(',') as CasinoFeature[]
       : undefined;
+    const includeAll = req.query.all === '1';
+    const isAdmin = Boolean(req.session.user?.isAdmin);
+    const parsedLimit = parseInt(String(req.query.limit ?? ''), 10);
+    const limit = Number.isFinite(parsedLimit)
+      ? Math.min(500, Math.max(1, parsedLimit))
+      : 500;
+
+    const filters = {
+      query,
+      features,
+      limit,
+      catalogOnly: !includeAll || !isAdmin,
+    };
 
     const casinos = query || features
-      ? searchCasinos({ query, features, limit: 100 })
-      : getAllCasinos();
+      ? searchCasinos(filters)
+      : (includeAll && isAdmin ? getAllCasinos(false) : getAllCasinos(true));
 
     res.json(casinos);
+  });
+
+  app.get('/api/casinos/pending', requireAuth, requireAdmin, (_req, res) => {
+    res.json(getPendingCasinos());
+  });
+
+  app.post('/api/casinos/:id/approve', requireAuth, requireAdmin, (req, res) => {
+    const approved = approveCasino(String(req.params.id), req.session.user?.username);
+    if (!approved) {
+      res.status(404).json({ error: 'Not found' });
+      return;
+    }
+    void notifyCasinoApproved(approved, req.session.user?.username ?? 'admin');
+    res.json(approved);
+  });
+
+  app.post('/api/casinos/:id/reject', requireAuth, requireAdmin, (req, res) => {
+    const rejected = rejectCasino(String(req.params.id));
+    if (!rejected) {
+      res.status(404).json({ error: 'Not found' });
+      return;
+    }
+    res.json({ ok: true });
   });
 
   app.get('/api/similar', (req, res) => {
@@ -219,6 +322,15 @@ export function createServer(): express.Application {
     res.json({ ok: true });
   });
 
+  app.post('/api/discover/cancel', requireAuth, requireAdmin, (_req, res) => {
+    res.json({ cancelled: cancelDiscoveryRun() });
+  });
+
+  app.get('/api/discovery/history', requireAuth, requireAdmin, (req, res) => {
+    const limit = Math.min(50, Math.max(1, parseInt(String(req.query.limit ?? '15'), 10) || 15));
+    res.json(getDiscoveryHistory(limit));
+  });
+
   app.post('/api/discover', requireAuth, requireAdmin, async (req, res) => {
     req.setTimeout(35 * 60 * 1000);
     res.setTimeout(35 * 60 * 1000);
@@ -254,6 +366,54 @@ export function createServer(): express.Application {
     }
   });
 
+  app.post('/api/report', (req, res) => {
+    const url = req.body?.url as string | undefined;
+    if (!url?.trim()) {
+      res.status(400).json({ error: 'URL required' });
+      return;
+    }
+    const report = addSiteReport({
+      url: url.trim(),
+      reason: req.body?.reason as string | undefined,
+      reportedBy: req.session.user?.username ?? 'web',
+    });
+    void notifySiteReport(report);
+    res.status(201).json(report);
+  });
+
+  app.get('/api/reports', requireAuth, requireAdmin, (_req, res) => {
+    res.json(getOpenSiteReports());
+  });
+
+  app.post('/api/reports/:id/dismiss', requireAuth, requireAdmin, (req, res) => {
+    const ok = dismissSiteReport(String(req.params.id));
+    if (!ok) {
+      res.status(404).json({ error: 'Not found' });
+      return;
+    }
+    res.json({ ok: true });
+  });
+
+  app.post('/api/reports/:id/block', requireAuth, requireAdmin, (req, res) => {
+    const reports = getOpenSiteReports();
+    const report = reports.find((r) => r.id === String(req.params.id));
+    if (!report) {
+      res.status(404).json({ error: 'Report not found' });
+      return;
+    }
+    const site = addBlockedSite({
+      name: report.url.replace(/^https?:\/\//, '').slice(0, 60),
+      url: report.url,
+      reason: 'scam',
+      severity: 'high',
+      description: report.reason,
+      reportedBy: report.reportedBy,
+      removeCasino: true,
+    });
+    markSiteReportReviewed(String(req.params.id));
+    res.json({ ok: true, blockedSite: site });
+  });
+
   app.get('/api/blocked', (req, res) => {
     const query = req.query.q as string | undefined;
     res.json(query ? searchBlockedSites(query) : getAllBlockedSites());
@@ -274,18 +434,7 @@ export function createServer(): express.Application {
       res.status(400).json({ error: 'URL required' });
       return;
     }
-    const url = ensureHttps(raw.trim());
-    const blockedSite = getBlockedSiteByUrl(url);
-    const casino = getCasinoByUrl(url);
-    const blocked = Boolean(blockedSite) || isUrlBlocked(url);
-    const result: UrlCheckResult = {
-      url,
-      blocked,
-      blockedSite,
-      casino,
-      safe: !blocked && Boolean(casino?.verified),
-    };
-    res.json(result);
+    res.json(checkCasinoUrl(raw));
   });
 
   app.get('/api/blocked/:id', (req, res) => {
@@ -329,8 +478,9 @@ export function createServer(): express.Application {
     res.json({ ok: true });
   });
 
-  app.post('/api/admin/reset-catalog', requireAuth, requireAdmin, (_req, res) => {
-    const result = resetCatalogToVerified();
+  app.post('/api/admin/reset-catalog', requireAuth, requireAdmin, (req, res) => {
+    const preserveBlocklist = req.body?.preserveBlocklist !== false;
+    const result = resetCatalogToVerified({ preserveBlocklist });
     res.json(result);
   });
 
@@ -339,7 +489,17 @@ export function createServer(): express.Application {
     res.json({ cleared });
   });
 
-  // Serve dashboard in production (skip in dev — Vite handles frontend)
+  app.post('/api/admin/revalidate', requireAuth, requireAdmin, async (req, res) => {
+    const limit = Math.min(25, Math.max(1, parseInt(String(req.body?.limit ?? '10'), 10) || 10));
+    try {
+      const result = await runRevalidationBatch(limit);
+      res.json(result);
+    } catch (err) {
+      res.status(500).json({ error: err instanceof Error ? err.message : 'Revalidation failed' });
+    }
+  });
+
+  // Serve dashboard in production
   if (process.env.NODE_ENV === 'production') {
     const dashboardDist = path.join(process.cwd(), 'dashboard', 'dist');
     app.use(express.static(dashboardDist));
@@ -357,9 +517,10 @@ export function createServer(): express.Application {
 export function startServer(): void {
   const port = Number(process.env.PORT) || 3847;
   const app = createServer();
-  app.listen(port, () => {
+  const server = app.listen(port, () => {
     console.log(`🌐 API + Dashboard server running on http://localhost:${port}`);
     console.log(`🔐 Discord OAuth redirect URI: ${getDiscordRedirectUri()}`);
     console.log(`   Add this exact URL in Discord Developer Portal → OAuth2 → Redirects`);
   });
+  registerHttpServer(server);
 }

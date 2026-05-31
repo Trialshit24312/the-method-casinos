@@ -9,12 +9,13 @@ import {
   Sparkles,
   Radio,
   Shield,
-  ShieldOff,
   Radar,
   Wrench,
   Ban,
   BookOpen,
   Star,
+  Clock,
+  Flag,
 } from 'lucide-react';
 import { api } from '../api';
 import type { Stats, Casino } from '../types';
@@ -33,23 +34,52 @@ export default function DashboardPage() {
     api.getCasinos().then((all) => setTopCasinos(all.slice(0, 6))).catch(console.error);
   }, []);
 
+  const greeting = user ? `Welcome, ${user.username}` : 'The Method Casinos';
+
   return (
     <div className="p-8 max-w-7xl mx-auto">
       <PageHeader
-        title={`Welcome back, ${user?.username}`}
-        subtitle="Your sweepstakes casino command center — browse, discover, and signup with the right tools"
+        title={greeting}
+        subtitle="Verified US sweepstakes casinos — browse, compare, and check URLs before you sign up"
       />
+
+      {user?.isAdmin && stats && (stats.pendingReview > 0 || (stats.openReports ?? 0) > 0) && (
+        <motion.div
+          initial={{ opacity: 0, y: -8 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="mb-6 p-4 rounded-xl border border-amber-500/30 bg-amber-500/10 flex flex-wrap items-center justify-between gap-3"
+        >
+          <p className="text-sm text-amber-200">
+            <Flag className="w-4 h-4 inline mr-1.5 -mt-0.5" />
+            {stats.pendingReview > 0 && (
+              <span>{stats.pendingReview} casino{stats.pendingReview === 1 ? '' : 's'} awaiting review</span>
+            )}
+            {stats.pendingReview > 0 && (stats.openReports ?? 0) > 0 && ' · '}
+            {(stats.openReports ?? 0) > 0 && (
+              <span>{stats.openReports} open user report{(stats.openReports ?? 0) === 1 ? '' : 's'}</span>
+            )}
+          </p>
+          <Link to="/review" className="text-sm text-glow hover:underline font-medium">
+            Open review queue →
+          </Link>
+        </motion.div>
+      )}
 
       {stats && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-          <StatCard label="Total Casinos" value={stats.totalCasinos} icon={Dices} color="bg-[#b87333]/20 text-[#d4956a]" delay={0} />
-          <StatCard label="Verified" value={stats.verifiedCasinos} icon={ShieldCheck} color="bg-emerald-500/20 text-emerald-300" delay={0.05} />
+          <StatCard label="Verified Catalog" value={stats.verifiedCasinos} icon={ShieldCheck} color="bg-emerald-500/20 text-emerald-300" delay={0} />
+          {user?.isAdmin && (
+            <StatCard label="Pending Review" value={stats.pendingReview} icon={Clock} color="bg-amber-500/20 text-amber-300" delay={0.05} />
+          )}
+          {user?.isAdmin && (stats.staleCatalogCasinos ?? 0) > 0 && (
+            <StatCard label="Stale Catalog (90d+)" value={stats.staleCatalogCasinos ?? 0} icon={Clock} color="bg-orange-500/20 text-orange-300" delay={0.06} />
+          )}
           <StatCard label="No Phone Required" value={stats.noPhoneCasinos} icon={PhoneOff} color="bg-[#00aeef]/20 text-[#00aeef]" delay={0.1} />
           <StatCard label="Email Only Signup" value={stats.emailOnlyCasinos} icon={Mail} color="bg-violet-500/20 text-violet-300" delay={0.15} />
           <StatCard label="With Slots" value={stats.withSlots} icon={Sparkles} color="bg-amber-500/20 text-amber-300" delay={0.2} />
           <StatCard label="Live Games" value={stats.withLiveGames} icon={Radio} color="bg-rose-500/20 text-rose-300" delay={0.25} />
           <StatCard label="VPN Allowed" value={stats.vpnAllowedCasinos} icon={Shield} color="bg-emerald-500/20 text-emerald-300" delay={0.3} />
-          <StatCard label="Blocked Sites" value={stats.blockedSites} icon={Ban} color="bg-red-500/20 text-red-400" delay={0.35} />
+          <StatCard label="Blocked Scams" value={stats.blockedSites} icon={Ban} color="bg-red-500/20 text-red-400" delay={0.35} />
         </div>
       )}
 
@@ -78,16 +108,16 @@ export default function DashboardPage() {
         <h2 className="font-display font-semibold text-lg mb-4 text-white">Quick Start</h2>
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
           {[
-            { title: 'Browse Casinos', desc: 'Filter by VPN, payout, KYC, and more.', path: '/casinos', icon: Dices, accent: 'border-[#b87333]/30 hover:border-[#b87333]/60' },
+            { title: 'Browse Casinos', desc: 'Verified catalog — filter by VPN, slots, email-only.', path: '/casinos', icon: Dices, accent: 'border-[#b87333]/30 hover:border-[#b87333]/60' },
             { title: 'Similar Casinos', desc: 'Pick a casino — find alike sites by features.', path: '/similar', icon: Sparkles, accent: 'border-[#00aeef]/30 hover:border-[#00aeef]/60' },
-            { title: 'The Method Guides', desc: 'Step-by-step signup & safety workflows.', path: '/guides', icon: BookOpen, accent: 'border-[#b87333]/30 hover:border-[#b87333]/60' },
             { title: 'URL Safety Checker', desc: 'Check if a link is safe before visiting.', path: '/tools/checker', icon: ShieldCheck, accent: 'border-emerald-500/30 hover:border-emerald-500/60' },
-            { title: 'Run Discovery', desc: 'Quick (~3 min) or deep (~12 min) scan for new sites.', path: '/discovery', icon: Radar, accent: 'border-[#00aeef]/30 hover:border-[#00aeef]/60' },
-            { title: 'Blocked Sites', desc: 'Scam, phishing, and dangerous URLs — auto-blocked.', path: '/blocked', icon: Ban, accent: 'border-red-500/30 hover:border-red-500/60' },
+            { title: 'The Method Guides', desc: 'Step-by-step signup & safety workflows.', path: '/guides', icon: BookOpen, accent: 'border-[#b87333]/30 hover:border-[#b87333]/60' },
+            { title: 'Blocked Sites', desc: 'Scam, phishing, and dangerous URLs.', path: '/blocked', icon: Ban, accent: 'border-red-500/30 hover:border-red-500/60' },
             { title: 'Tools Hub', desc: 'Temp mail, SMS, passwords, and more.', path: '/tools', icon: Wrench, accent: 'border-[#00aeef]/30 hover:border-[#00aeef]/60' },
-            { title: 'Email Tools', desc: 'Working temp-mail links + identity generator.', path: '/tools/email', icon: Mail, accent: 'border-[#00aeef]/30 hover:border-[#00aeef]/60' },
-            { title: 'Password Generator', desc: 'Strong unique passwords per casino.', path: '/tools/password', icon: ShieldOff, accent: 'border-[#b87333]/30 hover:border-[#b87333]/60' },
-            { title: 'Phone Tools', desc: 'SMS receiver websites for OTP when needed.', path: '/tools/phone', icon: PhoneOff, accent: 'border-[#b87333]/30 hover:border-[#b87333]/60' },
+            ...(user?.isAdmin ? [
+              { title: 'Run Discovery', desc: 'Quick (~8 min) or deep (~30 min) scan — results go to review.', path: '/discovery', icon: Radar, accent: 'border-[#00aeef]/30 hover:border-[#00aeef]/60' },
+              { title: 'Review Queue', desc: 'Approve discoveries and user reports.', path: '/review', icon: Flag, accent: 'border-amber-500/30 hover:border-amber-500/60' },
+            ] : []),
           ].map((item, i) => (
             <motion.div
               key={item.title}

@@ -2,9 +2,12 @@ import { Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import Layout from './components/Layout';
 import Login from './pages/Login';
+import Landing from './pages/Landing';
 import Dashboard from './pages/Dashboard';
 import Casinos from './pages/Casinos';
 import Discovery from './pages/Discovery';
+import ReviewQueue from './pages/ReviewQueue';
+import Assistant from './pages/Assistant';
 import ToolsHub from './pages/tools/ToolsHub';
 import EmailGenerator from './pages/tools/EmailGenerator';
 import PhoneGenerator from './pages/tools/PhoneGenerator';
@@ -18,19 +21,16 @@ import SimilarCasinos from './pages/SimilarCasinos';
 import Privacy from './pages/Privacy';
 import PublicLayout from './components/PublicLayout';
 
-function ProtectedRoute({ children }: { children: React.ReactNode }) {
+function AdminRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
-
   if (loading) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center app-background">
-        <img src="/logo.png" alt="" className="w-16 h-16 mb-4 opacity-80 animate-pulse" />
+      <div className="min-h-screen flex items-center justify-center app-background">
         <div className="w-8 h-8 border-2 border-glow border-t-transparent rounded-full animate-spin" />
       </div>
     );
   }
-
-  if (!user) return <Navigate to="/login" replace />;
+  if (!user?.isAdmin) return <Navigate to="/login" replace />;
   return <>{children}</>;
 }
 
@@ -38,31 +38,27 @@ export default function App() {
   return (
     <AuthProvider>
       <Routes>
+        <Route path="/" element={<Landing />} />
         <Route path="/login" element={<Login />} />
         <Route element={<PublicLayout />}>
           <Route path="/terms" element={<Terms />} />
           <Route path="/rules" element={<Rules />} />
           <Route path="/privacy" element={<Privacy />} />
         </Route>
-        <Route
-          path="/"
-          element={
-            <ProtectedRoute>
-              <Layout />
-            </ProtectedRoute>
-          }
-        >
-          <Route index element={<Dashboard />} />
-          <Route path="casinos" element={<Casinos />} />
-          <Route path="similar" element={<SimilarCasinos />} />
-          <Route path="discovery" element={<Discovery />} />
-          <Route path="blocked" element={<BlockedSites />} />
-          <Route path="guides" element={<Guides />} />
-          <Route path="tools" element={<ToolsHub />} />
-          <Route path="tools/email" element={<EmailGenerator />} />
-          <Route path="tools/phone" element={<PhoneGenerator />} />
-          <Route path="tools/password" element={<PasswordGenerator />} />
-          <Route path="tools/checker" element={<UrlChecker />} />
+        <Route element={<Layout />}>
+          <Route path="/dashboard" element={<Dashboard />} />
+          <Route path="/casinos" element={<Casinos />} />
+          <Route path="/similar" element={<SimilarCasinos />} />
+          <Route path="/assistant" element={<Assistant />} />
+          <Route path="/blocked" element={<BlockedSites />} />
+          <Route path="/guides" element={<Guides />} />
+          <Route path="/tools" element={<ToolsHub />} />
+          <Route path="/tools/email" element={<EmailGenerator />} />
+          <Route path="/tools/phone" element={<PhoneGenerator />} />
+          <Route path="/tools/password" element={<PasswordGenerator />} />
+          <Route path="/tools/checker" element={<UrlChecker />} />
+          <Route path="/discovery" element={<AdminRoute><Discovery /></AdminRoute>} />
+          <Route path="/review" element={<AdminRoute><ReviewQueue /></AdminRoute>} />
         </Route>
       </Routes>
     </AuthProvider>

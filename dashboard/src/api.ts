@@ -1,4 +1,4 @@
-import type { Casino, Stats, User, DiscoveryResult, DiscoveryProgressEvent, BlockedSite, BlockReason, BlockSeverity, UrlCheckResult, SimilarCasinosResult } from './types';
+import type { Casino, Stats, User, DiscoveryResult, DiscoveryProgressEvent, BlockedSite, BlockReason, BlockSeverity, UrlCheckResult, SimilarCasinosResult, SiteReport, DiscoveryHistoryEntry } from './types';
 
 import { apiBaseUrl } from './lib/site';
 
@@ -23,8 +23,10 @@ export const api = {
   getMe: () => request<{ user: User | null }>('/auth/me'),
   logout: () => request<{ ok: boolean }>('/auth/logout', { method: 'POST' }),
   getStats: () => request<Stats>('/api/stats'),
-  getCasinos: (q?: string) =>
-    request<Casino[]>(q ? `/api/casinos?q=${encodeURIComponent(q)}` : '/api/casinos'),
+  getCasinos: (q?: string, all?: boolean) =>
+    request<Casino[]>(
+      all ? `/api/casinos?all=1${q ? `&q=${encodeURIComponent(q)}` : ''}` : (q ? `/api/casinos?q=${encodeURIComponent(q)}` : '/api/casinos'),
+    ),
   getCasino: (id: string) => request<Casino>(`/api/casinos/${id}`),
   getSimilar: (opts: { casinoId?: string; q?: string; limit?: number }) => {
     const params = new URLSearchParams();
@@ -110,4 +112,38 @@ export const api = {
   deleteBlockedSite: (id: string) =>
     request<{ ok: boolean }>(`/api/blocked/${id}`, { method: 'DELETE' }),
   loginUrl: () => `${API}/auth/discord`,
+  cancelDiscovery: () =>
+    request<{ cancelled: boolean }>('/api/discover/cancel', { method: 'POST' }),
+  getPendingCasinos: () => request<Casino[]>('/api/casinos/pending'),
+  approveCasino: (id: string) =>
+    request<Casino>(`/api/casinos/${id}/approve`, { method: 'POST' }),
+  rejectCasino: (id: string) =>
+    request<{ ok: boolean }>(`/api/casinos/${id}/reject`, { method: 'POST' }),
+  resetCatalog: (preserveBlocklist = true) =>
+    request<{ casinosRemoved: number; blockedRemoved: number; casinosAdded: number }>(
+      '/api/admin/reset-catalog',
+      { method: 'POST', body: JSON.stringify({ preserveBlocklist }) },
+    ),
+  clearDiscoverySeen: () =>
+    request<{ cleared: number }>('/api/admin/clear-discovery-seen', { method: 'POST' }),
+  reportUrl: (url: string, reason?: string) =>
+    request<{ id: string }>('/api/report', { method: 'POST', body: JSON.stringify({ url, reason }) }),
+  getReports: () => request<SiteReport[]>('/api/reports'),
+  dismissReport: (id: string) =>
+    request<{ ok: boolean }>(`/api/reports/${id}/dismiss`, { method: 'POST' }),
+  blockFromReport: (id: string) =>
+    request<{ ok: boolean }>(`/api/reports/${id}/block`, { method: 'POST' }),
+  getAiStatus: () => request<{ available: boolean; provider: string }>('/api/ai/status'),
+  askAi: (query: string, history?: { role: 'user' | 'assistant'; content: string }[]) =>
+    request<{ answer: string; provider: string }>('/api/ask', {
+      method: 'POST',
+      body: JSON.stringify({ query, history }),
+    }),
+  getDiscoveryHistory: (limit = 15) =>
+    request<DiscoveryHistoryEntry[]>(`/api/discovery/history?limit=${limit}`),
+  revalidateCatalog: (limit = 10) =>
+    request<{ checked: number; passed: number; failed: number }>('/api/admin/revalidate', {
+      method: 'POST',
+      body: JSON.stringify({ limit }),
+    }),
 };

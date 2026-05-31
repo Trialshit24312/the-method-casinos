@@ -88,9 +88,11 @@ export interface Casino {
   rating: number;
   source: string;
   verified: boolean;
+  reviewStatus?: 'approved' | 'pending' | 'rejected';
   active: boolean;
   createdAt: string;
   updatedAt: string;
+  lastCheckedAt?: string | null;
 }
 
 export interface BlockedSite {
@@ -107,9 +109,24 @@ export interface BlockedSite {
   updatedAt: string;
 }
 
+export interface DiscoveryHistoryEntry {
+  id: number;
+  ranAt: string;
+  found: number;
+  added: number;
+  skipped: number;
+  rejected: number;
+  blocked: number;
+  mode: string;
+  durationMs: number;
+  errors: string[];
+}
+
 export interface Stats {
   totalCasinos: number;
   verifiedCasinos: number;
+  pendingReview: number;
+  openReports: number;
   noPhoneCasinos: number;
   emailOnlyCasinos: number;
   withSlots: number;
@@ -118,6 +135,7 @@ export interface Stats {
   vpnBlockedCasinos: number;
   blockedSites: number;
   lastDiscoveryAt: string | null;
+  staleCatalogCasinos?: number;
 }
 
 export interface User {
@@ -162,13 +180,23 @@ export type DiscoveryProgressEvent =
   | { type: 'phase'; phase: DiscoveryPhase; label: string }
   | { type: 'progress'; stats: DiscoveryLiveStats }
   | { type: 'search_query'; query: string }
-  | { type: 'search_engine'; engine: 'duckduckgo' | 'bing'; query: string }
+  | { type: 'search_engine'; engine: 'duckduckgo' | 'bing' | 'serper'; query: string }
   | { type: 'url_scanning'; url: string }
+  | { type: 'crawl_summary'; crawled: number; linksQueued: number; label: string }
   | { type: 'url_rejected'; url: string; reason: string }
   | { type: 'url_added'; url: string; name: string }
   | { type: 'url_skipped'; url: string; reason: string }
   | { type: 'url_blocked'; url: string }
   | { type: 'complete'; result: DiscoveryResult };
+
+export interface SiteReport {
+  id: string;
+  url: string;
+  reason: string;
+  reportedBy: string;
+  status: 'open' | 'reviewed' | 'dismissed';
+  createdAt: string;
+}
 
 export interface UrlCheckResult {
   url: string;
@@ -176,6 +204,7 @@ export interface UrlCheckResult {
   blockedSite: BlockedSite | null;
   casino: Casino | null;
   safe: boolean;
+  pendingReview?: boolean;
 }
 
 export interface SimilarCasinoMatch {

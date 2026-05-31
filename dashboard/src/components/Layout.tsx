@@ -1,4 +1,5 @@
-import { NavLink, Outlet } from 'react-router-dom';
+import { NavLink, Outlet, Link } from 'react-router-dom';
+import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import {
   LayoutDashboard,
@@ -15,16 +16,20 @@ import {
   KeyRound,
   ShieldCheck,
   Sparkles,
+  Bot,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import SiteFooter from './SiteFooter';
 import { discordInviteUrl } from '../lib/site';
+import { api } from '../api';
 
 const mainNav = [
-  { to: '/', icon: LayoutDashboard, label: 'Dashboard' },
+  { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
   { to: '/casinos', icon: Dices, label: 'Casinos' },
   { to: '/similar', icon: Sparkles, label: 'Similar Casinos' },
-  { to: '/discovery', icon: Radar, label: 'Discovery' },
+  { to: '/assistant', icon: Bot, label: 'AI Assistant' },
+  { to: '/discovery', icon: Radar, label: 'Discovery', adminOnly: true },
+  { to: '/review', icon: ShieldCheck, label: 'Review Queue', adminOnly: true },
   { to: '/blocked', icon: Ban, label: 'Blocked Sites' },
 ];
 
@@ -43,16 +48,24 @@ const legalNav = [
   { to: '/privacy', icon: ShieldCheck, label: 'Privacy' },
 ];
 
-function NavSection({ title, items }: { title: string; items: typeof mainNav }) {
+function NavSection({ title, items, pendingCount = 0, reportCount = 0 }: {
+  title: string;
+  items: (typeof mainNav)[number][];
+  pendingCount?: number;
+  reportCount?: number;
+}) {
+  const { user } = useAuth();
+  const visible = items.filter((item) => !('adminOnly' in item && item.adminOnly) || user?.isAdmin);
+  if (!visible.length) return null;
   return (
     <div className="mb-4">
       <p className="section-title">{title}</p>
       <div className="space-y-0.5">
-        {items.map((item) => (
+        {visible.map((item) => (
           <NavLink
             key={item.to}
             to={item.to}
-            end={item.to === '/' || item.to === '/tools'}
+            end={item.to === '/dashboard' || item.to === '/tools'}
             className={({ isActive }) =>
               `flex items-center gap-3 px-3 py-2 rounded-lg transition-all duration-200 ${
                 isActive
@@ -62,7 +75,12 @@ function NavSection({ title, items }: { title: string; items: typeof mainNav }) 
             }
           >
             <item.icon className="w-4 h-4 shrink-0" />
-            <span className="font-medium text-sm">{item.label}</span>
+            <span className="font-medium text-sm flex-1">{item.label}</span>
+            {'adminOnly' in item && item.to === '/review' && (pendingCount + reportCount) > 0 && (
+              <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-amber-500/20 text-amber-400">
+                {pendingCount + reportCount}
+              </span>
+            )}
           </NavLink>
         ))}
       </div>
@@ -73,6 +91,16 @@ function NavSection({ title, items }: { title: string; items: typeof mainNav }) 
 export default function Layout() {
   const { user, logout } = useAuth();
   const discordInvite = discordInviteUrl();
+  const [pendingCount, setPendingCount] = useState(0);
+  const [reportCount, setReportCount] = useState(0);
+
+  useEffect(() => {
+    if (!user?.isAdmin) return;
+    api.getStats().then((s) => {
+      setPendingCount(s.pendingReview);
+      setReportCount(s.openReports ?? 0);
+    }).catch(() => {});
+  }, [user?.isAdmin]);
 
   return (
     <div className="min-h-screen flex app-background">
@@ -81,24 +109,25 @@ export default function Layout() {
           <motion.div
             initial={{ opacity: 0, y: -10 }}
             animate={{ opacity: 1, y: 0 }}
-            className="flex flex-col items-center text-center"
           >
-            <div className="relative mb-3">
-              <div className="absolute inset-0 blur-xl bg-glow/20 rounded-full scale-110" />
-              <img
-                src="/logo.png"
-                alt="The Method"
-                className="relative w-20 h-20 object-contain drop-shadow-method-glow"
-              />
-            </div>
-            <h1 className="font-display font-bold text-lg tracking-wide text-white">THE METHOD</h1>
-            <p className="tagline mt-1">Precision · Strategy · Execution</p>
-            <p className="text-[10px] text-gray-600 mt-2 uppercase tracking-wider">Casinos Hub</p>
+            <Link to="/" className="flex flex-col items-center text-center hover:opacity-90 transition-opacity">
+              <div className="relative mb-3">
+                <div className="absolute inset-0 blur-xl bg-glow/20 rounded-full scale-110" />
+                <img
+                  src="/logo.png"
+                  alt="The Method"
+                  className="relative w-20 h-20 object-contain drop-shadow-method-glow"
+                />
+              </div>
+              <h1 className="font-display font-bold text-lg tracking-wide text-white">THE METHOD</h1>
+              <p className="tagline mt-1">Precision · Strategy · Execution</p>
+              <p className="text-[10px] text-gray-600 mt-2 uppercase tracking-wider">Casinos Hub</p>
+            </Link>
           </motion.div>
         </div>
 
         <nav className="flex-1 p-3 overflow-y-auto">
-          <NavSection title="Main" items={mainNav} />
+          <NavSection title="Main" items={mainNav} pendingCount={pendingCount} reportCount={reportCount} />
           <NavSection title="Tools" items={toolsNav} />
           <NavSection title="Legal" items={legalNav} />
           {discordInvite && (
@@ -114,7 +143,7 @@ export default function Layout() {
           )}
         </nav>
 
-        {user && (
+        {user ? (
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -142,6 +171,16 @@ export default function Layout() {
               Sign out
             </button>
           </motion.div>
+        ) : (
+          <div className="p-4 border-t border-surface-border">
+            <Link
+              to="/login"
+              className="flex items-center justify-center gap-2 w-full px-3 py-2 text-sm font-medium
+                         text-glow border border-glow/30 rounded-lg hover:bg-glow/10 transition-colors"
+            >
+              Admin sign in
+            </Link>
+          </div>
         )}
       </aside>
 

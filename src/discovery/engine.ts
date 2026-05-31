@@ -1,7 +1,7 @@
 import * as cheerio from 'cheerio';
 import type { CasinoFeature, DiscoveryProgressEvent, DiscoveryResult, DiscoveryPhase, DiscoveryLiveStats } from '../shared/types.js';
-import { addCasino, getKnownUrls, logDiscovery, getBlockedUrls, isUrlBlocked, getDiscoverySeenUrls, markDiscoverySeen, getAllCasinos } from '../database/index.js';
-import { ensureHttps, normalizeUrl } from '../shared/utils.js';
+import { addCasino, getKnownHosts, logDiscovery, getBlockedUrls, isUrlBlocked, getDiscoverySeenHosts, markDiscoverySeen, getAllCasinos, touchLastCheckedAt } from '../database/index.js';
+import { casinoHostKey, toCasinoRootUrl, isValidCasinoHost } from '../shared/utils.js';
 import { inferRating } from '../shared/rating.js';
 import {
   isDiscoveryCandidateUrl,
@@ -11,6 +11,9 @@ import {
 } from './filters.js';
 import { getVerifiedCuratedDiscoveries } from '../shared/verified-casinos.js';
 import { buildSearchQueries, SEARCH_PAGES_DEEP, SEARCH_PAGES_QUICK } from './queries.js';
+import { isSerperEnabled, searchSerper } from './serper.js';
+import { beginDiscoveryRun, endDiscoveryRun, throwIfCancelled } from './run-state.js';
+import { notifyDiscoveryComplete } from '../shared/notify.js';
 
 export type DiscoveryProgressCallback = (event: DiscoveryProgressEvent) => void;
 
@@ -101,6 +104,18 @@ function resolveRedirectUrl(href: string, baseUrl: string): string | null {
   }
 }
 
+function normalizeLinkToRoot(href: string, baseUrl: string): string | null {
+  const resolved = resolveRedirectUrl(href, baseUrl);
+  if (!resolved || !isDiscoveryCandidateUrl(resolved) || isBlockedDomain(resolved)) return null;
+  try {
+    const root = toCasinoRootUrl(resolved);
+    if (!isValidCasinoHost(casinoHostKey(root))) return null;
+    return root;
+  } catch {
+    return null;
+  }
+}
+
 function extractUrlsFromHtml(html: string, baseUrl: string): string[] {
   const links = new Set<string>();
   const $ = cheerio.load(html);
@@ -108,27 +123,22 @@ function extractUrlsFromHtml(html: string, baseUrl: string): string[] {
   $('a.result__a, a.result-link, a[data-testid="result-title-a"]').each((_, el) => {
     const href = $(el).attr('href');
     if (!href) return;
-    const resolved = resolveRedirectUrl(href, baseUrl);
-    if (resolved && isDiscoveryCandidateUrl(resolved) && !isBlockedDomain(resolved)) {
-      links.add(ensureHttps(resolved.split('#')[0].replace(/\/+$/, '') || resolved));
-    }
+    const root = normalizeLinkToRoot(href, baseUrl);
+    if (root) links.add(root);
   });
 
   $('li.b_algo h2 a, .b_algo cite').each((_, el) => {
     const href = $(el).attr('href') || $(el).text();
     if (!href) return;
-    const resolved = resolveRedirectUrl(href.startsWith('http') ? href : `https://${href}`, baseUrl);
-    if (resolved && isDiscoveryCandidateUrl(resolved) && !isBlockedDomain(resolved)) {
-      links.add(ensureHttps(resolved.split('#')[0].replace(/\/+$/, '') || resolved));
-    }
+    const root = normalizeLinkToRoot(href.startsWith('http') ? href : `https://${href}`, baseUrl);
+    if (root) links.add(root);
   });
 
   const textUrls = html.match(URL_IN_TEXT_REGEX) || [];
   for (const raw of textUrls) {
     const clean = raw.replace(/[),.;]+$/, '');
-    if (isDiscoveryCandidateUrl(clean) && !isBlockedDomain(clean)) {
-      links.add(ensureHttps(clean.split('#')[0]));
-    }
+    const root = normalizeLinkToRoot(clean, baseUrl);
+    if (root) links.add(root);
   }
 
   return [...links];
@@ -137,7 +147,12 @@ function extractUrlsFromHtml(html: string, baseUrl: string): string[] {
 function inferFeatures(text: string): CasinoFeature[] {
   const lower = text.toLowerCase();
   const features: CasinoFeature[] = ['sweepstakes'];
-  if (NO_PHONE_KEYWORDS.some((k) => lower.includes(k))) features.push('no_phone', 'email_only');
+  if (NO_PHONE_KEYWORDS.some((k) => lower.includes(k))) {
+    features.push('no_phone');
+    if (lower.includes('email only') || lower.includes('email signup') || lower.includes('no phone')) {
+      features.push('email_only');
+    }
+  }
   if (SLOT_KEYWORDS.some((k) => lower.includes(k))) features.push('slots');
   if (LIVE_KEYWORDS.some((k) => lower.includes(k))) features.push('live_games');
   if (lower.includes('table') || lower.includes('poker') || lower.includes('blackjack')) features.push('table_games');
@@ -226,33 +241,37 @@ function buildBingUrl(query: string, page = 0): string {
   return `https://www.bing.com/search?q=${encodeURIComponent(query)}&first=${first}&count=50`;
 }
 
-async function analyzeUrl(url: string, knownUrls: Set<string>): Promise<{ raw: RawDiscovery | null; rejectReason?: string }> {
-  if (knownUrls.has(normalizeUrl(url))) return { raw: null, rejectReason: 'already known' };
-  if (isBlockedDomain(url) || !isDiscoveryCandidateUrl(url)) {
+async function analyzeUrl(url: string, knownHosts: Set<string>): Promise<{ raw: RawDiscovery | null; rejectReason?: string }> {
+  const root = toCasinoRootUrl(url);
+  const host = casinoHostKey(root);
+
+  if (knownHosts.has(host)) return { raw: null, rejectReason: 'already known' };
+  if (!isValidCasinoHost(host)) return { raw: null, rejectReason: 'invalid hostname' };
+  if (isBlockedDomain(root) || !isDiscoveryCandidateUrl(root)) {
     return { raw: null, rejectReason: 'not a casino candidate URL' };
   }
 
-  const html = await fetchPage(ensureHttps(url));
+  const html = await fetchPage(root);
   if (!html) return { raw: null, rejectReason: 'fetch failed' };
 
   const $ = cheerio.load(html);
-  const title = $('title').text().trim() || new URL(url).hostname;
+  const title = $('title').text().trim() || host;
   const bodyText = $('body').text().replace(/\s+/g, ' ').slice(0, 6000);
   const metaDesc = $('meta[name="description"]').attr('content') || '';
 
-  const validation = validateSweepstakesPage(title, metaDesc, bodyText, url);
+  const validation = validateSweepstakesPage(title, metaDesc, bodyText, root);
   if (!validation.valid) {
     return { raw: null, rejectReason: validation.reason ?? 'validation failed' };
   }
 
   const combined = `${title} ${metaDesc} ${bodyText}`.toLowerCase();
   const features = inferFeatures(combined);
-  const name = sanitizeCasinoName(title, url);
+  const name = sanitizeCasinoName(title, root);
 
   return {
     raw: {
       name,
-      url: ensureHttps(url),
+      url: root,
       description: metaDesc || `Verified sweepstakes casino — ${features.slice(0, 4).join(', ')}`,
       features,
       signupRequirements: features.includes('email_only') ? ['Email', 'Password'] : ['Email'],
@@ -263,12 +282,15 @@ async function analyzeUrl(url: string, knownUrls: Set<string>): Promise<{ raw: R
   };
 }
 
-function ingestDiscovery(raw: RawDiscovery, knownUrls: Set<string>): boolean {
-  if (isUrlBlocked(raw.url)) return false;
-  if (knownUrls.has(normalizeUrl(raw.url))) return false;
+function ingestDiscovery(raw: RawDiscovery, knownHosts: Set<string>): boolean {
+  const root = toCasinoRootUrl(raw.url);
+  const host = casinoHostKey(root);
+  if (knownHosts.has(host)) return false;
+  if (isUrlBlocked(root)) return false;
+
   const result = addCasino({
     name: raw.name,
-    url: raw.url,
+    url: root,
     description: raw.description,
     features: raw.features,
     signupRequirements: raw.signupRequirements,
@@ -276,20 +298,40 @@ function ingestDiscovery(raw: RawDiscovery, knownUrls: Set<string>): boolean {
     rating: raw.rating ?? inferRating(raw.features, { source: raw.source }),
     source: raw.source,
     verified: false,
+    reviewStatus: 'pending',
   });
-  if (result) knownUrls.add(normalizeUrl(raw.url));
+  if (result) knownHosts.add(host);
   return result !== null;
 }
 
 async function collectFromSearch(
   query: string,
-  knownUrls: Set<string>,
-  seenUrls: Set<string>,
+  knownHosts: Set<string>,
+  seenHosts: Set<string>,
+  sessionHosts: Set<string>,
   urls: Set<string>,
   searchPages: number,
   onProgress?: DiscoveryProgressCallback,
 ): Promise<number> {
   let checked = 0;
+  throwIfCancelled();
+
+  if (isSerperEnabled()) {
+    for (let page = 1; page <= searchPages; page++) {
+      throwIfCancelled();
+      checked++;
+      onProgress?.({ type: 'search_engine', engine: 'serper', query: page > 1 ? `${query} (p${page})` : query });
+      const serperLinks = await searchSerper(query, page);
+      for (const link of serperLinks) {
+        const host = casinoHostKey(link);
+        if (!knownHosts.has(host) && !seenHosts.has(host) && !sessionHosts.has(host)) {
+          urls.add(link);
+        }
+      }
+      await sleep(120);
+    }
+    return checked;
+  }
 
   for (let page = 0; page < searchPages; page++) {
     const engines: { engine: 'duckduckgo' | 'bing'; url: string }[] = [
@@ -303,8 +345,10 @@ async function collectFromSearch(
       const html = await fetchPage(searchUrl);
       if (html) {
         for (const link of extractUrlsFromHtml(html, searchUrl)) {
-          const key = normalizeUrl(link);
-          if (!knownUrls.has(key) && !seenUrls.has(key)) urls.add(link);
+          const host = casinoHostKey(link);
+          if (!knownHosts.has(host) && !seenHosts.has(host) && !sessionHosts.has(host)) {
+            urls.add(link);
+          }
         }
       }
       await sleep(180);
@@ -315,28 +359,31 @@ async function collectFromSearch(
 }
 
 async function crawlKnownCasinosForLinks(
-  enqueue: (url: string) => void,
-  onProgress?: DiscoveryProgressCallback,
+  enqueue: (url: string) => boolean,
   limit = 40,
-): Promise<number> {
-  const casinos = getAllCasinos();
+): Promise<{ crawled: number; linksQueued: number }> {
+  const casinos = getAllCasinos(true);
   const shuffled = casinos.sort(() => Math.random() - 0.5).slice(0, limit);
   let crawled = 0;
+  let linksQueued = 0;
 
   for (const casino of shuffled) {
-    onProgress?.({ type: 'url_scanning', url: casino.url });
-    const html = await fetchPage(casino.url);
+    const root = toCasinoRootUrl(casino.url);
+    const html = await fetchPage(root);
     crawled++;
     if (html) {
-      for (const link of extractUrlsFromHtml(html, casino.url)) enqueue(link);
+      for (const link of extractUrlsFromHtml(html, root)) {
+        if (enqueue(link)) linksQueued++;
+      }
     }
     await sleep(150);
   }
 
-  return crawled;
+  return { crawled, linksQueued };
 }
 
 export async function runDiscovery(deep = false, onProgress?: DiscoveryProgressCallback): Promise<DiscoveryResult> {
+  beginDiscoveryRun();
   const config = deep ? DEEP_CONFIG : QUICK_CONFIG;
   const searchQueries = buildSearchQueries(deep);
   const startTime = Date.now();
@@ -353,14 +400,15 @@ export async function runDiscovery(deep = false, onProgress?: DiscoveryProgressC
   let queryIndex = 0;
   const addedCasinos: { name: string; url: string }[] = [];
 
-  const knownUrls = getKnownUrls();
-  const seenUrls = getDiscoverySeenUrls();
+  try {
+  const knownHosts = getKnownHosts();
+  const seenHosts = getDiscoverySeenHosts();
   const blockedUrls = getBlockedUrls();
   const urlQueue: string[] = [];
-  const queued = new Set<string>();
+  const queuedHosts = new Set<string>();
   const pendingFromSearch = new Set<string>();
-  const curatedByUrl = new Map(CURATED_DISCOVERIES.map((c) => [normalizeUrl(c.url), c]));
-  const sessionSeen = new Set<string>();
+  const curatedByHost = new Map(CURATED_DISCOVERIES.map((c) => [casinoHostKey(c.url), c]));
+  const sessionHosts = new Set<string>();
 
   const emitProgress = () => {
     const stats: DiscoveryLiveStats = {
@@ -384,27 +432,32 @@ export async function runDiscovery(deep = false, onProgress?: DiscoveryProgressC
     emitProgress();
   };
 
-  const shouldSkipUrl = (key: string): boolean =>
-    knownUrls.has(key) || seenUrls.has(key) || sessionSeen.has(key);
+  const shouldSkipHost = (host: string): boolean =>
+    knownHosts.has(host) || seenHosts.has(host) || sessionHosts.has(host);
 
-  const enqueue = (url: string, silent = false): boolean => {
-    const key = normalizeUrl(url);
-    if (shouldSkipUrl(key) || queued.has(key)) return false;
+  const enqueue = (url: string): boolean => {
+    const root = toCasinoRootUrl(url);
+    const host = casinoHostKey(root);
+    if (!isValidCasinoHost(host)) return false;
+    if (shouldSkipHost(host) || queuedHosts.has(host)) return false;
 
-    if (blockedUrls.has(key) || isUrlBlocked(url)) {
+    if (blockedUrls.has(host) || isUrlBlocked(root)) {
       blocked++;
-      markDiscoverySeen(url, 'blocked', 'blocklist');
-      if (!silent) onProgress?.({ type: 'url_blocked', url });
+      sessionHosts.add(host);
+      seenHosts.add(host);
+      markDiscoverySeen(root, 'blocked', 'blocklist');
       return false;
     }
 
-    if (!isDiscoveryCandidateUrl(url) || isBlockedDomain(url)) {
-      markDiscoverySeen(url, 'rejected', 'URL pre-filter');
+    if (!isDiscoveryCandidateUrl(root) || isBlockedDomain(root)) {
+      sessionHosts.add(host);
+      seenHosts.add(host);
+      markDiscoverySeen(root, 'rejected', 'URL pre-filter');
       return false;
     }
 
-    queued.add(key);
-    urlQueue.push(ensureHttps(url));
+    queuedHosts.add(host);
+    urlQueue.push(root);
     emitProgress();
     return true;
   };
@@ -415,40 +468,48 @@ export async function runDiscovery(deep = false, onProgress?: DiscoveryProgressC
   // Only add missing verified operators (silent — no re-scanning known catalog)
   setPhase('curated', 'Checking for missing verified operators…');
   for (const raw of CURATED_DISCOVERIES) {
-    const key = normalizeUrl(raw.url);
-    if (knownUrls.has(key)) continue;
-    if (ingestDiscovery(raw, knownUrls)) {
+    const host = casinoHostKey(raw.url);
+    if (knownHosts.has(host)) continue;
+    if (ingestDiscovery(raw, knownHosts)) {
       added++;
       found++;
-      addedCasinos.push({ name: raw.name, url: raw.url });
-      onProgress?.({ type: 'url_added', url: raw.url, name: raw.name });
+      addedCasinos.push({ name: raw.name, url: toCasinoRootUrl(raw.url) });
+      onProgress?.({ type: 'url_added', url: toCasinoRootUrl(raw.url), name: raw.name });
     }
   }
   emitProgress();
 
   if (config.crawlKnownCasinos) {
     setPhase('crawl', `Mining links from ${deep ? 'all' : 'sample'} known casinos…`);
-    sourcesChecked += await crawlKnownCasinosForLinks(
-      (url) => { enqueue(url, true); },
-      onProgress,
+    const { crawled, linksQueued } = await crawlKnownCasinosForLinks(
+      enqueue,
       deep ? 80 : 25,
     );
+    sourcesChecked += crawled;
+    onProgress?.({
+      type: 'crawl_summary',
+      crawled,
+      linksQueued,
+      label: `Crawled ${crawled} known sites → ${linksQueued} new hosts queued`,
+    });
   }
 
   setPhase('search', `Running ${searchQueries.length} unique searches (${config.searchPages} pages each)…`);
   for (queryIndex = 0; queryIndex < searchQueries.length && timeLeft() > 0; queryIndex++) {
+    throwIfCancelled();
     const query = searchQueries[queryIndex];
     onProgress?.({ type: 'search_query', query });
     try {
       sourcesChecked += await collectFromSearch(
         query,
-        knownUrls,
-        seenUrls,
+        knownHosts,
+        seenHosts,
+        sessionHosts,
         pendingFromSearch,
         config.searchPages,
         onProgress,
       );
-      for (const u of pendingFromSearch) enqueue(u, true);
+      for (const u of pendingFromSearch) enqueue(u);
       pendingFromSearch.clear();
     } catch (e) {
       errors.push(`Search: ${e instanceof Error ? e.message : 'unknown'}`);
@@ -474,68 +535,75 @@ export async function runDiscovery(deep = false, onProgress?: DiscoveryProgressC
 
     while (processed < batchSize && queueIndex < urlQueue.length && timeLeft() > 0 && webAnalyzes < config.maxWebAnalyzes) {
       const url = urlQueue[queueIndex++];
-      const key = normalizeUrl(url);
-      sessionSeen.add(key);
+      const root = toCasinoRootUrl(url);
+      const host = casinoHostKey(root);
+      sessionHosts.add(host);
 
-      if (knownUrls.has(key)) continue;
+      if (knownHosts.has(host)) continue;
 
-      if (blockedUrls.has(key) || isUrlBlocked(url)) {
+      if (blockedUrls.has(host) || isUrlBlocked(root)) {
         blocked++;
-        markDiscoverySeen(url, 'blocked', 'blocklist');
+        seenHosts.add(host);
+        markDiscoverySeen(root, 'blocked', 'blocklist');
         continue;
       }
 
-      const curated = curatedByUrl.get(key);
+      const curated = curatedByHost.get(host);
       if (curated) {
         found++;
-        if (ingestDiscovery(curated, knownUrls)) {
+        if (ingestDiscovery(curated, knownHosts)) {
           added++;
-          addedCasinos.push({ name: curated.name, url: curated.url });
-          onProgress?.({ type: 'url_added', url, name: curated.name });
+          addedCasinos.push({ name: curated.name, url: root });
+          onProgress?.({ type: 'url_added', url: root, name: curated.name });
         }
         continue;
       }
 
-      if (seenUrls.has(key)) continue;
+      if (seenHosts.has(host)) continue;
 
       scanned++;
       webAnalyzes++;
-      onProgress?.({ type: 'url_scanning', url });
+      onProgress?.({ type: 'url_scanning', url: host });
       emitProgress();
 
       try {
-        const { raw: analyzed, rejectReason } = await analyzeUrl(url, knownUrls);
+        const { raw: analyzed, rejectReason } = await analyzeUrl(root, knownHosts);
         if (!analyzed) {
           rejected++;
-          markDiscoverySeen(url, 'rejected', rejectReason ?? 'validation failed');
-          onProgress?.({ type: 'url_rejected', url, reason: rejectReason ?? 'not a sweepstakes casino' });
+          seenHosts.add(host);
+          markDiscoverySeen(root, 'rejected', rejectReason ?? 'validation failed');
+          onProgress?.({ type: 'url_rejected', url: host, reason: rejectReason ?? 'not a sweepstakes casino' });
           await sleep(config.delayMs / 3);
           processed++;
           continue;
         }
 
         found++;
-        if (ingestDiscovery(analyzed, knownUrls)) {
+        touchLastCheckedAt(root);
+        if (ingestDiscovery(analyzed, knownHosts)) {
           added++;
-          markDiscoverySeen(url, 'added', 'verified sweeps');
+          seenHosts.add(host);
+          markDiscoverySeen(root, 'added', 'verified sweeps');
           addedCasinos.push({ name: analyzed.name, url: analyzed.url });
-          onProgress?.({ type: 'url_added', url, name: analyzed.name });
+          onProgress?.({ type: 'url_added', url: analyzed.url, name: analyzed.name });
 
           if (config.crawlLinks) {
             const pageHtml = await fetchPage(analyzed.url);
             if (pageHtml) {
-              for (const link of extractUrlsFromHtml(pageHtml, analyzed.url)) enqueue(link, true);
+              for (const link of extractUrlsFromHtml(pageHtml, analyzed.url)) enqueue(link);
             }
           }
         } else {
           skipped++;
-          markDiscoverySeen(url, 'skipped', 'duplicate');
+          seenHosts.add(host);
+          markDiscoverySeen(root, 'skipped', 'duplicate');
         }
       } catch (e) {
         rejected++;
-        markDiscoverySeen(url, 'rejected', 'scan error');
-        errors.push(`${url.slice(0, 60)}: ${e instanceof Error ? e.message : 'fail'}`);
-        onProgress?.({ type: 'url_rejected', url, reason: 'scan error' });
+        seenHosts.add(host);
+        markDiscoverySeen(root, 'rejected', 'scan error');
+        errors.push(`${host}: ${e instanceof Error ? e.message : 'fail'}`);
+        onProgress?.({ type: 'url_rejected', url: host, reason: 'scan error' });
       }
 
       emitProgress();
@@ -547,7 +615,12 @@ export async function runDiscovery(deep = false, onProgress?: DiscoveryProgressC
   }
 
   const durationMs = Date.now() - startTime;
-  logDiscovery(found, added, skipped, errors);
+  logDiscovery(found, added, skipped, errors, {
+    mode: config.mode,
+    rejected,
+    blocked,
+    durationMs,
+  });
 
   const result: DiscoveryResult = {
     scanned,
@@ -563,7 +636,33 @@ export async function runDiscovery(deep = false, onProgress?: DiscoveryProgressC
     addedCasinos: addedCasinos.slice(0, 50),
   };
   onProgress?.({ type: 'complete', result });
+  void notifyDiscoveryComplete(result);
   return result;
+  } catch (err) {
+    if (err instanceof Error && err.message === 'Discovery cancelled') {
+      errors.push('Cancelled by user');
+    } else {
+      throw err;
+    }
+    const durationMs = Date.now() - startTime;
+    const result: DiscoveryResult = {
+      scanned,
+      found,
+      added,
+      skipped,
+      blocked,
+      rejected,
+      durationMs,
+      sourcesChecked,
+      errors,
+      mode: config.mode,
+      addedCasinos: addedCasinos.slice(0, 50),
+    };
+    onProgress?.({ type: 'complete', result });
+    return result;
+  } finally {
+    endDiscoveryRun();
+  }
 }
 
 export { CURATED_DISCOVERIES, ingestDiscovery, analyzeUrl };

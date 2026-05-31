@@ -2,8 +2,8 @@ import Database from 'better-sqlite3';
 import { nanoid } from 'nanoid';
 import path from 'path';
 import fs from 'fs';
-import type { Casino, CasinoInput, SearchFilters, Stats, CasinoFeature, BlockedSite, BlockedSiteInput } from '../shared/types.js';
-import { normalizeUrl, ensureHttps } from '../shared/utils.js';
+import type { Casino, CasinoInput, SearchFilters, Stats, CasinoFeature, BlockedSite, BlockedSiteInput, ReviewStatus, SiteReport, SiteReportInput } from '../shared/types.js';
+import { normalizeUrl, ensureHttps, casinoHostKey, toCasinoRootUrl, isValidCasinoHost } from '../shared/utils.js';
 import { resolveRating } from '../shared/rating.js';
 import { normalizeTrackables } from '../shared/trackables.js';
 import { rankSimilarCasinos, type SimilarCasinoMatch } from '../shared/similarity.js';
@@ -36,6 +36,7 @@ export function initDatabase(): Database.Database {
       rating REAL NOT NULL DEFAULT 0,
       source TEXT NOT NULL DEFAULT 'manual',
       verified INTEGER NOT NULL DEFAULT 0,
+      review_status TEXT NOT NULL DEFAULT 'approved',
       active INTEGER NOT NULL DEFAULT 1,
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL,
@@ -85,6 +86,18 @@ export function initDatabase(): Database.Database {
     );
 
     CREATE INDEX IF NOT EXISTS idx_discovery_seen_at ON discovery_seen(last_seen_at);
+
+    CREATE TABLE IF NOT EXISTS site_reports (
+      id TEXT PRIMARY KEY,
+      url TEXT NOT NULL,
+      url_normalized TEXT NOT NULL,
+      reason TEXT NOT NULL DEFAULT '',
+      reported_by TEXT NOT NULL DEFAULT 'anonymous',
+      status TEXT NOT NULL DEFAULT 'open',
+      created_at TEXT NOT NULL
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_site_reports_status ON site_reports(status);
   `);
 
   migrateSchema();
@@ -104,6 +117,68 @@ function migrateSchema(): void {
   }
   if (!names.has('trackables')) {
     db.exec("ALTER TABLE casinos ADD COLUMN trackables TEXT NOT NULL DEFAULT '[]'");
+  }
+  if (!names.has('review_status')) {
+    db.exec("ALTER TABLE casinos ADD COLUMN review_status TEXT NOT NULL DEFAULT 'approved'");
+    db.exec("UPDATE casinos SET review_status = 'pending' WHERE verified = 0 AND source IN ('web_scan', 'discovery')");
+    db.exec("UPDATE casinos SET review_status = 'approved' WHERE verified = 1");
+  }
+  db.exec('CREATE INDEX IF NOT EXISTS idx_casinos_review_status ON casinos(review_status)');
+
+  if (!names.has('approved_by')) {
+    db.exec('ALTER TABLE casinos ADD COLUMN approved_by TEXT');
+  }
+  if (!names.has('approved_at')) {
+    db.exec('ALTER TABLE casinos ADD COLUMN approved_at TEXT');
+  }
+
+  db.exec(`
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_site_reports_open_host
+    ON site_reports(url_normalized) WHERE status = 'open'
+  `);
+
+  const logCols = db.prepare('PRAGMA table_info(discovery_log)').all() as { name: string }[];
+  const logNames = new Set(logCols.map((c) => c.name));
+  if (!logNames.has('mode')) {
+    db.exec("ALTER TABLE discovery_log ADD COLUMN mode TEXT NOT NULL DEFAULT 'quick'");
+  }
+  if (!logNames.has('rejected')) {
+    db.exec('ALTER TABLE discovery_log ADD COLUMN rejected INTEGER NOT NULL DEFAULT 0');
+  }
+  if (!logNames.has('blocked')) {
+    db.exec('ALTER TABLE discovery_log ADD COLUMN blocked INTEGER NOT NULL DEFAULT 0');
+  }
+  if (!logNames.has('duration_ms')) {
+    db.exec('ALTER TABLE discovery_log ADD COLUMN duration_ms INTEGER NOT NULL DEFAULT 0');
+  }
+
+  // Normalize legacy url_normalized values to hostname keys
+  const legacyRows = db.prepare('SELECT id, url, url_normalized FROM casinos').all() as {
+    id: string;
+    url: string;
+    url_normalized: string;
+  }[];
+  const normStmt = db.prepare('UPDATE casinos SET url_normalized = ?, url = ? WHERE id = ?');
+  for (const row of legacyRows) {
+    const root = toCasinoRootUrl(row.url);
+    const host = casinoHostKey(root);
+    if (row.url_normalized !== host || row.url !== root) {
+      normStmt.run(host, root, row.id);
+    }
+  }
+
+  const blockedRows = db.prepare('SELECT id, url, url_normalized FROM blocked_sites').all() as {
+    id: string;
+    url: string;
+    url_normalized: string;
+  }[];
+  const blockNorm = db.prepare('UPDATE blocked_sites SET url_normalized = ?, url = ? WHERE id = ?');
+  for (const row of blockedRows) {
+    const root = toCasinoRootUrl(row.url);
+    const host = casinoHostKey(root);
+    if (row.url_normalized !== host || row.url !== root) {
+      blockNorm.run(host, root, row.id);
+    }
   }
 }
 
@@ -178,6 +253,7 @@ function rowToCasino(row: Record<string, unknown>): Casino {
     rating: row.rating as number,
     source: row.source as string,
     verified: Boolean(row.verified),
+    reviewStatus: (row.review_status as ReviewStatus) || 'approved',
     active: Boolean(row.active),
     createdAt: row.created_at as string,
     updatedAt: row.updated_at as string,
@@ -200,37 +276,49 @@ function insertVerifiedCasinos(source: string): number {
   return added;
 }
 
-/** Wipe all casinos & blocked sites, reload verified catalog only. */
-export function resetCatalogToVerified(): {
+/** Wipe casinos, reload verified catalog. Blocklist preserved unless preserveBlocklist=false. */
+export function resetCatalogToVerified(options: { preserveBlocklist?: boolean } = {}): {
   casinosRemoved: number;
   blockedRemoved: number;
   casinosAdded: number;
 } {
+  const preserveBlocklist = options.preserveBlocklist !== false;
   const casinosBefore = db.prepare('SELECT COUNT(*) as c FROM casinos').get() as { c: number };
   const blockedBefore = db.prepare('SELECT COUNT(*) as c FROM blocked_sites').get() as { c: number };
 
   db.prepare('DELETE FROM casinos').run();
-  db.prepare('DELETE FROM blocked_sites').run();
+  if (!preserveBlocklist) {
+    db.prepare('DELETE FROM blocked_sites').run();
+  }
   db.prepare('DELETE FROM discovery_log').run();
 
   const casinosAdded = insertVerifiedCasinos('verified');
 
   return {
     casinosRemoved: casinosBefore.c,
-    blockedRemoved: blockedBefore.c,
+    blockedRemoved: preserveBlocklist ? 0 : blockedBefore.c,
     casinosAdded,
   };
 }
 
 export function addCasino(input: CasinoInput): Casino | null {
-  const url = ensureHttps(input.url);
-  const urlNormalized = normalizeUrl(url);
+  const url = toCasinoRootUrl(ensureHttps(input.url));
+  const host = casinoHostKey(url);
+  if (!isValidCasinoHost(host)) return null;
+
+  const urlNormalized = host;
   const now = new Date().toISOString();
 
   if (isUrlBlocked(url)) return null;
 
   const existing = db.prepare('SELECT id FROM casinos WHERE url_normalized = ?').get(urlNormalized);
   if (existing) return null;
+
+  const hostDuplicate = db.prepare('SELECT url FROM casinos').all() as { url: string }[];
+  if (hostDuplicate.some((row) => casinoHostKey(row.url) === host)) return null;
+
+  const reviewStatus: ReviewStatus = input.reviewStatus
+    ?? (input.verified ? 'approved' : (input.source === 'web_scan' ? 'pending' : 'approved'));
 
   const casino: Casino = {
     id: nanoid(12),
@@ -249,7 +337,8 @@ export function addCasino(input: CasinoInput): Casino | null {
     }),
     source: input.source || 'manual',
     verified: input.verified ?? false,
-    active: true,
+    reviewStatus,
+    active: reviewStatus !== 'rejected',
     createdAt: now,
     updatedAt: now,
     lastCheckedAt: null,
@@ -257,16 +346,17 @@ export function addCasino(input: CasinoInput): Casino | null {
 
   db.prepare(`
     INSERT INTO casinos (id, name, url, url_normalized, description, features, signup_requirements,
-      bonus_info, cash_out_before_blocked, trackables, rating, source, verified, active, created_at, updated_at)
+      bonus_info, cash_out_before_blocked, trackables, rating, source, verified, review_status, active, created_at, updated_at)
     VALUES (@id, @name, @url, @urlNormalized, @description, @features, @signupRequirements,
-      @bonusInfo, @cashOutBeforeBlocked, @trackables, @rating, @source, @verified, @active, @createdAt, @updatedAt)
+      @bonusInfo, @cashOutBeforeBlocked, @trackables, @rating, @source, @verified, @reviewStatus, @active, @createdAt, @updatedAt)
   `).run({
     ...casino,
     features: JSON.stringify(casino.features),
     signupRequirements: JSON.stringify(casino.signupRequirements),
     trackables: JSON.stringify(casino.trackables),
     verified: casino.verified ? 1 : 0,
-    active: 1,
+    reviewStatus: casino.reviewStatus,
+    active: casino.active ? 1 : 0,
   });
 
   return casino;
@@ -277,11 +367,13 @@ export function updateCasino(id: string, input: Partial<CasinoInput>): Casino | 
   if (!existing) return null;
 
   const now = new Date().toISOString();
+  const url = input.url ? toCasinoRootUrl(ensureHttps(input.url)) : existing.url;
+  const urlNormalized = input.url ? casinoHostKey(url) : existing.urlNormalized;
   const updated: Casino = {
     ...existing,
     name: input.name ?? existing.name,
-    url: input.url ? ensureHttps(input.url) : existing.url,
-    urlNormalized: input.url ? normalizeUrl(ensureHttps(input.url)) : existing.urlNormalized,
+    url,
+    urlNormalized,
     description: input.description ?? existing.description,
     features: input.features ?? existing.features,
     signupRequirements: input.signupRequirements ?? existing.signupRequirements,
@@ -294,6 +386,7 @@ export function updateCasino(id: string, input: Partial<CasinoInput>): Casino | 
       : existing.trackables,
     rating: input.rating ?? existing.rating,
     verified: input.verified ?? existing.verified,
+    reviewStatus: input.reviewStatus ?? existing.reviewStatus,
     updatedAt: now,
   };
 
@@ -301,7 +394,7 @@ export function updateCasino(id: string, input: Partial<CasinoInput>): Casino | 
     UPDATE casinos SET name=@name, url=@url, url_normalized=@urlNormalized, description=@description,
       features=@features, signup_requirements=@signupRequirements, bonus_info=@bonusInfo,
       cash_out_before_blocked=@cashOutBeforeBlocked, trackables=@trackables,
-      rating=@rating, verified=@verified, updated_at=@updatedAt
+      rating=@rating, verified=@verified, review_status=@reviewStatus, updated_at=@updatedAt
     WHERE id=@id
   `).run({
     id,
@@ -316,6 +409,7 @@ export function updateCasino(id: string, input: Partial<CasinoInput>): Casino | 
     trackables: JSON.stringify(updated.trackables),
     rating: updated.rating,
     verified: updated.verified ? 1 : 0,
+    reviewStatus: updated.reviewStatus,
     updatedAt: updated.updatedAt,
   });
 
@@ -353,6 +447,15 @@ export function searchCasinos(filters: SearchFilters = {}): Casino[] {
     conditions.push('verified = 1');
   }
 
+  if (filters.catalogOnly) {
+    conditions.push("review_status = 'approved'");
+    conditions.push('verified = 1');
+  }
+
+  if (filters.pendingOnly) {
+    conditions.push("review_status = 'pending'");
+  }
+
   if (filters.vpnAllowed) {
     conditions.push("features LIKE '%vpn_allowed%'");
   }
@@ -384,20 +487,77 @@ export function getRandomCasino(filters: SearchFilters = {}): Casino | null {
   return results[Math.floor(Math.random() * results.length)];
 }
 
-export function getAllCasinos(): Casino[] {
+export function getAllCasinos(catalogOnly = false): Casino[] {
+  if (catalogOnly) {
+    return searchCasinos({ catalogOnly: true, limit: 500 });
+  }
   const rows = db.prepare('SELECT * FROM casinos WHERE active = 1 ORDER BY rating DESC').all();
   return rows.map((r) => rowToCasino(r as Record<string, unknown>));
+}
+
+export function getPendingCasinos(): Casino[] {
+  return searchCasinos({ pendingOnly: true, limit: 200 });
+}
+
+/** Verified catalog entries not checked within STALE_CATALOG_DAYS (or never). */
+export function getStaleCatalogCasinos(limit = 20, maxAgeDays = 90): Casino[] {
+  const cutoff = new Date(Date.now() - maxAgeDays * 24 * 60 * 60 * 1000).toISOString();
+  const rows = db.prepare(`
+    SELECT * FROM casinos
+    WHERE active = 1 AND review_status = 'approved' AND verified = 1
+      AND (last_checked_at IS NULL OR last_checked_at < @cutoff)
+    ORDER BY CASE WHEN last_checked_at IS NULL THEN 0 ELSE 1 END, last_checked_at ASC, rating DESC
+    LIMIT @limit
+  `).all({ cutoff, limit });
+  return rows.map((r) => rowToCasino(r as Record<string, unknown>));
+}
+
+export function countStaleCatalogCasinos(maxAgeDays = 90): number {
+  const cutoff = new Date(Date.now() - maxAgeDays * 24 * 60 * 60 * 1000).toISOString();
+  const row = db.prepare(`
+    SELECT COUNT(*) as c FROM casinos
+    WHERE active = 1 AND review_status = 'approved' AND verified = 1
+      AND (last_checked_at IS NULL OR last_checked_at < @cutoff)
+  `).get({ cutoff }) as { c: number };
+  return row.c;
+}
+
+export function approveCasino(id: string, approvedBy?: string): Casino | null {
+  const existing = getCasinoById(id);
+  if (!existing) return null;
+  const now = new Date().toISOString();
+  db.prepare(`
+    UPDATE casinos SET verified = 1, review_status = 'approved', active = 1, updated_at = @now,
+      approved_by = @approvedBy, approved_at = @now
+    WHERE id = @id
+  `).run({ id, now, approvedBy: approvedBy ?? null });
+  return getCasinoById(id);
+}
+
+export function rejectCasino(id: string): boolean {
+  const existing = getCasinoById(id);
+  if (!existing) return false;
+  markDiscoverySeen(existing.url, 'rejected', 'admin rejected');
+  const result = db.prepare('DELETE FROM casinos WHERE id = ?').run(id);
+  return result.changes > 0;
+}
+
+export function touchLastCheckedAt(url: string): void {
+  const host = casinoHostKey(url);
+  const now = new Date().toISOString();
+  db.prepare('UPDATE casinos SET last_checked_at = @now WHERE url_normalized = @host')
+    .run({ now, host });
 }
 
 export function findSimilarCasinos(casinoId: string, limit = 8): { source: Casino; matches: SimilarCasinoMatch[] } | null {
   const source = getCasinoById(casinoId);
   if (!source) return null;
-  const all = getAllCasinos();
+  const all = getAllCasinos(true);
   return { source, matches: rankSimilarCasinos(source, all, limit) };
 }
 
 export function findSimilarCasinosByQuery(query: string, limit = 8): { source: Casino; matches: SimilarCasinoMatch[] } | null {
-  const results = searchCasinos({ query, limit: 1 });
+  const results = searchCasinos({ query, catalogOnly: true, limit: 1 });
   if (!results.length) return null;
   return findSimilarCasinos(results[0].id, limit);
 }
@@ -407,14 +567,32 @@ export function getKnownUrls(): Set<string> {
   return new Set(rows.map((r) => r.url_normalized));
 }
 
+export function getKnownHosts(): Set<string> {
+  const rows = db.prepare('SELECT url FROM casinos').all() as { url: string }[];
+  return new Set(rows.map((r) => casinoHostKey(r.url)));
+}
+
 /** URLs already scanned and rejected/skipped — skip re-checking every run. */
 export function getDiscoverySeenUrls(): Set<string> {
   const rows = db.prepare('SELECT url_normalized FROM discovery_seen').all() as { url_normalized: string }[];
   return new Set(rows.map((r) => r.url_normalized));
 }
 
+export function getDiscoverySeenHosts(): Set<string> {
+  const rows = db.prepare('SELECT url_normalized FROM discovery_seen').all() as { url_normalized: string }[];
+  return new Set(rows.map((r) => {
+    const v = r.url_normalized;
+    if (!v.includes('://') && !v.includes('/')) return v;
+    try {
+      return casinoHostKey(v.startsWith('http') ? v : `https://${v}`);
+    } catch {
+      return v.toLowerCase();
+    }
+  }));
+}
+
 export function markDiscoverySeen(url: string, outcome: string, reason = ''): void {
-  const urlNormalized = normalizeUrl(ensureHttps(url));
+  const host = casinoHostKey(url);
   const now = new Date().toISOString();
   db.prepare(`
     INSERT INTO discovery_seen (url_normalized, outcome, reason, last_seen_at)
@@ -423,7 +601,7 @@ export function markDiscoverySeen(url: string, outcome: string, reason = ''): vo
       outcome = excluded.outcome,
       reason = excluded.reason,
       last_seen_at = excluded.last_seen_at
-  `).run({ urlNormalized, outcome, reason, lastSeenAt: now });
+  `).run({ urlNormalized: host, outcome, reason, lastSeenAt: now });
 }
 
 export function clearDiscoverySeen(): number {
@@ -432,14 +610,15 @@ export function clearDiscoverySeen(): number {
 }
 
 export function urlExists(url: string): boolean {
-  const normalized = normalizeUrl(url);
-  const row = db.prepare('SELECT id FROM casinos WHERE url_normalized = ?').get(normalized);
+  const host = casinoHostKey(url);
+  const row = db.prepare('SELECT id FROM casinos WHERE url_normalized = ?').get(host);
   return Boolean(row);
 }
 
 export function getStats(): Stats {
   const total = db.prepare('SELECT COUNT(*) as c FROM casinos WHERE active = 1').get() as { c: number };
   const verified = db.prepare('SELECT COUNT(*) as c FROM casinos WHERE active = 1 AND verified = 1').get() as { c: number };
+  const pendingReview = db.prepare("SELECT COUNT(*) as c FROM casinos WHERE active = 1 AND review_status = 'pending'").get() as { c: number };
   const noPhone = db.prepare("SELECT COUNT(*) as c FROM casinos WHERE active = 1 AND features LIKE '%no_phone%'").get() as { c: number };
   const emailOnly = db.prepare("SELECT COUNT(*) as c FROM casinos WHERE active = 1 AND features LIKE '%email_only%'").get() as { c: number };
   const slots = db.prepare("SELECT COUNT(*) as c FROM casinos WHERE active = 1 AND features LIKE '%slots%'").get() as { c: number };
@@ -447,11 +626,14 @@ export function getStats(): Stats {
   const vpnAllowed = db.prepare("SELECT COUNT(*) as c FROM casinos WHERE active = 1 AND features LIKE '%vpn_allowed%'").get() as { c: number };
   const vpnBlocked = db.prepare("SELECT COUNT(*) as c FROM casinos WHERE active = 1 AND features LIKE '%vpn_blocked%'").get() as { c: number };
   const blockedSites = db.prepare('SELECT COUNT(*) as c FROM blocked_sites WHERE active = 1').get() as { c: number };
+  const openReports = db.prepare("SELECT COUNT(*) as c FROM site_reports WHERE status = 'open'").get() as { c: number };
   const lastDiscovery = db.prepare('SELECT ran_at FROM discovery_log ORDER BY id DESC LIMIT 1').get() as { ran_at: string } | undefined;
 
   return {
     totalCasinos: total.c,
     verifiedCasinos: verified.c,
+    pendingReview: pendingReview.c,
+    openReports: openReports.c,
     noPhoneCasinos: noPhone.c,
     emailOnlyCasinos: emailOnly.c,
     withSlots: slots.c,
@@ -460,20 +642,64 @@ export function getStats(): Stats {
     vpnBlockedCasinos: vpnBlocked.c,
     blockedSites: blockedSites.c,
     lastDiscoveryAt: lastDiscovery?.ran_at ?? null,
+    staleCatalogCasinos: countStaleCatalogCasinos(),
   };
 }
 
-export function logDiscovery(found: number, added: number, skipped: number, errors: string[]): void {
+export function logDiscovery(
+  found: number,
+  added: number,
+  skipped: number,
+  errors: string[],
+  meta: { mode?: string; rejected?: number; blocked?: number; durationMs?: number } = {},
+): void {
   db.prepare(`
-    INSERT INTO discovery_log (ran_at, found, added, skipped, errors)
-    VALUES (@ranAt, @found, @added, @skipped, @errors)
+    INSERT INTO discovery_log (ran_at, found, added, skipped, errors, mode, rejected, blocked, duration_ms)
+    VALUES (@ranAt, @found, @added, @skipped, @errors, @mode, @rejected, @blocked, @durationMs)
   `).run({
     ranAt: new Date().toISOString(),
     found,
     added,
     skipped,
     errors: JSON.stringify(errors),
+    mode: meta.mode ?? 'quick',
+    rejected: meta.rejected ?? 0,
+    blocked: meta.blocked ?? 0,
+    durationMs: meta.durationMs ?? 0,
   });
+}
+
+export interface DiscoveryHistoryEntry {
+  id: number;
+  ranAt: string;
+  found: number;
+  added: number;
+  skipped: number;
+  rejected: number;
+  blocked: number;
+  mode: string;
+  durationMs: number;
+  errors: string[];
+}
+
+export function getDiscoveryHistory(limit = 20): DiscoveryHistoryEntry[] {
+  const rows = db.prepare(`
+    SELECT id, ran_at, found, added, skipped, errors, mode, rejected, blocked, duration_ms
+    FROM discovery_log ORDER BY id DESC LIMIT ?
+  `).all(limit) as Record<string, unknown>[];
+
+  return rows.map((r) => ({
+    id: r.id as number,
+    ranAt: r.ran_at as string,
+    found: r.found as number,
+    added: r.added as number,
+    skipped: r.skipped as number,
+    rejected: (r.rejected as number) ?? 0,
+    blocked: (r.blocked as number) ?? 0,
+    mode: (r.mode as string) ?? 'quick',
+    durationMs: (r.duration_ms as number) ?? 0,
+    errors: JSON.parse((r.errors as string) || '[]') as string[],
+  }));
 }
 
 export function getDatabase(): Database.Database {
@@ -502,12 +728,12 @@ function seedBlockedSites(): void {
 
 export function getBlockedUrls(): Set<string> {
   const rows = db.prepare('SELECT url_normalized FROM blocked_sites WHERE active = 1').all() as { url_normalized: string }[];
-  return new Set(rows.map((r) => r.url_normalized));
+  return new Set(rows.map((r) => casinoHostKey(r.url_normalized.includes('://') ? r.url_normalized : `https://${r.url_normalized}`)));
 }
 
 export function isUrlBlocked(url: string): boolean {
-  const normalized = normalizeUrl(ensureHttps(url));
-  const row = db.prepare('SELECT id FROM blocked_sites WHERE url_normalized = ? AND active = 1').get(normalized);
+  const host = casinoHostKey(url);
+  const row = db.prepare('SELECT id FROM blocked_sites WHERE url_normalized = ? AND active = 1').get(host);
   return Boolean(row);
 }
 
@@ -532,8 +758,8 @@ export function getBlockedSiteById(id: string): BlockedSite | null {
 }
 
 export function addBlockedSite(input: BlockedSiteInput): BlockedSite | null {
-  const url = ensureHttps(input.url);
-  const urlNormalized = normalizeUrl(url);
+  const url = toCasinoRootUrl(ensureHttps(input.url));
+  const urlNormalized = casinoHostKey(url);
   const now = new Date().toISOString();
 
   const existing = db.prepare('SELECT id FROM blocked_sites WHERE url_normalized = ?').get(urlNormalized);
@@ -573,11 +799,13 @@ export function updateBlockedSite(id: string, input: Partial<BlockedSiteInput>):
   if (!existing) return null;
 
   const now = new Date().toISOString();
+  const url = input.url ? toCasinoRootUrl(ensureHttps(input.url)) : existing.url;
+  const urlNormalized = input.url ? casinoHostKey(url) : existing.urlNormalized;
   const updated: BlockedSite = {
     ...existing,
     name: input.name ?? existing.name,
-    url: input.url ? ensureHttps(input.url) : existing.url,
-    urlNormalized: input.url ? normalizeUrl(ensureHttps(input.url)) : existing.urlNormalized,
+    url,
+    urlNormalized,
     reason: input.reason ?? existing.reason,
     severity: input.severity ?? existing.severity,
     description: input.description ?? existing.description,
@@ -614,19 +842,96 @@ export function deleteBlockedSite(id: string): boolean {
 }
 
 export function removeCasinoByUrl(url: string): boolean {
-  const normalized = normalizeUrl(ensureHttps(url));
-  const result = db.prepare('DELETE FROM casinos WHERE url_normalized = ?').run(normalized);
+  const host = casinoHostKey(url);
+  const result = db.prepare('DELETE FROM casinos WHERE url_normalized = ?').run(host);
   return result.changes > 0;
 }
 
 export function getCasinoByUrl(url: string): Casino | null {
-  const normalized = normalizeUrl(ensureHttps(url));
-  const row = db.prepare('SELECT * FROM casinos WHERE url_normalized = ? AND active = 1').get(normalized);
+  const host = casinoHostKey(url);
+  const row = db.prepare('SELECT * FROM casinos WHERE url_normalized = ? AND active = 1').get(host);
   return row ? rowToCasino(row as Record<string, unknown>) : null;
 }
 
 export function getBlockedSiteByUrl(url: string): BlockedSite | null {
-  const normalized = normalizeUrl(ensureHttps(url));
-  const row = db.prepare('SELECT * FROM blocked_sites WHERE url_normalized = ? AND active = 1').get(normalized);
+  const host = casinoHostKey(url);
+  const row = db.prepare('SELECT * FROM blocked_sites WHERE url_normalized = ? AND active = 1').get(host);
   return row ? rowToBlockedSite(row as Record<string, unknown>) : null;
+}
+
+export function addSiteReport(input: SiteReportInput): SiteReport {
+  const url = toCasinoRootUrl(ensureHttps(input.url));
+  const host = casinoHostKey(url);
+  const now = new Date().toISOString();
+
+  const existing = db.prepare(`
+    SELECT id, url, reason, reported_by, status, created_at
+    FROM site_reports WHERE url_normalized = ? AND status = 'open'
+  `).get(host) as Record<string, unknown> | undefined;
+
+  if (existing) {
+    const mergedReason = input.reason?.trim()
+      ? `${existing.reason as string}; ${input.reason.trim()}`
+      : (existing.reason as string);
+    db.prepare('UPDATE site_reports SET reason = ? WHERE id = ?').run(mergedReason.slice(0, 500), existing.id);
+    return {
+      id: existing.id as string,
+      url: existing.url as string,
+      reason: mergedReason.slice(0, 500),
+      reportedBy: existing.reported_by as string,
+      status: 'open',
+      createdAt: existing.created_at as string,
+    };
+  }
+
+  const report: SiteReport = {
+    id: nanoid(12),
+    url,
+    reason: input.reason?.trim() || 'User report',
+    reportedBy: input.reportedBy || 'anonymous',
+    status: 'open',
+    createdAt: now,
+  };
+
+  db.prepare(`
+    INSERT INTO site_reports (id, url, url_normalized, reason, reported_by, status, created_at)
+    VALUES (@id, @url, @host, @reason, @reportedBy, @status, @createdAt)
+  `).run({
+    id: report.id,
+    url: report.url,
+    host,
+    reason: report.reason,
+    reportedBy: report.reportedBy,
+    status: report.status,
+    createdAt: report.createdAt,
+  });
+
+  return report;
+}
+
+export function getOpenSiteReports(): SiteReport[] {
+  const rows = db.prepare(`
+    SELECT id, url, reason, reported_by, status, created_at
+    FROM site_reports WHERE status = 'open'
+    ORDER BY created_at DESC
+    LIMIT 100
+  `).all();
+  return rows.map((r) => ({
+    id: (r as Record<string, unknown>).id as string,
+    url: (r as Record<string, unknown>).url as string,
+    reason: (r as Record<string, unknown>).reason as string,
+    reportedBy: (r as Record<string, unknown>).reported_by as string,
+    status: (r as Record<string, unknown>).status as SiteReport['status'],
+    createdAt: (r as Record<string, unknown>).created_at as string,
+  }));
+}
+
+export function dismissSiteReport(id: string): boolean {
+  const result = db.prepare("UPDATE site_reports SET status = 'dismissed' WHERE id = ?").run(id);
+  return result.changes > 0;
+}
+
+export function markSiteReportReviewed(id: string): boolean {
+  const result = db.prepare("UPDATE site_reports SET status = 'reviewed' WHERE id = ?").run(id);
+  return result.changes > 0;
 }

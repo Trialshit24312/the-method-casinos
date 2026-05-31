@@ -89,7 +89,7 @@ export default function Login() {
           transition={{ delay: 0.7 }}
           className="text-xs text-gray-600 mt-6"
         >
-          Authorized Discord accounts only ·{' '}
+          Sign in with Discord for admin tools (discovery, review queue, edits). Browse casinos without an account.{' '}
           <a href="/terms" className="text-glow hover:underline">
             Terms
           </a>

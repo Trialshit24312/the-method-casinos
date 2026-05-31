@@ -355,6 +355,7 @@ export const PRIVACY_SECTIONS: LegalSection[] = [
 export const WEBSITE_FEATURES = [
   { name: 'Casino Database', path: '/casinos', desc: 'Search, filter, and manage sweepstakes casinos' },
   { name: 'Similar Casinos', path: '/similar', desc: 'Find casinos like ones you already enjoy' },
+  { name: 'AI Assistant', path: '/assistant', desc: 'Free Groq/Gemini chat — answers from verified catalog only' },
   { name: 'Discovery', path: '/discovery', desc: 'Scan the web for new casino sites (admin)' },
   { name: 'Blocked Sites', path: '/blocked', desc: 'Scam, phishing, and dangerous URL list' },
   { name: 'Tools Hub', path: '/tools', desc: 'Email gen, SMS sites, browsers, URL checker' },

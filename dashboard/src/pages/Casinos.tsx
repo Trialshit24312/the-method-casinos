@@ -7,6 +7,8 @@ import { FEATURE_LABELS, FEATURE_CATEGORIES } from '../types';
 import PageHeader from '../components/PageHeader';
 import CasinoCard from '../components/CasinoCard';
 import { useAuth } from '../context/AuthContext';
+import { usePageTitle } from '../hooks/usePageTitle';
+import { isCatalogStale } from '../lib/freshness';
 
 interface FormData {
   name: string;
@@ -36,6 +38,7 @@ const emptyForm: FormData = {
 
 export default function CasinosPage() {
   const { user } = useAuth();
+  usePageTitle('Browse Casinos — The Method');
   const [casinos, setCasinos] = useState<Casino[]>([]);
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<CasinoFeature | ''>('');
@@ -44,27 +47,30 @@ export default function CasinosPage() {
   const [editing, setEditing] = useState<Casino | null>(null);
   const [form, setForm] = useState<FormData>(emptyForm);
   const [error, setError] = useState('');
+  const [showAll, setShowAll] = useState(false);
+  const [staleOnly, setStaleOnly] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const data = await api.getCasinos(search || undefined);
+      const data = await api.getCasinos(search || undefined, user?.isAdmin && showAll);
       setCasinos(data);
     } catch (e) {
       console.error(e);
     } finally {
       setLoading(false);
     }
-  }, [search]);
+  }, [search, showAll, user?.isAdmin]);
 
   useEffect(() => {
     const timer = setTimeout(load, 300);
     return () => clearTimeout(timer);
   }, [load]);
 
-  const filtered = filter
+  const filtered = (filter
     ? casinos.filter((c) => c.features.includes(filter))
-    : casinos;
+    : casinos
+  ).filter((c) => !staleOnly || isCatalogStale(c.lastCheckedAt));
 
   const openAdd = () => {
     setEditing(null);
@@ -183,7 +189,7 @@ export default function CasinosPage() {
     <div className="p-8">
       <PageHeader
         title="Casinos"
-        subtitle={`${filtered.length} casino(s) in database`}
+        subtitle={showAll && user?.isAdmin ? `${filtered.length} casino(s) including pending` : `${filtered.length} verified catalog casino(s)`}
         action={
           user?.isAdmin ? (
             <button onClick={openAdd} className="btn-primary flex items-center gap-2">
@@ -219,6 +225,28 @@ export default function CasinosPage() {
             </optgroup>
           ))}
         </select>
+        {user?.isAdmin && (
+          <>
+            <label className="flex items-center gap-2 text-sm text-gray-400 shrink-0 cursor-pointer px-2">
+              <input
+                type="checkbox"
+                checked={showAll}
+                onChange={(e) => setShowAll(e.target.checked)}
+                className="rounded border-surface-border"
+              />
+              Show pending
+            </label>
+            <label className="flex items-center gap-2 text-sm text-gray-400 shrink-0 cursor-pointer px-2">
+              <input
+                type="checkbox"
+                checked={staleOnly}
+                onChange={(e) => setStaleOnly(e.target.checked)}
+                className="rounded border-surface-border"
+              />
+              Stale only
+            </label>
+          </>
+        )}
       </div>
 
       {loading ? (

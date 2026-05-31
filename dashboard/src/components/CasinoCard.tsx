@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import { ExternalLink, Star, ShieldCheck, Ban, Sparkles } from 'lucide-react';
 import type { Casino } from '../types';
 import { FEATURE_LABELS, FEATURE_COLORS, vpnLabel, formatTrackableValue } from '../types';
+import { formatLastChecked, isCatalogStale } from '../lib/freshness';
 
 interface CasinoCardProps {
   casino: Casino;
@@ -22,10 +23,20 @@ export default function CasinoCard({ casino, index, onEdit, onBlock, admin }: Ca
       className="glass p-5 group hover:border-brand/30 transition-all duration-300"
     >
       <div className="flex items-start justify-between mb-3">
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <h3 className="font-display font-semibold text-lg">{casino.name}</h3>
           {casino.verified && (
-            <ShieldCheck className="w-4 h-4 text-accent-green" />
+            <ShieldCheck className="w-4 h-4 text-accent-green" aria-label="Verified" />
+          )}
+          {casino.reviewStatus === 'pending' && (
+            <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-400 border border-amber-500/30">
+              Pending
+            </span>
+          )}
+          {admin && isCatalogStale(casino.lastCheckedAt) && casino.reviewStatus === 'approved' && (
+            <span className="text-[10px] px-1.5 py-0.5 rounded bg-orange-500/15 text-orange-300 border border-orange-500/25" title="Homepage not re-checked recently">
+              Stale
+            </span>
           )}
         </div>
         <div className="flex items-center gap-1 text-accent-gold">
@@ -33,6 +44,12 @@ export default function CasinoCard({ casino, index, onEdit, onBlock, admin }: Ca
           <span className="text-sm font-medium">{casino.rating.toFixed(1)}</span>
         </div>
       </div>
+
+      {admin && (
+        <p className={`text-[10px] mb-2 ${isCatalogStale(casino.lastCheckedAt) ? 'text-orange-400/80' : 'text-gray-600'}`}>
+          {formatLastChecked(casino.lastCheckedAt)}
+        </p>
+      )}
 
       <p className="text-sm text-gray-400 mb-2 line-clamp-2">
         {casino.description || 'No description'}

@@ -18,7 +18,10 @@
     "start": "node dist/index.js",
     "start:prod": "node dist/index.js",
     "register-commands": "tsx src/bot/register-commands.ts",
-    "reset-data": "tsx src/scripts/reset-data.ts"
+    "reset-data": "tsx src/scripts/reset-data.ts",
+    "backup-db": "tsx src/scripts/backup-db.ts",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "better-sqlite3": "^11.7.0",
@@ -28,7 +31,9 @@
     "discord.js": "^14.16.3",
     "dotenv": "^16.4.7",
     "express": "^4.21.2",
+    "express-rate-limit": "^7.5.0",
     "express-session": "^1.18.1",
+    "helmet": "^8.0.0",
     "nanoid": "^5.0.9",
     "node-fetch": "^3.3.2"
   },
@@ -41,6 +46,7 @@
     "@types/node": "^22.10.2",
     "concurrently": "^9.1.1",
     "tsx": "^4.19.2",
-    "typescript": "^5.7.2"
+    "typescript": "^5.7.2",
+    "vitest": "^3.0.5"
   }
 }

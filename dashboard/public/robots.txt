@@ -1,0 +1,7 @@
+User-agent: *
+Allow: /
+Disallow: /login
+Disallow: /discovery
+Disallow: /review
+
+Sitemap: https://the-method-casinos.onrender.com/sitemap.xml

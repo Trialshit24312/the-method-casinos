@@ -7,7 +7,7 @@ import {
 } from 'discord.js';
 import type { Command } from './command-types.js';
 export type { Command } from './command-types.js';
-import { searchCasinos, getRandomCasino, getStats, getAllCasinos, getCasinoById, searchBlockedSites, addBlockedSite, getCasinoByUrl, getBlockedSiteByUrl, isUrlBlocked, findSimilarCasinosByQuery } from '../database/index.js';
+import { searchCasinos, getRandomCasino, getStats, getAllCasinos, getCasinoById, searchBlockedSites, addBlockedSite, getCasinoByUrl, getBlockedSiteByUrl, isUrlBlocked, findSimilarCasinosByQuery, getPendingCasinos, addSiteReport, approveCasino, rejectCasino, getOpenSiteReports, dismissSiteReport } from '../database/index.js';
 import { runDiscovery } from '../discovery/engine.js';
 import {
   buildCasinoEmbed,
@@ -26,6 +26,8 @@ import {
 } from './embeds.js';
 import type { CasinoFeature } from '../shared/types.js';
 import { parseAdminIds, ensureHttps } from '../shared/utils.js';
+import { notifySiteReport, notifyCasinoApproved } from '../shared/notify.js';
+import { checkCasinoUrl } from '../shared/url-check.js';
 import { siteCommands } from './site-commands.js';
 
 function isAdmin(userId: string): boolean {
@@ -48,7 +50,7 @@ export const commands: Command[] = [
         o.setName('email_only').setDescription('Only email + password signup').setRequired(false),
       )
       .addBooleanOption((o) =>
-        o.setName('verified').setDescription('Only verified casinos').setRequired(false),
+        o.setName('verified').setDescription('Only verified catalog casinos (default: yes)').setRequired(false),
       )
       .addStringOption((o) =>
         o.setName('feature')
@@ -80,14 +82,14 @@ export const commands: Command[] = [
       const query = interaction.options.getString('query') ?? undefined;
       const noPhone = interaction.options.getBoolean('no_phone') ?? false;
       const emailOnly = interaction.options.getBoolean('email_only') ?? false;
-      const verifiedOnly = interaction.options.getBoolean('verified') ?? false;
+      const catalogOnly = interaction.options.getBoolean('verified') ?? true;
       const feature = interaction.options.getString('feature');
 
       const results = searchCasinos({
         query,
         noPhone: noPhone || undefined,
         emailOnly: emailOnly || undefined,
-        verifiedOnly: verifiedOnly || undefined,
+        catalogOnly,
         features: feature ? parseFeatureChoices([feature]) : undefined,
         limit: 25,
       });
@@ -96,7 +98,7 @@ export const commands: Command[] = [
       if (query) filters.push(`query: "${query}"`);
       if (noPhone) filters.push('no phone');
       if (emailOnly) filters.push('email only');
-      if (verifiedOnly) filters.push('verified');
+      if (catalogOnly) filters.push('verified catalog');
       if (feature) filters.push(feature.replace('_', ' '));
 
       const embed = buildListEmbed(
@@ -139,6 +141,7 @@ export const commands: Command[] = [
       const casino = getRandomCasino({
         noPhone: noPhone || undefined,
         vpnAllowed: vpn || undefined,
+        catalogOnly: true,
         features: features.length ? features : undefined,
       });
 
@@ -161,7 +164,7 @@ export const commands: Command[] = [
 
     async execute(interaction) {
       const name = interaction.options.getString('name', true);
-      const results = searchCasinos({ query: name, limit: 1 });
+      const results = searchCasinos({ query: name, catalogOnly: true, limit: 1 });
 
       if (!results.length) {
         await interaction.reply({ content: `❌ No casino found matching "${name}".`, ephemeral: true });
@@ -172,7 +175,7 @@ export const commands: Command[] = [
     },
 
     async autocomplete(interaction) {
-      await handleCasinoAutocomplete(interaction, getAllCasinos());
+      await handleCasinoAutocomplete(interaction, getAllCasinos(true));
     },
   },
 
@@ -200,7 +203,7 @@ export const commands: Command[] = [
     },
 
     async autocomplete(interaction) {
-      await handleCasinoAutocomplete(interaction, getAllCasinos());
+      await handleCasinoAutocomplete(interaction, getAllCasinos(true));
     },
   },
 
@@ -211,7 +214,7 @@ export const commands: Command[] = [
 
     async execute(interaction) {
       await interaction.deferReply();
-      const results = searchCasinos({ noPhone: true, limit: 25 });
+      const results = searchCasinos({ noPhone: true, catalogOnly: true, limit: 25 });
       const embed = buildListEmbed(
         results,
         'No Phone Required',
@@ -228,7 +231,7 @@ export const commands: Command[] = [
 
     async execute(interaction) {
       await interaction.deferReply();
-      const results = searchCasinos({ features: ['slots'], limit: 25 });
+      const results = searchCasinos({ features: ['slots'], catalogOnly: true, limit: 25 });
       const embed = buildListEmbed(results, 'Slot Casinos', 'Casinos with slot games 🎰');
       await interaction.editReply({ embeds: [embed] });
     },
@@ -241,7 +244,7 @@ export const commands: Command[] = [
 
     async execute(interaction) {
       await interaction.deferReply();
-      const results = searchCasinos({ features: ['live_games'], limit: 25 });
+      const results = searchCasinos({ features: ['live_games'], catalogOnly: true, limit: 25 });
       const embed = buildListEmbed(results, 'Live Dealer Casinos', 'Casinos with live games 🎲');
       await interaction.editReply({ embeds: [embed] });
     },
@@ -254,7 +257,7 @@ export const commands: Command[] = [
 
     async execute(interaction) {
       await interaction.deferReply();
-      const results = searchCasinos({ vpnAllowed: true, limit: 25 });
+      const results = searchCasinos({ vpnAllowed: true, catalogOnly: true, limit: 25 });
       const embed = buildListEmbed(
         results,
         'VPN Friendly Casinos',
@@ -280,7 +283,7 @@ export const commands: Command[] = [
       .setName('discover')
       .setDescription('Scan for NEW casinos (admin — quick ~8 min, deep ~30 min, hundreds of URLs)')
       .addBooleanOption((o) =>
-        o.setName('deep').setDescription('Deep scan — all queries, page crawl, ~15 min').setRequired(false),
+        o.setName('deep').setDescription('Deep scan — all queries, page crawl, ~30 min').setRequired(false),
       ),
 
     async execute(interaction) {
@@ -303,7 +306,7 @@ export const commands: Command[] = [
         queued: 0,
         sourcesChecked: 0,
         queryIndex: 0,
-        queryTotal: deep ? 17 : 8,
+        queryTotal: 0,
       };
 
       const maybeUpdate = async () => {
@@ -355,7 +358,7 @@ export const commands: Command[] = [
 
     async execute(interaction) {
       await interaction.deferReply();
-      const results = searchCasinos({ features: ['fish_games'], limit: 25 });
+      const results = searchCasinos({ features: ['fish_games'], catalogOnly: true, limit: 25 });
       const embed = buildListEmbed(results, 'Fish Game Casinos', 'Casinos with fish shooting games 🐟');
       await interaction.editReply({ embeds: [embed] });
     },
@@ -368,7 +371,7 @@ export const commands: Command[] = [
 
     async execute(interaction) {
       await interaction.deferReply();
-      const results = searchCasinos({ features: ['bingo'], limit: 25 });
+      const results = searchCasinos({ features: ['bingo'], catalogOnly: true, limit: 25 });
       const embed = buildListEmbed(results, 'Bingo Casinos', 'Casinos with bingo 🎯');
       await interaction.editReply({ embeds: [embed] });
     },
@@ -381,7 +384,7 @@ export const commands: Command[] = [
 
     async execute(interaction) {
       await interaction.deferReply();
-      const results = searchCasinos({ features: ['new_casino'], limit: 25 });
+      const results = searchCasinos({ features: ['new_casino'], catalogOnly: true, limit: 25 });
       const embed = buildListEmbed(results, 'New Casinos', 'Recently discovered or new casinos ✨');
       await interaction.editReply({ embeds: [embed] });
     },
@@ -397,12 +400,8 @@ export const commands: Command[] = [
 
     async execute(interaction) {
       const raw = interaction.options.getString('url', true);
-      const url = ensureHttps(raw);
-      const blockedSite = getBlockedSiteByUrl(url);
-      const casino = getCasinoByUrl(url);
-      const blocked = Boolean(blockedSite) || isUrlBlocked(url);
       await interaction.reply({
-        embeds: [buildUrlCheckEmbed({ url, blocked, blockedSite, casino, safe: !blocked && Boolean(casino?.verified) })],
+        embeds: [buildUrlCheckEmbed(checkCasinoUrl(raw))],
       });
     },
   },
@@ -427,7 +426,7 @@ export const commands: Command[] = [
       await interaction.deferReply();
       const type = interaction.options.getString('type') as CasinoFeature | null;
       const features: CasinoFeature[] = type ? [type] : ['fast_payout', 'low_min_redeem'];
-      const results = searchCasinos({ features, limit: 25 });
+      const results = searchCasinos({ features, catalogOnly: true, limit: 25 });
       const embed = buildListEmbed(
         results,
         'Redeem-Friendly Casinos',
@@ -507,7 +506,191 @@ export const commands: Command[] = [
     },
   },
 
+  {
+    data: new SlashCommandBuilder()
+      .setName('report')
+      .setDescription('Report a suspicious casino URL for admin review')
+      .addStringOption((o) =>
+        o.setName('url').setDescription('Casino URL to report').setRequired(true),
+      )
+      .addStringOption((o) =>
+        o.setName('reason').setDescription('Why you are reporting it').setRequired(false),
+      ),
+
+    async execute(interaction) {
+      const url = interaction.options.getString('url', true);
+      const report = addSiteReport({
+        url,
+        reason: interaction.options.getString('reason') ?? 'Suspicious site reported via Discord',
+        reportedBy: interaction.user.tag,
+      });
+      void notifySiteReport(report);
+      await interaction.reply({
+        content: '✅ Report submitted. Admins will review this URL.',
+        ephemeral: true,
+      });
+    },
+  },
+
+  {
+    data: new SlashCommandBuilder()
+      .setName('pending')
+      .setDescription('View casinos awaiting admin approval (admin only)'),
+
+    async execute(interaction) {
+      if (!isAdmin(interaction.user.id)) {
+        await interaction.reply({ content: '❌ Admin only command.', ephemeral: true });
+        return;
+      }
+      await interaction.deferReply({ ephemeral: true });
+      const pending = getPendingCasinos();
+      if (!pending.length) {
+        await interaction.editReply({ content: '✅ No casinos pending review.' });
+        return;
+      }
+      const lines = pending.slice(0, 15).map((c) => `• **${c.name}** — ${c.url}`);
+      await interaction.editReply({
+        content: `**${pending.length} pending review**\n${lines.join('\n')}${pending.length > 15 ? `\n…+${pending.length - 15} more on dashboard` : ''}`,
+      });
+    },
+  },
+
+  {
+    data: new SlashCommandBuilder()
+      .setName('dismissreport')
+      .setDescription('Dismiss an open user report by URL (admin only)')
+      .addStringOption((o) =>
+        o.setName('url').setDescription('Reported URL to dismiss').setRequired(true),
+      ),
+
+    async execute(interaction) {
+      if (!isAdmin(interaction.user.id)) {
+        await interaction.reply({ content: '❌ Admin only command.', ephemeral: true });
+        return;
+      }
+      const raw = interaction.options.getString('url', true);
+      const reports = getOpenSiteReports();
+      const match = reports.find((r) =>
+        r.url.includes(raw) || raw.includes(r.url.replace(/^https?:\/\//, '')),
+      );
+      if (!match) {
+        await interaction.reply({ content: '❌ No open report matching that URL.', ephemeral: true });
+        return;
+      }
+      dismissSiteReport(match.id);
+      await interaction.reply({ content: `✅ Dismissed report for ${match.url}`, ephemeral: true });
+    },
+  },
+
+  {
+    data: new SlashCommandBuilder()
+      .setName('approve')
+      .setDescription('Approve a pending casino for the public catalog (admin only)')
+      .addStringOption((o) =>
+        o.setName('name').setDescription('Pending casino name').setRequired(true).setAutocomplete(true),
+      ),
+
+    async execute(interaction) {
+      if (!isAdmin(interaction.user.id)) {
+        await interaction.reply({ content: '❌ Admin only command.', ephemeral: true });
+        return;
+      }
+      const name = interaction.options.getString('name', true);
+      const pending = searchCasinos({ query: name, pendingOnly: true, limit: 1 });
+      if (!pending.length) {
+        await interaction.reply({ content: `❌ No pending casino matching "${name}".`, ephemeral: true });
+        return;
+      }
+      const approved = approveCasino(pending[0].id, interaction.user.tag);
+      if (!approved) {
+        await interaction.reply({ content: '❌ Approval failed.', ephemeral: true });
+        return;
+      }
+      void notifyCasinoApproved(approved, interaction.user.tag);
+      await interaction.reply({
+        content: `✅ **${approved.name}** approved and live in catalog.\n${approved.url}`,
+      });
+    },
+
+    async autocomplete(interaction) {
+      if (!isAdmin(interaction.user.id)) {
+        await interaction.respond([]);
+        return;
+      }
+      await handleCasinoAutocomplete(interaction, getPendingCasinos());
+    },
+  },
+
+  {
+    data: new SlashCommandBuilder()
+      .setName('reject')
+      .setDescription('Reject and remove a pending casino (admin only)')
+      .addStringOption((o) =>
+        o.setName('name').setDescription('Pending casino name').setRequired(true).setAutocomplete(true),
+      ),
+
+    async execute(interaction) {
+      if (!isAdmin(interaction.user.id)) {
+        await interaction.reply({ content: '❌ Admin only command.', ephemeral: true });
+        return;
+      }
+      const name = interaction.options.getString('name', true);
+      const pending = searchCasinos({ query: name, pendingOnly: true, limit: 1 });
+      if (!pending.length) {
+        await interaction.reply({ content: `❌ No pending casino matching "${name}".`, ephemeral: true });
+        return;
+      }
+      const casino = pending[0];
+      rejectCasino(casino.id);
+      await interaction.reply({
+        content: `🗑️ Rejected **${casino.name}** — removed from review queue.`,
+        ephemeral: true,
+      });
+    },
+
+    async autocomplete(interaction) {
+      if (!isAdmin(interaction.user.id)) {
+        await interaction.respond([]);
+        return;
+      }
+      await handleCasinoAutocomplete(interaction, getPendingCasinos());
+    },
+  },
+
   ...siteCommands,
+
+  {
+    data: new SlashCommandBuilder()
+      .setName('ask')
+      .setDescription('Ask the AI assistant about verified sweepstakes casinos (free Groq/Gemini)')
+      .addStringOption((o) =>
+        o.setName('question').setDescription('Your question').setRequired(true),
+      ),
+
+    async execute(interaction) {
+      const question = interaction.options.getString('question', true);
+      await interaction.deferReply();
+
+      try {
+        const { askCasinoAssistant, isAiConfigured } = await import('../ai/assistant.js');
+        if (!isAiConfigured()) {
+          await interaction.editReply({
+            content: '❌ AI not configured on server. Admin: set `GROQ_API_KEY` in environment.',
+          });
+          return;
+        }
+        const { answer, provider } = await askCasinoAssistant(question);
+        const { buildAskEmbed } = await import('./embeds.js');
+        await interaction.editReply({
+          embeds: [buildAskEmbed(question, answer, provider)],
+        });
+      } catch (err) {
+        await interaction.editReply({
+          content: `❌ ${err instanceof Error ? err.message : 'AI request failed'}`,
+        });
+      }
+    },
+  },
 
   {
     data: new SlashCommandBuilder()

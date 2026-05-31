@@ -3,6 +3,8 @@
  * Only real sweepstakes casino operators pass validation.
  */
 
+import { casinoHostKey } from '../shared/utils.js';
+
 const BLOCKED_DOMAIN_FRAGMENTS = [
   'google.', 'duckduckgo.', 'bing.', 'yahoo.', 'facebook.', 'twitter.', 'x.com',
   'youtube.', 'reddit.', 'wikipedia.', 'amazon.', 'apple.com', 'play.google',
@@ -143,18 +145,36 @@ export function validateSweepstakesPage(
 }
 
 export function sanitizeCasinoName(title: string, url: string): string {
-  const host = new URL(url).hostname.replace(/^www\./, '');
-  const baseName = host.split('.')[0];
+  const host = casinoHostKey(url);
+  const brand = host.split('.')[0];
+  const brandName = brand.charAt(0).toUpperCase() + brand.slice(1);
+
   const cleaned = title
     .split('|')[0]
     .split('-')[0]
     .split('–')[0]
+    .split(':')[0]
     .trim()
     .slice(0, 80);
 
-  const rejectTitlePatterns = ['news', 'blog', 'review', 'guide', 'best ', 'top '];
-  if (!cleaned || rejectTitlePatterns.some((p) => cleaned.toLowerCase().includes(p))) {
-    return baseName.charAt(0).toUpperCase() + baseName.slice(1);
+  const rejectTitlePatterns = [
+    'news', 'blog', 'review', 'guide', 'best ', 'top ',
+    'sign up', 'signup', 'sign-up', 'log in', 'login', 'register',
+    'vip program', 'vip ', 'social casino', 'sweepstakes rules', 'rules',
+    'terms', 'privacy', 'support', 'help', 'contact', 'promo', 'welcome',
+    'free coins', 'free sweeps', 'official site', 'home page', 'homepage',
+  ];
+
+  const lower = cleaned.toLowerCase();
+  if (
+    !cleaned ||
+    cleaned.length < 3 ||
+    rejectTitlePatterns.some((p) => lower.includes(p)) ||
+    lower === 'casino' ||
+    lower === 'home'
+  ) {
+    return brandName;
   }
+
   return cleaned;
 }

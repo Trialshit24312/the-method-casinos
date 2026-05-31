@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { ShieldCheck, ShieldAlert, Search, ExternalLink, AlertTriangle } from 'lucide-react';
+import { ShieldCheck, ShieldAlert, Search, ExternalLink, AlertTriangle, Flag, Clock } from 'lucide-react';
 import PageHeader from '../../components/PageHeader';
 import { ServiceGrid } from '../../components/ServiceCard';
 import { api } from '../../api';
@@ -8,23 +9,62 @@ import type { UrlCheckResult } from '../../types';
 import { BLOCK_REASON_LABELS } from '../../types';
 import { SCAM_WARNING_SIGNS, SWEEPS_RESEARCH } from '../../lib/generators';
 
+import { usePageTitle } from '../../hooks/usePageTitle';
+
 export default function UrlCheckerPage() {
+  usePageTitle('URL Checker — The Method Casinos');
+  const [searchParams] = useSearchParams();
   const [url, setUrl] = useState('');
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<UrlCheckResult | null>(null);
   const [error, setError] = useState('');
+  const [reportSent, setReportSent] = useState(false);
+  const [reporting, setReporting] = useState(false);
+
+  useEffect(() => {
+    const prefill = searchParams.get('url');
+    if (!prefill?.trim()) return;
+    setUrl(prefill);
+    void (async () => {
+      setLoading(true);
+      setError('');
+      setResult(null);
+      setReportSent(false);
+      try {
+        setResult(await api.checkUrl(prefill.trim()));
+      } catch (e) {
+        setError(e instanceof Error ? e.message : 'Check failed');
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, [searchParams]);
 
   const check = async () => {
     if (!url.trim()) return;
     setLoading(true);
     setError('');
     setResult(null);
+    setReportSent(false);
     try {
       setResult(await api.checkUrl(url.trim()));
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Check failed');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const report = async () => {
+    if (!url.trim()) return;
+    setReporting(true);
+    try {
+      await api.reportUrl(url.trim(), 'Reported via URL checker');
+      setReportSent(true);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Report failed');
+    } finally {
+      setReporting(false);
     }
   };
 
@@ -72,11 +112,19 @@ export default function UrlCheckerPage() {
                   </>
                 )}
               </div>
+            ) : result.pendingReview && result.casino ? (
+              <div className="p-5 rounded-xl bg-amber-500/10 border border-amber-500/30">
+                <div className="flex items-center gap-2 text-amber-400 font-semibold mb-2">
+                  <Clock className="w-5 h-5" /> Pending Review
+                </div>
+                <p className="text-white font-medium">{result.casino.name}</p>
+                <p className="text-sm text-gray-400 mt-1">Found by discovery — not yet in the public verified catalog.</p>
+              </div>
             ) : result.casino ? (
               <div className={`p-5 rounded-xl border ${result.safe ? 'bg-emerald-500/10 border-emerald-500/30' : 'bg-amber-500/10 border-amber-500/30'}`}>
                 <div className={`flex items-center gap-2 font-semibold mb-2 ${result.safe ? 'text-emerald-400' : 'text-amber-400'}`}>
                   <ShieldCheck className="w-5 h-5" />
-                  {result.safe ? 'Verified in Database' : 'In Database (Unverified)'}
+                  {result.safe ? 'Verified in Catalog' : 'In Database (Unverified)'}
                 </div>
                 <p className="text-white font-medium">{result.casino.name}</p>
                 <p className="text-sm text-gray-500 mt-1">Rating: {result.casino.rating.toFixed(1)}/5</p>
@@ -91,8 +139,21 @@ export default function UrlCheckerPage() {
                   <AlertTriangle className="w-5 h-5" /> Unknown URL
                 </div>
                 <p className="text-sm text-gray-400">
-                  Not in our database or blocklist. Proceed with caution — check the scam signs below.
+                  Not in our verified catalog or blocklist. Proceed with caution — check the scam signs below.
                 </p>
+                {!reportSent ? (
+                  <button
+                    type="button"
+                    onClick={report}
+                    disabled={reporting}
+                    className="mt-4 flex items-center gap-2 text-sm px-3 py-2 rounded-lg border border-amber-500/30 text-amber-400 hover:bg-amber-500/10"
+                  >
+                    <Flag className="w-4 h-4" />
+                    {reporting ? 'Sending…' : 'Report this URL to admins'}
+                  </button>
+                ) : (
+                  <p className="text-sm text-emerald-400 mt-3">Report submitted — admins will review.</p>
+                )}
               </div>
             )}
           </motion.div>
