@@ -1,5 +1,13 @@
 import { VERIFIED_CASINO_SEEDS } from '../shared/verified-casinos.js';
 
+const OPERATOR_QUERIES = [
+  '"social casino" "sweeps coins" -review -guide -bonus',
+  '"sweepstakes casino" "no purchase necessary" -list -review',
+  'new sweepstakes casino launch site:.us -reddit -youtube',
+  'inurl:casino "gold coins" "sweeps" -review',
+  '"play for free" "sweepstakes" casino signup -guide',
+];
+
 const BASE_QUERIES = [
   'sweepstakes casino no phone required 2026',
   'new social casino sweeps coins list',
@@ -65,7 +73,7 @@ function uniqueStrings(items: string[]): string[] {
 
 /** Build a large rotating query list — different order every scan. */
 export function buildSearchQueries(deep: boolean): string[] {
-  const queries: string[] = [...BASE_QUERIES];
+  const queries: string[] = [...OPERATOR_QUERIES, ...BASE_QUERIES];
 
   for (const seed of VERIFIED_CASINO_SEEDS) {
     const name = seed.name.replace(/\s+casino$/i, '').trim();

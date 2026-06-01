@@ -3,7 +3,7 @@
  * Only real sweepstakes casino operators pass validation.
  */
 
-import { casinoHostKey, getOperatorRootHost } from '../shared/utils.js';
+import { casinoHostKey, getOperatorRootHost, toCasinoRootUrl, isValidCasinoHost } from '../shared/utils.js';
 
 const BLOCKED_DOMAIN_FRAGMENTS = [
   'google.', 'duckduckgo.', 'bing.', 'yahoo.', 'facebook.', 'twitter.', 'x.com',
@@ -19,6 +19,12 @@ const BLOCKED_DOMAIN_FRAGMENTS = [
   'chaturbate', 'adult', 'sex.', 'nude', 'hentai', 'cam4.',
   'opera.com', 'microsoft.com', 'google.com/chrome', 'mozilla.org', 'brave.com',
   'github.', 'stackoverflow.', 'wikipedia.',
+  // Affiliate / listicle / news — not operators
+  'deadspin.', 'sweepskings.', 'sweepslounge.', 'playusa.', 'dimers.',
+  'legalsportsreport.', 'ballislife.', 'lines.com', 'next.io', 'sigma.world',
+  'gamingamerica.', 'pantagraph.', 'igamingfuture.', 'rg.org',
+  'nj.com', 'al.com', 'silive.', 'mlive.', 'pennlive.', 'cleveland.com',
+  'syracuse.com', 'masslive.', 'oregonlive.', 'chicagotribune.',
 ];
 
 const STRONG_HOST_HINTS = [
@@ -71,8 +77,23 @@ export function isBlockedDomain(url: string): boolean {
   }
 }
 
-export function isCasinoCandidateUrl(url: string): boolean {
-  return isDiscoveryCandidateUrl(url);
+/** Queue from search results — block junk, allow valid operator roots (validation is later). */
+export function shouldQueueSearchUrl(url: string): boolean {
+  if (isBlockedDomain(url)) return false;
+  try {
+    const root = toCasinoRootUrl(url);
+    const host = casinoHostKey(root);
+    if (!isValidCasinoHost(host)) return false;
+    if (isDiscoveryCandidateUrl(root)) return true;
+    // Allow any plausible operator TLD if hostname is not a generic word
+    const label = host.split('.')[0];
+    if (label.length < 4) return false;
+    const generic = new Set(['www', 'mail', 'blog', 'news', 'shop', 'store', 'help', 'support']);
+    if (generic.has(label)) return false;
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 /** Broader net for discovery queue — strict page validation still required before add. */
@@ -137,6 +158,15 @@ export function validateSweepstakesPage(
 
   if (sweepsKeywordCount >= 1 && hostHasMarker) {
     return { valid: true, sweepsKeywordCount };
+  }
+
+  if (hostHasMarker && (
+    combined.includes('gold coins') ||
+    combined.includes('sweeps coins') ||
+    combined.includes('social casino') ||
+    combined.includes('free to play')
+  )) {
+    return { valid: true, sweepsKeywordCount: Math.max(sweepsKeywordCount, 1) };
   }
 
   if (hostHasMarker && combined.includes('sweepstakes') && combined.includes('casino')) {

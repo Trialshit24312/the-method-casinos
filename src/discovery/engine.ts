@@ -8,6 +8,7 @@ import {
   isBlockedDomain,
   validateSweepstakesPage,
   sanitizeCasinoName,
+  shouldQueueSearchUrl,
 } from './filters.js';
 import { getVerifiedCuratedDiscoveries } from '../shared/verified-casinos.js';
 import { buildSearchQueries, SEARCH_PAGES_DEEP, SEARCH_PAGES_QUICK } from './queries.js';
@@ -75,7 +76,8 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-function resolveRedirectUrl(href: string, baseUrl: string): string | null {
+function resolveRedirectUrl(href: string, baseUrl: string, depth = 0): string | null {
+  if (depth > 4) return null;
   try {
     let absolute = href;
     if (href.startsWith('//')) absolute = `https:${href}`;
@@ -84,16 +86,26 @@ function resolveRedirectUrl(href: string, baseUrl: string): string | null {
 
     const parsed = new URL(absolute);
 
-    if (parsed.hostname.includes('duckduckgo.com') && parsed.searchParams.has('uddg')) {
-      return decodeURIComponent(parsed.searchParams.get('uddg')!);
+    if (parsed.hostname.includes('duckduckgo.com')) {
+      const raw = absolute;
+      const adDomain = raw.match(/ad_domain=([a-z0-9.-]+\.[a-z]{2,})/i)?.[1];
+      if (adDomain) return `https://${adDomain.replace(/^www\./, '')}`;
+
+      if (parsed.searchParams.has('uddg')) {
+        const uddg = decodeURIComponent(parsed.searchParams.get('uddg')!);
+        const nested = resolveRedirectUrl(uddg, baseUrl, depth + 1);
+        if (nested) return nested;
+      }
     }
+
     if (parsed.hostname.includes('bing.com') && parsed.pathname.includes('ck/a')) {
       const u = parsed.searchParams.get('u');
       if (u) {
         try {
-          return atob(u.startsWith('a1') ? u.slice(2) : u);
+          const decoded = atob(u.startsWith('a1') ? u.slice(2) : u);
+          return resolveRedirectUrl(decoded, baseUrl, depth + 1) ?? decoded;
         } catch {
-          return decodeURIComponent(u);
+          return resolveRedirectUrl(decodeURIComponent(u), baseUrl, depth + 1);
         }
       }
     }
@@ -106,7 +118,7 @@ function resolveRedirectUrl(href: string, baseUrl: string): string | null {
 
 function normalizeLinkToRoot(href: string, baseUrl: string): string | null {
   const resolved = resolveRedirectUrl(href, baseUrl);
-  if (!resolved || !isDiscoveryCandidateUrl(resolved) || isBlockedDomain(resolved)) return null;
+  if (!resolved || isBlockedDomain(resolved) || !shouldQueueSearchUrl(resolved)) return null;
   try {
     const root = toCasinoRootUrl(resolved);
     if (!isValidCasinoHost(casinoHostKey(root))) return null;
@@ -125,6 +137,17 @@ function extractUrlsFromHtml(html: string, baseUrl: string): string[] {
     if (!href) return;
     const root = normalizeLinkToRoot(href, baseUrl);
     if (root) links.add(root);
+  });
+
+  $('a.result__url, span.result__url').each((_, el) => {
+    const href = $(el).attr('href');
+    const text = $(el).text().trim().split(/\s/)[0]?.replace(/^www\./, '');
+    const candidates = [href, text].filter(Boolean) as string[];
+    for (const raw of candidates) {
+      const guess = raw.startsWith('http') ? raw : `https://${raw.split('/')[0]}`;
+      const root = normalizeLinkToRoot(guess, baseUrl);
+      if (root) links.add(root);
+    }
   });
 
   $('li.b_algo h2 a, .b_algo cite').each((_, el) => {
@@ -312,6 +335,7 @@ async function collectFromSearch(
   urls: Set<string>,
   searchPages: number,
   onProgress?: DiscoveryProgressCallback,
+  errors?: string[],
 ): Promise<number> {
   let checked = 0;
   throwIfCancelled();
@@ -321,7 +345,10 @@ async function collectFromSearch(
       throwIfCancelled();
       checked++;
       onProgress?.({ type: 'search_engine', engine: 'serper', query: page > 1 ? `${query} (p${page})` : query });
-      const serperLinks = await searchSerper(query, page);
+      const { links: serperLinks, error } = await searchSerper(query, page);
+      if (error && errors && !errors.some((e) => e.includes('Serper'))) {
+        errors.push(`Serper: ${error}`);
+      }
       for (const link of serperLinks) {
         const host = casinoHostKey(link);
         if (!knownHosts.has(host) && !seenHosts.has(host) && !sessionHosts.has(host)) {
@@ -506,6 +533,9 @@ export async function runDiscovery(deep = false, onProgress?: DiscoveryProgressC
   }
 
   const searchEngineLabel = isSerperEnabled() ? 'Serper (Google)' : 'DuckDuckGo + Bing';
+  if (!isSerperEnabled()) {
+    errors.push('Serper not configured — using DuckDuckGo/Bing fallback (often returns 0 results on Render). Add SERPER_API_KEY to environment.');
+  }
   setPhase('search', `Running ${searchQueries.length} unique searches via ${searchEngineLabel} (${config.searchPages} pages each)…`);
   for (queryIndex = 0; queryIndex < searchQueries.length && timeLeft() > 0; queryIndex++) {
     throwIfCancelled();
@@ -520,6 +550,7 @@ export async function runDiscovery(deep = false, onProgress?: DiscoveryProgressC
         pendingFromSearch,
         config.searchPages,
         onProgress,
+        errors,
       );
       for (const u of pendingFromSearch) enqueue(u);
       pendingFromSearch.clear();

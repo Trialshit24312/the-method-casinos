@@ -1,6 +1,6 @@
 import fetch from 'node-fetch';
 import { casinoHostKey, toCasinoRootUrl, isValidCasinoHost } from '../shared/utils.js';
-import { isDiscoveryCandidateUrl, isBlockedDomain } from './filters.js';
+import { shouldQueueSearchUrl, isBlockedDomain } from './filters.js';
 
 interface SerperOrganic {
   link?: string;
@@ -8,6 +8,7 @@ interface SerperOrganic {
 
 interface SerperResponse {
   organic?: SerperOrganic[];
+  message?: string;
 }
 
 function normalizeSerperLink(href: string): string | null {
@@ -15,7 +16,7 @@ function normalizeSerperLink(href: string): string | null {
     const root = toCasinoRootUrl(href);
     const host = casinoHostKey(root);
     if (!isValidCasinoHost(host)) return null;
-    if (!isDiscoveryCandidateUrl(root) || isBlockedDomain(root)) return null;
+    if (isBlockedDomain(root) || !shouldQueueSearchUrl(root)) return null;
     return root;
   } catch {
     return null;
@@ -26,9 +27,14 @@ export function isSerperEnabled(): boolean {
   return Boolean(process.env.SERPER_API_KEY?.trim());
 }
 
-export async function searchSerper(query: string, page = 1): Promise<string[]> {
+export interface SerperSearchResult {
+  links: string[];
+  error?: string;
+}
+
+export async function searchSerper(query: string, page = 1): Promise<SerperSearchResult> {
   const apiKey = process.env.SERPER_API_KEY?.trim();
-  if (!apiKey) return [];
+  if (!apiKey) return { links: [], error: 'Serper API key not configured' };
 
   const res = await fetch('https://google.serper.dev/search', {
     method: 'POST',
@@ -40,19 +46,28 @@ export async function searchSerper(query: string, page = 1): Promise<string[]> {
       q: query,
       gl: 'us',
       hl: 'en',
-      num: 10,
+      num: 15,
       page,
     }),
   });
 
-  if (!res.ok) return [];
+  if (!res.ok) {
+    const errText = await res.text().catch(() => res.statusText);
+    console.warn(`Serper HTTP ${res.status} for "${query.slice(0, 40)}": ${errText.slice(0, 120)}`);
+    return { links: [], error: `Serper HTTP ${res.status}` };
+  }
 
   const data = (await res.json()) as SerperResponse;
+  if (data.message) {
+    console.warn(`Serper API message: ${data.message}`);
+    return { links: [], error: data.message };
+  }
+
   const links = new Set<string>();
   for (const item of data.organic ?? []) {
     if (!item.link) continue;
     const root = normalizeSerperLink(item.link);
     if (root) links.add(root);
   }
-  return [...links];
+  return { links: [...links] };
 }
