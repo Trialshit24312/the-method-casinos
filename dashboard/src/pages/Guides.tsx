@@ -61,7 +61,7 @@ const GUIDES = [
     steps: [
       'Fill in Cash Out Before Blocked when you learn a casino\'s limit.',
       'Add custom trackables (min redeem, daily bonus value, etc.).',
-      'Admins: run Quick Scan (~3 min) or Deep Scan (~12 min) for new sites.',
+      'Admins: run Quick Scan (~8 min) or Deep Scan (~15 min) for new sites.',
       'Report scams via Block Site — removes from DB if matched.',
     ],
   },

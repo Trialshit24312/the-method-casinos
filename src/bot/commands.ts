@@ -7,7 +7,7 @@ import {
 } from 'discord.js';
 import type { Command } from './command-types.js';
 export type { Command } from './command-types.js';
-import { searchCasinos, getRandomCasino, getStats, getAllCasinos, getCasinoById, searchBlockedSites, addBlockedSite, getCasinoByUrl, getBlockedSiteByUrl, isUrlBlocked, findSimilarCasinosByQuery, getPendingCasinos, addSiteReport, approveCasino, rejectCasino, getOpenSiteReports, dismissSiteReport } from '../database/index.js';
+import { searchCasinos, getRandomCasino, getStats, getAllCasinos, getCasinoById, searchBlockedSites, addBlockedSite, getCasinoByUrl, getBlockedSiteByUrl, isUrlBlocked, findSimilarCasinosByQuery, getPendingCasinos, addSiteReport, approveCasino, rejectCasino, getOpenSiteReports, dismissSiteReport, getUserFavorites, addUserFavorite, removeUserFavorite } from '../database/index.js';
 import { runDiscovery } from '../discovery/engine.js';
 import {
   buildCasinoEmbed,
@@ -19,6 +19,8 @@ import {
   buildHelpEmbed,
   buildBlockedEmbed,
   buildSimilarEmbed,
+  buildCompareEmbed,
+  buildMyListEmbed,
   buildUrlCheckEmbed,
   parseFeatureChoices,
   handleCasinoAutocomplete,
@@ -200,6 +202,93 @@ export const commands: Command[] = [
       await interaction.editReply({
         embeds: [buildSimilarEmbed(result.source, result.matches)],
       });
+    },
+
+    async autocomplete(interaction) {
+      await handleCasinoAutocomplete(interaction, getAllCasinos(true));
+    },
+  },
+
+  {
+    data: new SlashCommandBuilder()
+      .setName('compare')
+      .setDescription('Compare two casinos side-by-side')
+      .addStringOption((o) =>
+        o.setName('casino_a').setDescription('First casino').setRequired(true).setAutocomplete(true),
+      )
+      .addStringOption((o) =>
+        o.setName('casino_b').setDescription('Second casino').setRequired(true).setAutocomplete(true),
+      ),
+
+    async execute(interaction) {
+      await interaction.deferReply();
+      const nameA = interaction.options.getString('casino_a', true);
+      const nameB = interaction.options.getString('casino_b', true);
+      const resultA = findSimilarCasinosByQuery(nameA, 1);
+      const resultB = findSimilarCasinosByQuery(nameB, 1);
+
+      if (!resultA || !resultB) {
+        await interaction.editReply({
+          content: `❌ Could not find ${!resultA ? `"${nameA}"` : ''}${!resultA && !resultB ? ' and ' : ''}${!resultB ? `"${nameB}"` : ''} in the catalog.`,
+        });
+        return;
+      }
+
+      await interaction.editReply({
+        embeds: [buildCompareEmbed(resultA.source, resultB.source)],
+      });
+    },
+
+    async autocomplete(interaction) {
+      await handleCasinoAutocomplete(interaction, getAllCasinos(true));
+    },
+  },
+
+  {
+    data: new SlashCommandBuilder()
+      .setName('mylist')
+      .setDescription('View your saved casinos (syncs with dashboard My List)'),
+
+    async execute(interaction) {
+      await interaction.deferReply({ ephemeral: true });
+      const favorites = getUserFavorites(interaction.user.id);
+      await interaction.editReply({ embeds: [buildMyListEmbed(favorites)] });
+    },
+  },
+
+  {
+    data: new SlashCommandBuilder()
+      .setName('favorite')
+      .setDescription('Save or remove a casino from your list')
+      .addStringOption((o) =>
+        o.setName('name').setDescription('Casino name').setRequired(true).setAutocomplete(true),
+      )
+      .addBooleanOption((o) =>
+        o.setName('remove').setDescription('Remove from list instead of adding').setRequired(false),
+      ),
+
+    async execute(interaction) {
+      await interaction.deferReply({ ephemeral: true });
+      const name = interaction.options.getString('name', true);
+      const remove = interaction.options.getBoolean('remove') ?? false;
+      const result = findSimilarCasinosByQuery(name, 1);
+
+      if (!result) {
+        await interaction.editReply({ content: `❌ No casino found matching "${name}".` });
+        return;
+      }
+
+      const casino = result.source;
+      if (remove) {
+        const ok = removeUserFavorite(interaction.user.id, casino.id);
+        await interaction.editReply({
+          content: ok ? `Removed **${casino.name}** from your list.` : `**${casino.name}** was not on your list.`,
+        });
+        return;
+      }
+
+      addUserFavorite(interaction.user.id, casino.id);
+      await interaction.editReply({ content: `❤️ Saved **${casino.name}** to your list. Use \`/mylist\` to view.` });
     },
 
     async autocomplete(interaction) {

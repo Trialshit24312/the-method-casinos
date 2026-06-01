@@ -1,4 +1,5 @@
 import fetch from 'node-fetch';
+import type { RevalidateResult } from '../discovery/revalidate.js';
 
 export async function notifyDiscordWebhook(payload: {
   title: string;
@@ -76,5 +77,20 @@ export async function notifyDiscoveryComplete(result: {
       result.added ? '\nApprove at dashboard → Review Queue' : '',
     ].join('\n'),
     color: result.added > 0 ? 0x10b981 : 0x6b7280,
+  });
+}
+
+export async function notifyRevalidationFailures(failed: RevalidateResult[]): Promise<void> {
+  if (!failed.length) return;
+  const lines = failed.slice(0, 10).map((r) => `• **${r.name}** — ${r.reason ?? 'check failed'}`).join('\n');
+  await notifyDiscordWebhook({
+    title: `Catalog health: ${failed.length} site(s) failed revalidation`,
+    description: [
+      lines,
+      failed.length > 10 ? `\n… and ${failed.length - 10} more` : '',
+      '',
+      'Review at dashboard → Review Queue → Catalog Health',
+    ].join('\n'),
+    color: 0xef4444,
   });
 }

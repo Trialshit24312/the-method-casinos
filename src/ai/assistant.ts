@@ -141,7 +141,7 @@ export async function askCasinoAssistant(
   }
 
   const prior = trimHistory(history);
-  const context = buildCatalogContext();
+  const context = buildCatalogContext(trimmed);
   const system = `${SYSTEM_BASE}\n\n--- LIVE CATALOG DATA ---\n${context}`;
 
   const rawAnswer = provider === 'groq'

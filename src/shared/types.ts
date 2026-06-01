@@ -101,6 +101,8 @@ export interface Trackable {
 
 export type ReviewStatus = 'approved' | 'pending' | 'rejected';
 
+export type CatalogHealthStatus = 'ok' | 'stale' | 'failed';
+
 export interface Casino {
   id: string;
   name: string;
@@ -120,6 +122,8 @@ export interface Casino {
   createdAt: string;
   updatedAt: string;
   lastCheckedAt: string | null;
+  healthStatus: CatalogHealthStatus;
+  healthNote: string;
 }
 
 export interface UrlCheckResult {
@@ -209,6 +213,8 @@ export interface SiteReport {
   reportedBy: string;
   status: 'open' | 'reviewed' | 'dismissed';
   createdAt: string;
+  reviewedAt: string | null;
+  reviewedBy: string | null;
 }
 
 export interface SiteReportInput {
@@ -239,6 +245,7 @@ export interface Stats {
   blockedSites: number;
   lastDiscoveryAt: string | null;
   staleCatalogCasinos: number;
+  failedHealthCasinos: number;
 }
 
 export const ALL_FEATURES: CasinoFeature[] = [

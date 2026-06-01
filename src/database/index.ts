@@ -2,11 +2,12 @@ import Database from 'better-sqlite3';
 import { nanoid } from 'nanoid';
 import path from 'path';
 import fs from 'fs';
-import type { Casino, CasinoInput, SearchFilters, Stats, CasinoFeature, BlockedSite, BlockedSiteInput, ReviewStatus, SiteReport, SiteReportInput } from '../shared/types.js';
+import type { Casino, CasinoInput, SearchFilters, Stats, CasinoFeature, BlockedSite, BlockedSiteInput, ReviewStatus, SiteReport, SiteReportInput, CatalogHealthStatus } from '../shared/types.js';
 import { normalizeUrl, ensureHttps, casinoHostKey, toCasinoRootUrl, isValidCasinoHost } from '../shared/utils.js';
 import { resolveRating } from '../shared/rating.js';
 import { normalizeTrackables } from '../shared/trackables.js';
 import { rankSimilarCasinos, type SimilarCasinoMatch } from '../shared/similarity.js';
+import { STALE_CATALOG_DAYS } from '../shared/freshness.js';
 import { VERIFIED_CASINO_SEEDS } from '../shared/verified-casinos.js';
 
 const DATA_DIR = path.join(process.cwd(), 'data');
@@ -131,10 +132,35 @@ function migrateSchema(): void {
   if (!names.has('approved_at')) {
     db.exec('ALTER TABLE casinos ADD COLUMN approved_at TEXT');
   }
+  if (!names.has('health_status')) {
+    db.exec("ALTER TABLE casinos ADD COLUMN health_status TEXT NOT NULL DEFAULT 'ok'");
+  }
+  if (!names.has('health_note')) {
+    db.exec("ALTER TABLE casinos ADD COLUMN health_note TEXT NOT NULL DEFAULT ''");
+  }
 
   db.exec(`
     CREATE UNIQUE INDEX IF NOT EXISTS idx_site_reports_open_host
     ON site_reports(url_normalized) WHERE status = 'open'
+  `);
+
+  const reportCols = db.prepare('PRAGMA table_info(site_reports)').all() as { name: string }[];
+  const reportNames = new Set(reportCols.map((c) => c.name));
+  if (!reportNames.has('reviewed_at')) {
+    db.exec('ALTER TABLE site_reports ADD COLUMN reviewed_at TEXT');
+  }
+  if (!reportNames.has('reviewed_by')) {
+    db.exec('ALTER TABLE site_reports ADD COLUMN reviewed_by TEXT');
+  }
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS user_favorites (
+      user_id TEXT NOT NULL,
+      casino_id TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      PRIMARY KEY (user_id, casino_id),
+      FOREIGN KEY (casino_id) REFERENCES casinos(id) ON DELETE CASCADE
+    );
   `);
 
   const logCols = db.prepare('PRAGMA table_info(discovery_log)').all() as { name: string }[];
@@ -258,6 +284,8 @@ function rowToCasino(row: Record<string, unknown>): Casino {
     createdAt: row.created_at as string,
     updatedAt: row.updated_at as string,
     lastCheckedAt: (row.last_checked_at as string) || null,
+    healthStatus: ((row.health_status as string) || 'ok') as Casino['healthStatus'],
+    healthNote: (row.health_note as string) || '',
   };
 }
 
@@ -342,6 +370,8 @@ export function addCasino(input: CasinoInput): Casino | null {
     createdAt: now,
     updatedAt: now,
     lastCheckedAt: null,
+    healthStatus: 'ok',
+    healthNote: '',
   };
 
   db.prepare(`
@@ -517,9 +547,103 @@ export function countStaleCatalogCasinos(maxAgeDays = 90): number {
   const row = db.prepare(`
     SELECT COUNT(*) as c FROM casinos
     WHERE active = 1 AND review_status = 'approved' AND verified = 1
+      AND health_status != 'failed'
       AND (last_checked_at IS NULL OR last_checked_at < @cutoff)
   `).get({ cutoff }) as { c: number };
   return row.c;
+}
+
+export function countFailedHealthCasinos(): number {
+  const row = db.prepare(`
+    SELECT COUNT(*) as c FROM casinos
+    WHERE active = 1 AND review_status = 'approved' AND verified = 1 AND health_status = 'failed'
+  `).get() as { c: number };
+  return row.c;
+}
+
+export function setCasinoHealth(id: string, status: CatalogHealthStatus, note = ''): void {
+  const now = new Date().toISOString();
+  db.prepare(`
+    UPDATE casinos SET health_status = @status, health_note = @note, updated_at = @now WHERE id = @id
+  `).run({ id, status, note: note.slice(0, 500), now });
+}
+
+export function getCatalogHealthIssues(limit = 50): Casino[] {
+  const cutoff = new Date(Date.now() - STALE_CATALOG_DAYS * 24 * 60 * 60 * 1000).toISOString();
+  const rows = db.prepare(`
+    SELECT * FROM casinos
+    WHERE active = 1 AND review_status = 'approved' AND verified = 1
+      AND (
+        health_status = 'failed'
+        OR last_checked_at IS NULL
+        OR last_checked_at < @cutoff
+      )
+    ORDER BY
+      CASE WHEN health_status = 'failed' THEN 0 ELSE 1 END,
+      CASE WHEN last_checked_at IS NULL THEN 0 ELSE 1 END,
+      last_checked_at ASC,
+      rating DESC
+    LIMIT @limit
+  `).all({ cutoff, limit });
+  return rows.map((r) => rowToCasino(r as Record<string, unknown>));
+}
+
+export function unlistCasino(id: string): boolean {
+  const now = new Date().toISOString();
+  const result = db.prepare(`
+    UPDATE casinos SET active = 0, updated_at = @now WHERE id = @id
+  `).run({ id, now });
+  return result.changes > 0;
+}
+
+export function getCasinoBySlug(slug: string): Casino | null {
+  const trimmed = slug.trim();
+  const byId = getCasinoById(trimmed);
+  if (byId?.active && byId.reviewStatus === 'approved' && byId.verified) return byId;
+
+  const host = trimmed.toLowerCase().replace(/^www\./, '');
+  const row = db.prepare(`
+    SELECT * FROM casinos
+    WHERE url_normalized = @host AND active = 1 AND review_status = 'approved' AND verified = 1
+  `).get({ host });
+  return row ? rowToCasino(row as Record<string, unknown>) : null;
+}
+
+export function getUserFavorites(userId: string): Casino[] {
+  const rows = db.prepare(`
+    SELECT c.* FROM user_favorites f
+    JOIN casinos c ON c.id = f.casino_id
+    WHERE f.user_id = @userId AND c.active = 1
+    ORDER BY f.created_at DESC
+  `).all({ userId });
+  return rows.map((r) => rowToCasino(r as Record<string, unknown>));
+}
+
+export function addUserFavorite(userId: string, casinoId: string): boolean {
+  const casino = getCasinoById(casinoId);
+  if (!casino || !casino.active || casino.reviewStatus !== 'approved' || !casino.verified) {
+    return false;
+  }
+  const now = new Date().toISOString();
+  db.prepare(`
+    INSERT OR IGNORE INTO user_favorites (user_id, casino_id, created_at)
+    VALUES (@userId, @casinoId, @now)
+  `).run({ userId, casinoId, now });
+  return true;
+}
+
+export function removeUserFavorite(userId: string, casinoId: string): boolean {
+  const result = db.prepare(`
+    DELETE FROM user_favorites WHERE user_id = @userId AND casino_id = @casinoId
+  `).run({ userId, casinoId });
+  return result.changes > 0;
+}
+
+export function isUserFavorite(userId: string, casinoId: string): boolean {
+  const row = db.prepare(`
+    SELECT 1 FROM user_favorites WHERE user_id = @userId AND casino_id = @casinoId
+  `).get({ userId, casinoId });
+  return Boolean(row);
 }
 
 export function approveCasino(id: string, approvedBy?: string): Casino | null {
@@ -643,6 +767,7 @@ export function getStats(): Stats {
     blockedSites: blockedSites.c,
     lastDiscoveryAt: lastDiscovery?.ran_at ?? null,
     staleCatalogCasinos: countStaleCatalogCasinos(),
+    failedHealthCasinos: countFailedHealthCasinos(),
   };
 }
 
@@ -881,6 +1006,8 @@ export function addSiteReport(input: SiteReportInput): SiteReport {
       reportedBy: existing.reported_by as string,
       status: 'open',
       createdAt: existing.created_at as string,
+      reviewedAt: null,
+      reviewedBy: null,
     };
   }
 
@@ -891,6 +1018,8 @@ export function addSiteReport(input: SiteReportInput): SiteReport {
     reportedBy: input.reportedBy || 'anonymous',
     status: 'open',
     createdAt: now,
+    reviewedAt: null,
+    reviewedBy: null,
   };
 
   db.prepare(`
@@ -911,27 +1040,51 @@ export function addSiteReport(input: SiteReportInput): SiteReport {
 
 export function getOpenSiteReports(): SiteReport[] {
   const rows = db.prepare(`
-    SELECT id, url, reason, reported_by, status, created_at
+    SELECT id, url, reason, reported_by, status, created_at, reviewed_at, reviewed_by
     FROM site_reports WHERE status = 'open'
     ORDER BY created_at DESC
     LIMIT 100
   `).all();
-  return rows.map((r) => ({
-    id: (r as Record<string, unknown>).id as string,
-    url: (r as Record<string, unknown>).url as string,
-    reason: (r as Record<string, unknown>).reason as string,
-    reportedBy: (r as Record<string, unknown>).reported_by as string,
-    status: (r as Record<string, unknown>).status as SiteReport['status'],
-    createdAt: (r as Record<string, unknown>).created_at as string,
-  }));
+  return rows.map((r) => mapSiteReport(r as Record<string, unknown>));
 }
 
-export function dismissSiteReport(id: string): boolean {
-  const result = db.prepare("UPDATE site_reports SET status = 'dismissed' WHERE id = ?").run(id);
+export function getClosedSiteReports(limit = 50): SiteReport[] {
+  const rows = db.prepare(`
+    SELECT id, url, reason, reported_by, status, created_at, reviewed_at, reviewed_by
+    FROM site_reports WHERE status != 'open'
+    ORDER BY COALESCE(reviewed_at, created_at) DESC
+    LIMIT @limit
+  `).all({ limit });
+  return rows.map((r) => mapSiteReport(r as Record<string, unknown>));
+}
+
+function mapSiteReport(r: Record<string, unknown>): SiteReport {
+  return {
+    id: r.id as string,
+    url: r.url as string,
+    reason: r.reason as string,
+    reportedBy: r.reported_by as string,
+    status: r.status as SiteReport['status'],
+    createdAt: r.created_at as string,
+    reviewedAt: (r.reviewed_at as string) || null,
+    reviewedBy: (r.reviewed_by as string) || null,
+  };
+}
+
+export function dismissSiteReport(id: string, reviewedBy?: string): boolean {
+  const now = new Date().toISOString();
+  const result = db.prepare(`
+    UPDATE site_reports SET status = 'dismissed', reviewed_at = @now, reviewed_by = @reviewedBy
+    WHERE id = @id
+  `).run({ id, now, reviewedBy: reviewedBy ?? null });
   return result.changes > 0;
 }
 
-export function markSiteReportReviewed(id: string): boolean {
-  const result = db.prepare("UPDATE site_reports SET status = 'reviewed' WHERE id = ?").run(id);
+export function markSiteReportReviewed(id: string, reviewedBy?: string): boolean {
+  const now = new Date().toISOString();
+  const result = db.prepare(`
+    UPDATE site_reports SET status = 'reviewed', reviewed_at = @now, reviewed_by = @reviewedBy
+    WHERE id = @id
+  `).run({ id, now, reviewedBy: reviewedBy ?? null });
   return result.changes > 0;
 }

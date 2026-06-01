@@ -54,6 +54,8 @@ services:
       - key: GEMINI_API_KEY
         sync: false
       - key: REVALIDATE_INTERVAL_HOURS
-        sync: false
+        value: "168"
+      - key: DISCOVERY_SCHEDULE_HOURS
+        value: "168"
       - key: DB_BACKUP_INTERVAL_HOURS
-        sync: false
+        value: "24"

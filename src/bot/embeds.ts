@@ -163,6 +163,63 @@ export function buildSimilarEmbed(
   return embed;
 }
 
+export function buildCompareEmbed(a: Casino, b: Casino): EmbedBuilder {
+  const shared = a.features.filter((f) => b.features.includes(f));
+  const onlyA = a.features.filter((f) => !b.features.includes(f)).slice(0, 6);
+  const onlyB = b.features.filter((f) => !a.features.includes(f)).slice(0, 6);
+
+  return new EmbedBuilder()
+    .setColor(ACCENT_GOLD)
+    .setTitle(`⚖️ ${a.name} vs ${b.name}`)
+    .addFields(
+      { name: a.name, value: `⭐ ${a.rating.toFixed(1)}\n${a.url}`, inline: true },
+      { name: b.name, value: `⭐ ${b.rating.toFixed(1)}\n${b.url}`, inline: true },
+      { name: '\u200b', value: '\u200b', inline: true },
+      {
+        name: 'Signup',
+        value: [
+          `**${a.name}:** ${a.signupRequirements.join(', ') || '—'}`,
+          `**${b.name}:** ${b.signupRequirements.join(', ') || '—'}`,
+        ].join('\n'),
+        inline: false,
+      },
+      {
+        name: `Shared features (${shared.length})`,
+        value: shared.slice(0, 10).map((f) => FEATURE_EMOJI[f] + ' ' + f.replace(/_/g, ' ')).join(' · ') || 'None',
+        inline: false,
+      },
+      {
+        name: `Only on ${a.name}`,
+        value: onlyA.map((f) => f.replace(/_/g, ' ')).join(', ') || '—',
+        inline: true,
+      },
+      {
+        name: `Only on ${b.name}`,
+        value: onlyB.map((f) => f.replace(/_/g, ' ')).join(', ') || '—',
+        inline: true,
+      },
+    )
+    .setFooter({ text: methodFooterText('/compare') })
+    .setTimestamp();
+}
+
+export function buildMyListEmbed(casinos: Casino[]): EmbedBuilder {
+  const lines = casinos.slice(0, 15).map((c, i) =>
+    `\`${String(i + 1).padStart(2, ' ')}\` **${c.name}** ⭐ ${c.rating.toFixed(1)} — ${c.url}`,
+  );
+
+  return new EmbedBuilder()
+    .setColor(BRAND_COLOR)
+    .setTitle('❤️ My Saved Casinos')
+    .setDescription(
+      casinos.length
+        ? lines.join('\n')
+        : 'No saved casinos yet. Use `/favorite` on a casino name, or save from the dashboard.',
+    )
+    .setFooter({ text: methodFooterText('/mylist') })
+    .setTimestamp();
+}
+
 export function buildStatsEmbed(stats: {
   totalCasinos: number;
   verifiedCasinos: number;
@@ -177,6 +234,7 @@ export function buildStatsEmbed(stats: {
   lastDiscoveryAt: string | null;
   openReports?: number;
   staleCatalogCasinos?: number;
+  failedHealthCasinos?: number;
 }): EmbedBuilder {
   return new EmbedBuilder()
     .setColor(ACCENT_GOLD)
@@ -187,6 +245,7 @@ export function buildStatsEmbed(stats: {
       { name: '⏳ Pending Review', value: `${stats.pendingReview ?? 0}`, inline: true },
       { name: '📋 Open Reports', value: `${stats.openReports ?? 0}`, inline: true },
       { name: '🕐 Stale Catalog', value: `${stats.staleCatalogCasinos ?? 0}`, inline: true },
+      { name: '⚠️ Failed Health', value: `${stats.failedHealthCasinos ?? 0}`, inline: true },
       { name: '📵 No Phone', value: `${stats.noPhoneCasinos}`, inline: true },
       { name: '✉️ Email Only', value: `${stats.emailOnlyCasinos}`, inline: true },
       { name: '🎰 With Slots', value: `${stats.withSlots}`, inline: true },
@@ -386,7 +445,8 @@ export function buildHelpEmbed(): EmbedBuilder {
     )
     .addFields(
       { name: '🌐 Website & Legal', value: '`/website` `/legal` `/terms` `/rules` `/privacy` `/tools`', inline: false },
-      { name: '🔍 Search & Browse', value: '`/search` `/random` `/casino` `/similar` `/stats` `/ask`', inline: false },
+      { name: '🔍 Search & Browse', value: '`/search` `/random` `/casino` `/similar` `/compare` `/stats` `/ask`', inline: false },
+      { name: '❤️ Personal', value: '`/mylist` `/favorite`', inline: false },
       { name: '🏷️ Filters', value: '`/nophone` `/slots` `/live` `/vpn` `/fish` `/bingo` `/new` `/redeem`', inline: false },
       { name: '🛡️ Safety', value: '`/check` `/blocked` `/report` — `/block` (admin)', inline: false },
       { name: '⚙️ Admin', value: '`/discover` `/pending` `/approve` `/reject` `/dismissreport`', inline: false },

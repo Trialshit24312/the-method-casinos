@@ -44,7 +44,7 @@ export default function DashboardPage() {
         subtitle="Verified US sweepstakes casinos — browse, compare, and check URLs before you sign up"
       />
 
-      {user?.isAdmin && stats && (stats.pendingReview > 0 || (stats.openReports ?? 0) > 0) && (
+      {user?.isAdmin && stats && (stats.pendingReview > 0 || (stats.openReports ?? 0) > 0 || (stats.failedHealthCasinos ?? 0) > 0) && (
         <motion.div
           initial={{ opacity: 0, y: -8 }}
           animate={{ opacity: 1, y: 0 }}
@@ -58,6 +58,10 @@ export default function DashboardPage() {
             {stats.pendingReview > 0 && (stats.openReports ?? 0) > 0 && ' · '}
             {(stats.openReports ?? 0) > 0 && (
               <span>{stats.openReports} open user report{(stats.openReports ?? 0) === 1 ? '' : 's'}</span>
+            )}
+            {((stats.pendingReview > 0 || (stats.openReports ?? 0) > 0) && (stats.failedHealthCasinos ?? 0) > 0) && ' · '}
+            {(stats.failedHealthCasinos ?? 0) > 0 && (
+              <span>{stats.failedHealthCasinos} failed health check{(stats.failedHealthCasinos ?? 0) === 1 ? '' : 's'}</span>
             )}
           </p>
           <Link to="/review" className="text-sm text-glow hover:underline font-medium">
@@ -74,6 +78,9 @@ export default function DashboardPage() {
           )}
           {user?.isAdmin && (stats.staleCatalogCasinos ?? 0) > 0 && (
             <StatCard label="Stale Catalog (90d+)" value={stats.staleCatalogCasinos ?? 0} icon={Clock} color="bg-orange-500/20 text-orange-300" delay={0.06} />
+          )}
+          {user?.isAdmin && (stats.failedHealthCasinos ?? 0) > 0 && (
+            <StatCard label="Failed Health" value={stats.failedHealthCasinos ?? 0} icon={Flag} color="bg-red-500/20 text-red-300" delay={0.065} />
           )}
           <StatCard label="No Phone Required" value={stats.noPhoneCasinos} icon={PhoneOff} color="bg-[#00aeef]/20 text-[#00aeef]" delay={0.1} />
           <StatCard label="Email Only Signup" value={stats.emailOnlyCasinos} icon={Mail} color="bg-violet-500/20 text-violet-300" delay={0.15} />
@@ -109,6 +116,7 @@ export default function DashboardPage() {
         <h2 className="font-display font-semibold text-lg mb-4 text-white">Quick Start</h2>
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
           {[
+            { title: 'My List', desc: user ? 'Your saved casinos — syncs with Discord /mylist.' : 'Sign in to save favorites.', path: user ? '/mylist' : '/login?next=/mylist', icon: Sparkles, accent: 'border-rose-500/30 hover:border-rose-500/60' },
             { title: 'Browse Casinos', desc: 'Verified catalog — filter by VPN, slots, email-only.', path: '/casinos', icon: Dices, accent: 'border-[#b87333]/30 hover:border-[#b87333]/60' },
             { title: 'Similar Casinos', desc: 'Pick a casino — find alike sites by features.', path: '/similar', icon: Sparkles, accent: 'border-[#00aeef]/30 hover:border-[#00aeef]/60' },
             { title: 'URL Safety Checker', desc: 'Check if a link is safe before visiting.', path: '/tools/checker', icon: ShieldCheck, accent: 'border-emerald-500/30 hover:border-emerald-500/60' },

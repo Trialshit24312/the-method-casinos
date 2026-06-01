@@ -19,6 +19,8 @@ import UrlChecker from './pages/tools/UrlChecker';
 import BlockedSites from './pages/BlockedSites';
 import SimilarCasinos from './pages/SimilarCasinos';
 import Privacy from './pages/Privacy';
+import CasinoDetail from './pages/CasinoDetail';
+import MyList from './pages/MyList';
 import LegalHub from './pages/LegalHub';
 import PublicLayout from './components/PublicLayout';
 
@@ -52,6 +54,8 @@ export default function App() {
         <Route element={<Layout />}>
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/casinos" element={<Casinos />} />
+          <Route path="/casinos/:slug" element={<CasinoDetail />} />
+          <Route path="/mylist" element={<MyList />} />
           <Route path="/similar" element={<SimilarCasinos />} />
           <Route path="/assistant" element={<Assistant />} />
           <Route path="/blocked" element={<BlockedSites />} />

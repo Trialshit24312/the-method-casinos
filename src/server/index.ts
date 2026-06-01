@@ -32,10 +32,17 @@ import {
   markSiteReportReviewed,
   getDiscoveryHistory,
   getDatabase,
+  getCatalogHealthIssues,
+  unlistCasino,
+  getCasinoBySlug,
+  getUserFavorites,
+  addUserFavorite,
+  removeUserFavorite,
+  getClosedSiteReports,
 } from '../database/index.js';
 import { runDiscovery } from '../discovery/engine.js';
 import { cancelDiscoveryRun, isDiscoveryRunning } from '../discovery/run-state.js';
-import { runRevalidationBatch } from '../discovery/revalidate.js';
+import { runRevalidationBatch, revalidateCasinoById } from '../discovery/revalidate.js';
 import { requireAuth, requireAdmin, exchangeCode, getDiscordAuthUrl, getAvatarUrl, createOAuthState, verifyOAuthState } from './auth.js';
 import type { CasinoFeature, CasinoInput, BlockedSiteInput, DiscoveryResult } from '../shared/types.js';
 import { getAllowedCorsOrigins, getDashboardUrl, getDiscordRedirectUri, getOAuthSetupInfo } from '../shared/site.js';
@@ -99,6 +106,7 @@ export function createServer(): express.Application {
         pendingReview: stats.pendingReview,
         openReports: stats.openReports,
         staleCatalog: stats.staleCatalogCasinos,
+        failedHealth: stats.failedHealthCasinos,
         uptime: process.uptime(),
       });
     } catch {
@@ -254,6 +262,66 @@ export function createServer(): express.Application {
     res.json({ ok: true });
   });
 
+  app.post('/api/casinos/:id/unlist', requireAuth, requireAdmin, (req, res) => {
+    const ok = unlistCasino(String(req.params.id));
+    if (!ok) {
+      res.status(404).json({ error: 'Not found' });
+      return;
+    }
+    res.json({ ok: true });
+  });
+
+  app.post('/api/casinos/:id/revalidate', requireAuth, requireAdmin, async (req, res) => {
+    try {
+      const result = await revalidateCasinoById(String(req.params.id));
+      if (result.reason === 'not found') {
+        res.status(404).json({ error: 'Not found' });
+        return;
+      }
+      res.json(result);
+    } catch (err) {
+      res.status(500).json({ error: err instanceof Error ? err.message : 'Revalidation failed' });
+    }
+  });
+
+  app.get('/api/favorites', requireAuth, (req, res) => {
+    res.json(getUserFavorites(req.session.user!.id));
+  });
+
+  app.post('/api/favorites/:casinoId', requireAuth, (req, res) => {
+    const ok = addUserFavorite(req.session.user!.id, String(req.params.casinoId));
+    if (!ok) {
+      res.status(404).json({ error: 'Casino not found or not in catalog' });
+      return;
+    }
+    res.status(201).json({ ok: true });
+  });
+
+  app.delete('/api/favorites/:casinoId', requireAuth, (req, res) => {
+    const ok = removeUserFavorite(req.session.user!.id, String(req.params.casinoId));
+    if (!ok) {
+      res.status(404).json({ error: 'Favorite not found' });
+      return;
+    }
+    res.json({ ok: true });
+  });
+
+  app.get('/api/admin/catalog-health', requireAuth, requireAdmin, (req, res) => {
+    const limit = Math.min(100, Math.max(1, parseInt(String(req.query.limit ?? '50'), 10) || 50));
+    res.json(getCatalogHealthIssues(limit));
+  });
+
+  app.get('/api/notifications', requireAuth, requireAdmin, (_req, res) => {
+    const stats = getStats();
+    res.json({
+      pendingReview: stats.pendingReview,
+      openReports: stats.openReports,
+      staleCatalog: stats.staleCatalogCasinos,
+      failedHealth: stats.failedHealthCasinos,
+      total: stats.pendingReview + stats.openReports + stats.failedHealthCasinos,
+    });
+  });
+
   app.get('/api/similar', (req, res) => {
     const casinoId = req.query.casinoId as string | undefined;
     const q = req.query.q as string | undefined;
@@ -283,8 +351,14 @@ export function createServer(): express.Application {
   });
 
   app.get('/api/casinos/:id', (req, res) => {
-    const casino = getCasinoById(req.params.id);
+    const param = String(req.params.id);
+    let casino = getCasinoById(param) ?? getCasinoBySlug(param);
     if (!casino) {
+      res.status(404).json({ error: 'Not found' });
+      return;
+    }
+    const isPublic = casino.verified && casino.reviewStatus === 'approved' && casino.active;
+    if (!isPublic && !req.session.user?.isAdmin) {
       res.status(404).json({ error: 'Not found' });
       return;
     }
@@ -430,8 +504,13 @@ export function createServer(): express.Application {
     res.json(getOpenSiteReports());
   });
 
+  app.get('/api/reports/history', requireAuth, requireAdmin, (req, res) => {
+    const limit = Math.min(100, Math.max(1, parseInt(String(req.query.limit ?? '50'), 10) || 50));
+    res.json(getClosedSiteReports(limit));
+  });
+
   app.post('/api/reports/:id/dismiss', requireAuth, requireAdmin, (req, res) => {
-    const ok = dismissSiteReport(String(req.params.id));
+    const ok = dismissSiteReport(String(req.params.id), req.session.user?.username);
     if (!ok) {
       res.status(404).json({ error: 'Not found' });
       return;
@@ -455,7 +534,7 @@ export function createServer(): express.Application {
       reportedBy: report.reportedBy,
       removeCasino: true,
     });
-    markSiteReportReviewed(String(req.params.id));
+    markSiteReportReviewed(String(req.params.id), req.session.user?.username);
     res.json({ ok: true, blockedSite: site });
   });
 

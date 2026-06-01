@@ -172,4 +172,20 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ limit }),
     }),
+  getCatalogHealth: () => request<Casino[]>('/api/admin/catalog-health'),
+  revalidateCasino: (id: string) =>
+    request<{ id: string; ok: boolean; reason?: string }>(`/api/casinos/${id}/revalidate`, { method: 'POST' }),
+  unlistCasino: (id: string) =>
+    request<{ ok: boolean }>(`/api/casinos/${id}/unlist`, { method: 'POST' }),
+  getFavorites: () => request<Casino[]>('/api/favorites'),
+  addFavorite: (casinoId: string) =>
+    request<{ ok: boolean }>(`/api/favorites/${casinoId}`, { method: 'POST' }),
+  removeFavorite: (casinoId: string) =>
+    request<{ ok: boolean }>(`/api/favorites/${casinoId}`, { method: 'DELETE' }),
+  getReportHistory: (limit = 50) =>
+    request<SiteReport[]>(`/api/reports/history?limit=${limit}`),
+  getNotifications: () =>
+    request<{ pendingReview: number; openReports: number; staleCatalog: number; failedHealth: number; total: number }>(
+      '/api/notifications',
+    ),
 };

@@ -1,9 +1,16 @@
 import fetch from 'node-fetch';
 import * as cheerio from 'cheerio';
-import { getStaleCatalogCasinos, getCasinoById, touchLastCheckedAt, updateCasino } from '../database/index.js';
+import {
+  getStaleCatalogCasinos,
+  getCasinoById,
+  touchLastCheckedAt,
+  updateCasino,
+  setCasinoHealth,
+} from '../database/index.js';
 import { validateSweepstakesPage } from './filters.js';
 import { toCasinoRootUrl, casinoHostKey } from '../shared/utils.js';
 import { STALE_CATALOG_DAYS } from '../shared/freshness.js';
+import { notifyRevalidationFailures } from '../shared/notify.js';
 
 const UA = 'Mozilla/5.0 (compatible; MethodCasinosBot/1.0; +https://the-method-casinos.onrender.com)';
 
@@ -36,6 +43,7 @@ export async function revalidateCasinoById(id: string): Promise<RevalidateResult
   const root = toCasinoRootUrl(casino.url);
   const html = await fetchHomepage(root);
   if (!html) {
+    setCasinoHealth(id, 'failed', 'Homepage fetch failed');
     return { id, url: root, name: casino.name, ok: false, reason: 'fetch failed' };
   }
 
@@ -46,10 +54,12 @@ export async function revalidateCasinoById(id: string): Promise<RevalidateResult
 
   const validation = validateSweepstakesPage(title, metaDesc, bodyText, root);
   if (!validation.valid) {
+    setCasinoHealth(id, 'failed', validation.reason ?? 'validation failed');
     return { id, url: root, name: casino.name, ok: false, reason: validation.reason ?? 'validation failed' };
   }
 
   touchLastCheckedAt(root);
+  setCasinoHealth(id, 'ok', '');
   if (metaDesc && metaDesc !== casino.description) {
     updateCasino(id, { description: metaDesc.slice(0, 500) });
   }
@@ -71,10 +81,15 @@ export async function runRevalidationBatch(limit = 10): Promise<{
     await new Promise((r) => setTimeout(r, 400));
   }
 
+  const failedResults = results.filter((r) => !r.ok);
+  if (failedResults.length) {
+    void notifyRevalidationFailures(failedResults);
+  }
+
   return {
     checked: results.length,
     passed: results.filter((r) => r.ok).length,
-    failed: results.filter((r) => !r.ok).length,
+    failed: failedResults.length,
     results,
   };
 }

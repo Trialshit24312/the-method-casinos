@@ -18,6 +18,8 @@ import {
   Sparkles,
   Bot,
   Lock as LockIcon,
+  Heart,
+  Bell,
   Scale,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
@@ -28,6 +30,7 @@ import { api } from '../api';
 const mainNav = [
   { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
   { to: '/casinos', icon: Dices, label: 'Casinos' },
+  { to: '/mylist', icon: Heart, label: 'My List' },
   { to: '/similar', icon: Sparkles, label: 'Similar Casinos' },
   { to: '/assistant', icon: Bot, label: 'AI Assistant' },
   { to: '/blocked', icon: Ban, label: 'Blocked Sites' },
@@ -57,14 +60,12 @@ const legalNav = [
 function NavSection({
   title,
   items,
-  pendingCount = 0,
-  reportCount = 0,
+  notifyTotal = 0,
   showAdminHint = false,
 }: {
   title: string;
   items: (typeof mainNav)[number][];
-  pendingCount?: number;
-  reportCount?: number;
+  notifyTotal?: number;
   showAdminHint?: boolean;
 }) {
   const { user } = useAuth();
@@ -91,9 +92,10 @@ function NavSection({
               <item.icon className="w-4 h-4 shrink-0" />
               <span className="font-medium text-sm flex-1">{item.label}</span>
               {needsAdmin && <LockIcon className="w-3 h-3 text-gray-600" aria-label="Admin sign-in required" />}
-              {item.to === '/review' && user?.isAdmin && (pendingCount + reportCount) > 0 && (
-                <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-amber-500/20 text-amber-400">
-                  {pendingCount + reportCount}
+              {item.to === '/review' && user?.isAdmin && notifyTotal > 0 && (
+                <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-amber-500/20 text-amber-400 flex items-center gap-0.5">
+                  <Bell className="w-2.5 h-2.5" />
+                  {notifyTotal}
                 </span>
               )}
             </NavLink>
@@ -107,15 +109,17 @@ function NavSection({
 export default function Layout() {
   const { user, logout } = useAuth();
   const discordInvite = discordInviteUrl();
-  const [pendingCount, setPendingCount] = useState(0);
-  const [reportCount, setReportCount] = useState(0);
+  const [notifyTotal, setNotifyTotal] = useState(0);
 
   useEffect(() => {
     if (!user?.isAdmin) return;
-    api.getStats().then((s) => {
-      setPendingCount(s.pendingReview);
-      setReportCount(s.openReports ?? 0);
-    }).catch(() => {});
+    api.getNotifications().then((n) => {
+      setNotifyTotal(n.total);
+    }).catch(() => {
+      api.getStats().then((s) => {
+        setNotifyTotal(s.pendingReview + (s.openReports ?? 0) + (s.failedHealthCasinos ?? 0));
+      }).catch(() => {});
+    });
   }, [user?.isAdmin]);
 
   return (
@@ -144,7 +148,7 @@ export default function Layout() {
 
         <nav className="flex-1 p-3 overflow-y-auto">
           <NavSection title="Main" items={mainNav} />
-          <NavSection title="Admin" items={adminNav} pendingCount={pendingCount} reportCount={reportCount} showAdminHint />
+          <NavSection title="Admin" items={adminNav} notifyTotal={notifyTotal} showAdminHint />
           <NavSection title="Tools" items={toolsNav} />
           <NavSection title="Legal" items={legalNav} />
           {discordInvite && (

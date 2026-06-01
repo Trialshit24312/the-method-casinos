@@ -24,7 +24,9 @@ export default function CasinoCard({ casino, index, onEdit, onBlock, admin }: Ca
     >
       <div className="flex items-start justify-between mb-3">
         <div className="flex items-center gap-2 flex-wrap">
-          <h3 className="font-display font-semibold text-lg">{casino.name}</h3>
+          <Link to={`/casinos/${casino.urlNormalized ?? casino.id}`} className="font-display font-semibold text-lg hover:text-glow transition-colors">
+            {casino.name}
+          </Link>
           {casino.verified && (
             <ShieldCheck className="w-4 h-4 text-accent-green" aria-label="Verified" />
           )}
@@ -33,7 +35,12 @@ export default function CasinoCard({ casino, index, onEdit, onBlock, admin }: Ca
               Pending
             </span>
           )}
-          {admin && isCatalogStale(casino.lastCheckedAt) && casino.reviewStatus === 'approved' && (
+          {admin && casino.healthStatus === 'failed' && (
+            <span className="text-[10px] px-1.5 py-0.5 rounded bg-red-500/20 text-red-300 border border-red-500/30">
+              Failed
+            </span>
+          )}
+          {admin && isCatalogStale(casino.lastCheckedAt) && casino.reviewStatus === 'approved' && casino.healthStatus !== 'failed' && (
             <span className="text-[10px] px-1.5 py-0.5 rounded bg-orange-500/15 text-orange-300 border border-orange-500/25" title="Homepage not re-checked recently">
               Stale
             </span>

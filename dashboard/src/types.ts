@@ -79,6 +79,7 @@ export interface Casino {
   id: string;
   name: string;
   url: string;
+  urlNormalized?: string;
   description: string;
   features: CasinoFeature[];
   signupRequirements: string[];
@@ -93,6 +94,8 @@ export interface Casino {
   createdAt: string;
   updatedAt: string;
   lastCheckedAt?: string | null;
+  healthStatus?: 'ok' | 'stale' | 'failed';
+  healthNote?: string;
 }
 
 export interface BlockedSite {
@@ -136,6 +139,7 @@ export interface Stats {
   blockedSites: number;
   lastDiscoveryAt: string | null;
   staleCatalogCasinos?: number;
+  failedHealthCasinos?: number;
 }
 
 export interface User {
@@ -197,6 +201,8 @@ export interface SiteReport {
   reportedBy: string;
   status: 'open' | 'reviewed' | 'dismissed';
   createdAt: string;
+  reviewedAt?: string | null;
+  reviewedBy?: string | null;
 }
 
 export interface UrlCheckResult {
