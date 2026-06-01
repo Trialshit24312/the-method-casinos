@@ -1,0 +1,99 @@
+name: Discord Updates
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+
+jobs:
+  notify:
+    if: >-
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+          fetch-depth: 2
+
+      - name: Post update to Discord
+        env:
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_UPDATES_WEBHOOK_URL }}
+          ACTOR: ${{ github.event.workflow_run.triggering_actor.login }}
+          ACTOR_ID: ${{ github.event.workflow_run.triggering_actor.id }}
+          REPO: ${{ github.repository }}
+          REPO_NAME: ${{ github.event.repository.name }}
+          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+          SERVER_NAME: The Method Casinos
+        run: |
+          if [ -z "$DISCORD_WEBHOOK" ]; then
+            echo "DISCORD_UPDATES_WEBHOOK_URL secret not set — skipping."
+            exit 0
+          fi
+
+          COMMIT_MSG="$(git log -1 --pretty=%B)"
+          COMMIT_SUBJECT="$(git log -1 --pretty=%s)"
+          COMMIT_BODY="$(git log -1 --pretty=%b | head -20)"
+          SHORT_SHA="$(git log -1 --pretty=%h)"
+
+          BRANCH="main → main"
+          SUMMARY="$COMMIT_SUBJECT"
+          ACTION="pushed updates to main"
+
+          if echo "$COMMIT_MSG" | grep -qiE '^Merge pull request'; then
+            SOURCE="$(echo "$COMMIT_MSG" | sed -n 's/.* from [^/]*\/\([^ ]*\).*/\1/p' | head -1)"
+            [ -n "$SOURCE" ] && BRANCH="${SOURCE} → main"
+            ACTION="merged ${SOURCE:-updates} to main"
+            SUMMARY="$COMMIT_SUBJECT"
+          elif echo "$COMMIT_MSG" | grep -qiE "^Merge branch"; then
+            SOURCE="$(echo "$COMMIT_MSG" | sed -n "s/Merge branch '\([^']*\)'.*/\1/p" | head -1)"
+            [ -n "$SOURCE" ] && BRANCH="${SOURCE} → main"
+            ACTION="merged ${SOURCE:-updates} to main"
+            SUMMARY="$COMMIT_SUBJECT"
+          fi
+
+          DESC="**Merge Summary**"$'\n'"${SUMMARY}"$'\n\n'"These changes will go live at the next server restart"
+          if [ -n "$COMMIT_BODY" ] && [ "$COMMIT_BODY" != "$COMMIT_SUBJECT" ]; then
+            DESC="**Merge Summary**"$'\n'"${SUMMARY}"$'\n\n'"${COMMIT_BODY}"$'\n\n'"These changes will go live at the next server restart"
+          fi
+
+          AVATAR="https://github.com/${ACTOR}.png?size=128"
+          TITLE="✅ ${ACTOR} ${ACTION}"
+
+          jq -n \
+            --arg username "$ACTOR" \
+            --arg avatar "$AVATAR" \
+            --arg title "$TITLE" \
+            --arg desc "$DESC" \
+            --arg actor "$ACTOR" \
+            --arg branch "$BRANCH" \
+            --arg repo "$REPO_NAME" \
+            --arg server "$SERVER_NAME" \
+            --arg sha "$SHORT_SHA" \
+            --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            '{
+              username: $username,
+              avatar_url: $avatar,
+              embeds: [{
+                author: { name: $actor, icon_url: $avatar },
+                title: $title,
+                description: $desc,
+                color: 5763719,
+                fields: [
+                  { name: "Merged by", value: $actor, inline: true },
+                  { name: "Branch", value: $branch, inline: true },
+                  { name: "Repository", value: $repo, inline: true },
+                  { name: "Commit", value: $sha, inline: true },
+                  { name: "Server", value: $server, inline: true }
+                ],
+                thumbnail: { url: $avatar },
+                timestamp: $ts,
+                footer: { text: "GitHub → Render auto-deploy" }
+              }]
+            }' > payload.json
+
+          curl -sfS -X POST "$DISCORD_WEBHOOK" \
+            -H "Content-Type: application/json" \
+            -d @payload.json
