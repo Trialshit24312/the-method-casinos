@@ -184,7 +184,7 @@ export type DiscoveryProgressEvent =
   | { type: 'phase'; phase: DiscoveryPhase; label: string }
   | { type: 'progress'; stats: DiscoveryLiveStats }
   | { type: 'search_query'; query: string }
-  | { type: 'search_engine'; engine: 'duckduckgo' | 'duckduckgo_lite' | 'bing' | 'brave'; query: string; linkCount?: number }
+  | { type: 'search_engine'; engine: 'serper' | 'duckduckgo' | 'duckduckgo_lite' | 'bing' | 'brave'; query: string; linkCount?: number }
   | { type: 'url_scanning'; url: string }
   | { type: 'crawl_summary'; crawled: number; linksQueued: number; label: string }
   | { type: 'url_rejected'; url: string; reason: string }

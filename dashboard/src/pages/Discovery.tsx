@@ -50,6 +50,7 @@ function eventToLog(event: DiscoveryProgressEvent): LogEntry | null {
       return { id: Date.now(), type: event.type, message: `Searching: "${event.query}"`, tone: 'info' };
     case 'search_engine': {
       const labels: Record<string, string> = {
+        serper: 'Google (Serper)',
         duckduckgo: 'DuckDuckGo',
         duckduckgo_lite: 'DDG Lite',
         bing: 'Bing',
@@ -255,7 +256,7 @@ export default function DiscoveryPage() {
             </div>
             <div>
               <h3 className="font-display font-semibold text-lg">Quick Scan</h3>
-              <p className="text-sm text-gray-500">~8 min · 45+ unique searches · 200 URL checks</p>
+              <p className="text-sm text-gray-500">~10 min · 65 searches · 350 URL checks · Serper if configured</p>
             </div>
           </div>
           <ul className="text-xs text-gray-600 space-y-1 mb-4">
@@ -284,7 +285,7 @@ export default function DiscoveryPage() {
             </div>
             <div>
               <h3 className="font-display font-semibold text-lg">Deep Scan</h3>
-              <p className="text-sm text-gray-500">~30 min · 100 searches · 800 URL checks</p>
+              <p className="text-sm text-gray-500">~35 min · 120 searches · 1200 URL checks · Serper + crawl</p>
             </div>
           </div>
           <ul className="text-xs text-gray-600 space-y-1 mb-4">

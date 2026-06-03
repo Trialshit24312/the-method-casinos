@@ -46,7 +46,7 @@ export async function searchSerper(query: string, page = 1): Promise<SerperSearc
       q: query,
       gl: 'us',
       hl: 'en',
-      num: 15,
+      num: 20,
       page,
     }),
   });

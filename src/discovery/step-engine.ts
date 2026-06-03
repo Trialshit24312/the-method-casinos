@@ -15,19 +15,22 @@ import {
 } from '../database/index.js';
 import { casinoHostKey, toCasinoRootUrl, isValidCasinoHost } from '../shared/utils.js';
 import {
-  isDiscoveryCandidateUrl,
-  isBlockedDomain,
+  shouldQueueSearchUrl,
 } from './filters.js';
 import { getVerifiedCuratedDiscoveries } from '../shared/verified-casinos.js';
 import { buildSearchQueries, SEARCH_PAGES_DEEP, SEARCH_PAGES_QUICK } from './queries.js';
 import { collectFreeSearchLinks, extractCasinoUrlsFromHtml } from './free-search.js';
 import { beginDiscoveryRun, endDiscoveryRun, throwIfCancelled } from './run-state.js';
 import { beginDiscoveryLive, pushDiscoveryLiveEvent, finishDiscoveryLive } from './live-state.js';
-import { ingestDiscovery, analyzeUrl, CURATED_DISCOVERIES } from './engine.js';
+import { ingestDiscovery, persistDiscovery, analyzeUrl, CURATED_DISCOVERIES } from './engine.js';
 
 type ProgressPublisher = (event: DiscoveryProgressEvent) => void;
 
 const CRAWL_BATCH_SIZE = 5;
+const QUERIES_PER_STEP_QUICK = 2;
+const QUERIES_PER_STEP_DEEP = 3;
+const ANALYZE_BATCH_QUICK = 2;
+const ANALYZE_BATCH_DEEP = 4;
 
 let stepLock: Promise<void> = Promise.resolve();
 
@@ -51,24 +54,24 @@ interface ScanConfig {
 
 const QUICK_CONFIG: ScanConfig = {
   mode: 'quick',
-  maxDurationMs: 8 * 60 * 1000,
-  delayMs: 200,
-  maxWebAnalyzes: 200,
+  maxDurationMs: 10 * 60 * 1000,
+  delayMs: 180,
+  maxWebAnalyzes: 350,
   searchPages: SEARCH_PAGES_QUICK,
   crawlLinks: false,
   crawlKnownCasinos: true,
-  crawlLimit: 40,
+  crawlLimit: 60,
 };
 
 const DEEP_CONFIG: ScanConfig = {
   mode: 'deep',
-  maxDurationMs: 30 * 60 * 1000,
-  delayMs: 250,
-  maxWebAnalyzes: 800,
+  maxDurationMs: 35 * 60 * 1000,
+  delayMs: 200,
+  maxWebAnalyzes: 1200,
   searchPages: SEARCH_PAGES_DEEP,
   crawlLinks: true,
   crawlKnownCasinos: true,
-  crawlLimit: 100,
+  crawlLimit: 120,
 };
 
 export interface DiscoverySessionState {
@@ -197,8 +200,7 @@ function enqueue(state: DiscoverySessionState, url: string, onProgress?: (e: Dis
     return false;
   }
 
-  if (!isDiscoveryCandidateUrl(root) || isBlockedDomain(root)) {
-    recordRejection(state, root, host, 'URL pre-filter', onProgress);
+  if (!shouldQueueSearchUrl(root)) {
     return false;
   }
 
@@ -325,6 +327,7 @@ async function runClientDiscoveryStepInner(
         state.added++;
         state.found++;
         if (!state.knownHosts.includes(host)) state.knownHosts.push(host);
+        state.knownHosts = [...getKnownHosts()];
         state.addedCasinos.push({ name: raw.name, url: toCasinoRootUrl(raw.url) });
         publish(onProgress, { type: 'url_added', url: toCasinoRootUrl(raw.url), name: raw.name });
       }
@@ -356,7 +359,7 @@ async function runClientDiscoveryStepInner(
       state.sourcesChecked++;
       const html = await fetchPage(root);
       if (html) {
-        for (const link of extractCasinoUrlsFromHtml(html, root)) {
+        for (const link of extractCasinoUrlsFromHtml(html, root, 'page')) {
           if (enqueue(state, link, onProgress)) batchLinks++;
         }
       }
@@ -379,34 +382,39 @@ async function runClientDiscoveryStepInner(
   if (state.phase === 'search') {
     if (state.queryIndex >= state.searchQueries.length || timeLeft(state) <= 0) {
       state.phase = 'analyze';
-      setPhase(state, 'analyze', 'Validating remaining candidate URLs…', onProgress);
+      setPhase(state, 'analyze', `Validating ${state.urlQueue.length - state.queueIndex} candidate URLs…`, onProgress);
       saveDiscoverySession(state);
       return { done: false };
     }
 
-    const query = state.searchQueries[state.queryIndex];
-    publish(onProgress, { type: 'search_query', query });
+    const queriesPerStep = state.mode === 'deep' ? QUERIES_PER_STEP_DEEP : QUERIES_PER_STEP_QUICK;
+    for (let q = 0; q < queriesPerStep && state.queryIndex < state.searchQueries.length; q++) {
+      const query = state.searchQueries[state.queryIndex];
+      publish(onProgress, { type: 'search_query', query });
 
-    try {
-      const links = await collectFreeSearchLinks(
-        query,
-        state.config.searchPages,
-        (engine, q, linkCount) => {
-          state.sourcesChecked++;
-          publish(onProgress, { type: 'search_engine', engine, query: q, linkCount });
-        },
-      );
-      for (const link of links) {
-        enqueue(state, link, onProgress);
+      try {
+        const links = await collectFreeSearchLinks(
+          query,
+          state.config.searchPages,
+          (engine, eq, linkCount) => {
+            state.sourcesChecked++;
+            publish(onProgress, { type: 'search_engine', engine, query: eq, linkCount });
+          },
+        );
+        for (const link of links) {
+          enqueue(state, link, onProgress);
+        }
+      } catch (e) {
+        state.errors.push(`Search: ${e instanceof Error ? e.message : 'unknown'}`);
       }
-    } catch (e) {
-      state.errors.push(`Search: ${e instanceof Error ? e.message : 'unknown'}`);
+
+      state.queryIndex++;
+      await sleep(state.config.delayMs);
     }
 
-    state.queryIndex++;
-    await sleep(state.config.delayMs);
-
-    if (state.queueIndex < state.urlQueue.length && state.webAnalyzes < state.config.maxWebAnalyzes) {
+    const analyzeBatch = state.mode === 'deep' ? ANALYZE_BATCH_DEEP : ANALYZE_BATCH_QUICK;
+    for (let i = 0; i < analyzeBatch; i++) {
+      if (state.queueIndex >= state.urlQueue.length || state.webAnalyzes >= state.config.maxWebAnalyzes) break;
       await processOneUrl(state, onProgress);
     }
 
@@ -423,7 +431,11 @@ async function runClientDiscoveryStepInner(
     ) {
       return { done: true, result: finishSession(state, onProgress) };
     }
-    await processOneUrl(state, onProgress);
+    const analyzeBatch = state.mode === 'deep' ? ANALYZE_BATCH_DEEP : ANALYZE_BATCH_QUICK;
+    for (let i = 0; i < analyzeBatch; i++) {
+      if (state.queueIndex >= state.urlQueue.length || state.webAnalyzes >= state.config.maxWebAnalyzes) break;
+      await processOneUrl(state, onProgress);
+    }
     saveDiscoverySession(state);
     emitProgress(state, onProgress);
     return { done: false };
@@ -473,7 +485,7 @@ async function processOneUrl(state: DiscoverySessionState, onProgress?: Progress
     state.found++;
     if (ingestDiscovery(curated, known)) {
       state.added++;
-      if (!state.knownHosts.includes(host)) state.knownHosts.push(host);
+      state.knownHosts = [...getKnownHosts()];
       state.addedCasinos.push({ name: curated.name, url: root });
       publish(onProgress, { type: 'url_added', url: root, name: curated.name });
     }
@@ -494,9 +506,10 @@ async function processOneUrl(state: DiscoverySessionState, onProgress?: Progress
 
     state.found++;
     touchLastCheckedAt(root);
-    if (ingestDiscovery(analyzed, known)) {
+    const saved = persistDiscovery(analyzed, known);
+    if (saved.saved) {
       state.added++;
-      if (!state.knownHosts.includes(host)) state.knownHosts.push(host);
+      state.knownHosts = [...getKnownHosts()];
       markDiscoverySeen(root, 'added', 'verified sweeps');
       state.addedCasinos.push({ name: analyzed.name, url: analyzed.url });
       publish(onProgress, { type: 'url_added', url: analyzed.url, name: analyzed.name });
@@ -504,12 +517,12 @@ async function processOneUrl(state: DiscoverySessionState, onProgress?: Progress
       if (state.config.crawlLinks) {
         const pageHtml = await fetchPage(analyzed.url);
         if (pageHtml) {
-          for (const link of extractCasinoUrlsFromHtml(pageHtml, analyzed.url)) enqueue(state, link, onProgress);
+          for (const link of extractCasinoUrlsFromHtml(pageHtml, analyzed.url, 'page')) enqueue(state, link, onProgress);
         }
       }
     } else {
       state.skipped++;
-      markDiscoverySeen(root, 'skipped', 'duplicate');
+      markDiscoverySeen(root, 'skipped', saved.reason ?? 'duplicate');
     }
   } catch (e) {
     recordRejection(state, root, host, 'scan error', onProgress);

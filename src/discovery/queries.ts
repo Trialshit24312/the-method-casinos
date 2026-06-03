@@ -1,5 +1,20 @@
 import { VERIFIED_CASINO_SEEDS } from '../shared/verified-casinos.js';
 
+const NEW_SITE_QUERIES = [
+  '"sweepstakes casino" "gold coins" -review -guide -list -reddit',
+  '"social casino" "sweeps coins" signup -youtube -wiki',
+  'inurl:casino "no purchase necessary" sweeps',
+  'new sweepstakes casino launch usa 2026',
+  '"play for free" "sweep coins" casino site:.us',
+  'undiscovered social casino sweeps coins',
+  '"sweeps cash" redeem casino signup',
+  'latest sweepstakes gaming site launch',
+  'brand new sweeps casino email signup',
+  'new competitor chumba pulsz mcluck casino',
+  'social casino app sweeps coins no phone',
+  'free sweeps coins casino no verification',
+];
+
 const OPERATOR_QUERIES = [
   '"social casino" "sweeps coins" -review -guide -bonus',
   '"sweepstakes casino" "no purchase necessary" -list -review',
@@ -73,7 +88,7 @@ function uniqueStrings(items: string[]): string[] {
 
 /** Build a large rotating query list — different order every scan. */
 export function buildSearchQueries(deep: boolean): string[] {
-  const queries: string[] = [...OPERATOR_QUERIES, ...BASE_QUERIES];
+  const queries: string[] = [...NEW_SITE_QUERIES, ...OPERATOR_QUERIES, ...BASE_QUERIES];
 
   for (const seed of VERIFIED_CASINO_SEEDS) {
     const name = seed.name.replace(/\s+casino$/i, '').trim();
@@ -105,7 +120,7 @@ export function buildSearchQueries(deep: boolean): string[] {
   }
 
   const shuffled = shuffle(uniqueStrings(queries));
-  const limit = deep ? Math.min(100, shuffled.length) : Math.min(50, shuffled.length);
+  const limit = deep ? Math.min(120, shuffled.length) : Math.min(65, shuffled.length);
   const start = Math.floor(Math.random() * Math.max(1, shuffled.length));
   const rotated = [...shuffled.slice(start), ...shuffled.slice(0, start)];
 
@@ -122,5 +137,5 @@ export function buildSearchQueries(deep: boolean): string[] {
   return uniqueStrings([...fresh, ...rotated]).slice(0, limit);
 }
 
-export const SEARCH_PAGES_QUICK = 3;
-export const SEARCH_PAGES_DEEP = 5;
+export const SEARCH_PAGES_QUICK = 4;
+export const SEARCH_PAGES_DEEP = 8;

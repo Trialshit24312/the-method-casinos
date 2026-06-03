@@ -1,11 +1,12 @@
 import * as cheerio from 'cheerio';
 import { casinoHostKey, toCasinoRootUrl, isValidCasinoHost } from '../shared/utils.js';
 import { isBlockedDomain, shouldQueueSearchUrl } from './filters.js';
+import { isSerperEnabled, searchSerper } from './serper.js';
 
-export type FreeSearchEngine = 'duckduckgo' | 'duckduckgo_lite' | 'bing' | 'brave';
+export type FreeSearchEngine = 'serper' | 'duckduckgo' | 'duckduckgo_lite' | 'bing' | 'brave';
 
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36';
-const FETCH_TIMEOUT_MS = 14_000;
+const FETCH_TIMEOUT_MS = 16_000;
 
 const URL_IN_TEXT_REGEX = /https?:\/\/(?:www\.)?[a-z0-9][-a-z0-9]{0,62}\.[a-z]{2,24}(?:\/[^\s"'<>]*)?/gi;
 
@@ -50,6 +51,10 @@ export function resolveSearchRedirect(href: string, baseUrl: string, depth = 0):
       return resolveSearchRedirect(decodeURIComponent(parsed.searchParams.get('u')!), baseUrl, depth + 1);
     }
 
+    if (parsed.hostname.includes('google.') && parsed.pathname === '/url' && parsed.searchParams.has('q')) {
+      return resolveSearchRedirect(parsed.searchParams.get('q')!, baseUrl, depth + 1);
+    }
+
     return absolute;
   } catch {
     return null;
@@ -68,7 +73,8 @@ export function normalizeSearchLink(href: string, baseUrl: string): string | nul
   }
 }
 
-export function extractCasinoUrlsFromHtml(html: string, baseUrl: string): string[] {
+/** Extract operator URLs from HTML — search SERP pages or casino homepages. */
+export function extractCasinoUrlsFromHtml(html: string, baseUrl: string, mode: 'search' | 'page' = 'search'): string[] {
   const links = new Set<string>();
   const $ = cheerio.load(html);
   $('script, style, noscript, svg').remove();
@@ -80,7 +86,7 @@ export function extractCasinoUrlsFromHtml(html: string, baseUrl: string): string
     if (root) links.add(root);
   });
 
-  $('cite, .snippet-url, .result__url, span.result__url, .b_algo cite, .snippet-title').each((_, el) => {
+  $('cite, .snippet-url, .result__url, span.result__url, .b_algo cite, .snippet-title, .result__a').each((_, el) => {
     const text = $(el).text().trim().split(/\s/)[0]?.replace(/^www\./, '');
     if (!text || !text.includes('.')) return;
     const guess = text.startsWith('http') ? text : `https://${text.split('/')[0]}`;
@@ -88,14 +94,29 @@ export function extractCasinoUrlsFromHtml(html: string, baseUrl: string): string
     if (root) links.add(root);
   });
 
-  // Only scan visible result blocks — avoids JSON-LD / footer noise
-  const resultText = $('.results, #links, .b_algo, .snippet-content, .result')
-    .toArray()
-    .map((el) => $(el).text())
-    .join(' ');
-  for (const raw of resultText.match(URL_IN_TEXT_REGEX) ?? []) {
+  const ogUrl = $('meta[property="og:url"]').attr('content');
+  if (ogUrl) {
+    const root = normalizeSearchLink(ogUrl, baseUrl);
+    if (root) links.add(root);
+  }
+
+  const textSource = mode === 'page'
+    ? $('body').text()
+    : $('.results, #links, .b_algo, .snippet-content, .result, #rso')
+      .toArray()
+      .map((el) => $(el).text())
+      .join(' ');
+
+  for (const raw of textSource.match(URL_IN_TEXT_REGEX) ?? []) {
     const root = normalizeSearchLink(raw.replace(/[),.;]+$/, ''), baseUrl);
     if (root) links.add(root);
+  }
+
+  if (mode === 'page') {
+    for (const raw of html.match(URL_IN_TEXT_REGEX) ?? []) {
+      const root = normalizeSearchLink(raw.replace(/[),.;]+$/, ''), baseUrl);
+      if (root) links.add(root);
+    }
   }
 
   return [...links];
@@ -156,8 +177,9 @@ export interface FreeSearchHit {
 }
 
 export interface CollectFreeSearchOptions {
-  /** Stop once this many unique operator URLs are found. */
   maxLinks?: number;
+  /** Use Serper (Google) when SERPER_API_KEY is set — default true. */
+  useSerper?: boolean;
 }
 
 export async function runFreeSearchQuery(
@@ -191,22 +213,24 @@ export async function runFreeSearchQuery(
         baseUrl = buildBraveUrl(query, page);
         html = await fetchHtml(baseUrl);
         break;
+      default:
+        break;
     }
 
     if (html) {
       hits.push({
         engine,
         query: page > 0 ? `${query} (p${page + 1})` : query,
-        links: extractCasinoUrlsFromHtml(html, baseUrl),
+        links: extractCasinoUrlsFromHtml(html, baseUrl, 'search'),
       });
     }
-    await sleep(160);
+    await sleep(140);
   }
 
   return hits;
 }
 
-/** Collect unique operator URLs from all free engines across pages. */
+/** Collect unique operator URLs — Serper first when configured, then free engines. */
 export async function collectFreeSearchLinks(
   query: string,
   pages: number,
@@ -215,6 +239,21 @@ export async function collectFreeSearchLinks(
 ): Promise<string[]> {
   const urls = new Set<string>();
   const maxLinks = options.maxLinks ?? Infinity;
+  const useSerper = options.useSerper !== false && isSerperEnabled();
+
+  if (useSerper) {
+    const serperPages = Math.min(Math.max(pages, 1), 3);
+    for (let page = 1; page <= serperPages; page++) {
+      if (urls.size >= maxLinks) break;
+      const result = await searchSerper(query, page);
+      for (const link of result.links) urls.add(link);
+      onEngine?.('serper', page > 1 ? `${query} (p${page})` : query, result.links.length);
+      if (result.error && page === 1) {
+        console.warn(`Serper: ${result.error}`);
+      }
+      await sleep(120);
+    }
+  }
 
   for (let page = 0; page < pages; page++) {
     if (urls.size >= maxLinks) break;

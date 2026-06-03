@@ -152,8 +152,20 @@ function ingestDiscovery(raw: RawDiscovery, knownHosts: Set<string>): boolean {
     verified: false,
     reviewStatus: 'pending',
   });
-  if (result) knownHosts.add(host);
-  return result !== null;
+  if (result) {
+    knownHosts.add(host);
+    return true;
+  }
+  return false;
+}
+
+export function persistDiscovery(raw: RawDiscovery, knownHosts: Set<string>): { saved: boolean; reason?: string } {
+  const root = toCasinoRootUrl(raw.url);
+  const host = casinoHostKey(root);
+  if (knownHosts.has(host)) return { saved: false, reason: 'already known' };
+  if (isUrlBlocked(root)) return { saved: false, reason: 'blocked' };
+  if (ingestDiscovery(raw, knownHosts)) return { saved: true };
+  return { saved: false, reason: 'duplicate or insert failed' };
 }
 
 async function collectFromSearch(
@@ -196,7 +208,7 @@ async function crawlKnownCasinosForLinks(
     const html = await fetchPage(root);
     crawled++;
     if (html) {
-      for (const link of extractCasinoUrlsFromHtml(html, root)) {
+      for (const link of extractCasinoUrlsFromHtml(html, root, 'page')) {
         if (enqueue(link)) linksQueued++;
       }
     }

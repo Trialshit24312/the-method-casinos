@@ -47,6 +47,7 @@ describe('shouldQueueSearchUrl', () => {
   it('accepts operator-shaped hosts', () => {
     expect(shouldQueueSearchUrl('https://wowvegas.com')).toBe(true);
     expect(shouldQueueSearchUrl('https://pulsz.com')).toBe(true);
+    expect(shouldQueueSearchUrl('https://lonestar.us')).toBe(true);
   });
 
   it('blocks review sites', () => {

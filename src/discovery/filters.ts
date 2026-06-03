@@ -39,7 +39,9 @@ const STRONG_HOST_HINTS = [
   'realprize', 'spinblitz', 'goldenhearts', 'getfliff', 'babacasino', 'megabonanza',
   'moonspin', 'nolimitcoins', 'taofortune', 'rollingriches', 'sweepslots',
   'chipnwin', 'luckybird', 'acornfun', 'vivaro', 'pulszbingo', 'slots',
-  'vegas', 'bonanza', 'million', 'fortune', 'coins', 'playfame',
+  'vegas', 'bonanza', 'million', 'fortune', 'coins', 'playfame', 'lonestar',
+  'spree', 'rolla', 'spinfinite', 'scrooge', 'myprize', 'funrize', 'stackr',
+  'lucky', 'spin', 'win', 'prize', 'social', 'play', 'game', 'fun', 'gold',
 ];
 
 const ADULT_KEYWORDS = [
@@ -60,9 +62,12 @@ const GENERIC_REJECT_KEYWORDS = [
 
 const SWEEPS_KEYWORDS = [
   'sweepstakes casino', 'sweeps coins', 'sweep coins', 'sweeps cash',
-  'gold coins', 'social casino', 'no purchase necessary', 'sweeps coins',
+  'gold coins', 'social casino', 'no purchase necessary',
   'free sweeps', 'sweepstakes model', 'sweeps coin', 'play for free',
-  'redeem sweeps', 'sweeps coins casino',
+  'redeem sweeps', 'sweeps coins casino', 'sc coins', 'sweepscash',
+  'purchase necessary', 'redeem prizes', 'redeemable', 'social gaming',
+  'free to play', 'sweeps cash prizes', 'fun coins', 'sweep coins casino',
+  'no purchase', 'gold coin', 'sweepstakes gaming', 'sweeps model',
 ];
 
 const STRONG_HOSTNAME_MARKERS = ['casino', 'sweep', 'sweeps', 'slots', 'pulsz', 'chumba', 'mcluck', 'vegas', 'coins'];
@@ -109,11 +114,24 @@ export function isDiscoveryCandidateUrl(url: string): boolean {
 
     const parts = operatorRoot.split('.');
     const tld = parts[parts.length - 1] ?? '';
+    const brand = parts[0] ?? '';
+
+    // Most US sweepstakes operators use .us domains
+    if (tld === 'us' && brand.length >= 4 && /^[a-z0-9-]+$/.test(brand)) {
+      return true;
+    }
+
     const discoveryHints = [
       'sweep', 'sweeps', 'casino', 'slots', 'spin', 'coins', 'social',
       'play', 'win', 'luck', 'vegas', 'bonanza', 'fortune', 'million', 'jackpot', 'game',
+      'prize', 'gold', 'heart', 'fun', 'roll', 'stack', 'modo', 'crow', 'ruby',
     ];
-    if ((tld === 'us' || tld === 'com' || tld === 'io') && discoveryHints.some((h) => operatorRoot.includes(h))) {
+    if ((tld === 'com' || tld === 'io' || tld === 'gg') && discoveryHints.some((h) => operatorRoot.includes(h))) {
+      return true;
+    }
+
+    // Short brand .com (e.g. pulsz.com) — queue if 5+ chars, validate on page fetch
+    if (tld === 'com' && brand.length >= 5 && /^[a-z0-9]+$/.test(brand)) {
       return true;
     }
 
@@ -150,12 +168,13 @@ export function validateSweepstakesPage(
 
   const sweepsKeywordCount = SWEEPS_KEYWORDS.filter((k) => combined.includes(k)).length;
   const hostHasMarker = STRONG_HOSTNAME_MARKERS.some((m) => host.includes(m));
+  const isUsOperator = host.endsWith('.us');
 
   if (sweepsKeywordCount >= 2) {
     return { valid: true, sweepsKeywordCount };
   }
 
-  if (sweepsKeywordCount >= 1 && hostHasMarker) {
+  if (sweepsKeywordCount >= 1 && (hostHasMarker || isUsOperator)) {
     return { valid: true, sweepsKeywordCount };
   }
 
@@ -163,12 +182,19 @@ export function validateSweepstakesPage(
     combined.includes('gold coins') ||
     combined.includes('sweeps coins') ||
     combined.includes('social casino') ||
-    combined.includes('free to play')
+    combined.includes('free to play') ||
+    combined.includes('no purchase')
   )) {
     return { valid: true, sweepsKeywordCount: Math.max(sweepsKeywordCount, 1) };
   }
 
-  if (hostHasMarker && combined.includes('sweepstakes') && combined.includes('casino')) {
+  if ((hostHasMarker || isUsOperator) && combined.includes('sweepstakes') && (
+    combined.includes('casino') || combined.includes('coins') || combined.includes('play')
+  )) {
+    return { valid: true, sweepsKeywordCount: Math.max(sweepsKeywordCount, 1) };
+  }
+
+  if (isUsOperator && sweepsKeywordCount >= 1) {
     return { valid: true, sweepsKeywordCount };
   }
 
