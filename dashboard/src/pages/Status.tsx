@@ -121,7 +121,7 @@ export default function StatusPage() {
               { icon: Shield, label: 'Verified casinos', value: status.stats.verifiedCasinos, color: 'text-emerald-400' },
               { icon: Sparkles, label: 'Total catalog', value: status.stats.totalCasinos, color: 'text-glow' },
               { icon: Radar, label: 'Search mode', value: status.searchMode, color: 'text-brand-light' },
-              { icon: Bot, label: 'Discord bot', value: health?.botTag && status.bot ? health.botTag : (status.bot ? 'Online' : 'Offline'), color: status.bot ? 'text-[#5865F2]' : 'text-gray-500' },
+              { icon: Bot, label: 'Discord bot', value: health?.botTag && status.bot ? health.botTag : (status.bot ? 'Online' : 'Offline'), color: status.bot ? 'text-discord' : 'text-gray-500' },
             ].map(({ icon: Icon, label, value, color }) => (
               <div key={label} className="stat-card">
                 <Icon className={`w-5 h-5 ${color} mb-2`} />

@@ -9,6 +9,7 @@ import type { DiscoveryResult, DiscoveryProgressEvent, DiscoveryLiveStats, Stats
 import PageHeader from '../components/PageHeader';
 import { useAuth } from '../context/AuthContext';
 import { usePageTitle } from '../hooks/usePageTitle';
+import Breadcrumb from '../components/Breadcrumb';
 
 function formatDuration(ms: number): string {
   const mins = Math.floor(ms / 60000);
@@ -137,6 +138,7 @@ export default function DiscoveryPage() {
   const [resumableScan, setResumableScan] = useState<{ mode: 'quick' | 'deep'; phaseLabel: string } | null>(null);
   const [manualUrls, setManualUrls] = useState('');
   const [manualMsg, setManualMsg] = useState('');
+  const [adminToolsMsg, setAdminToolsMsg] = useState('');
   const [queueCounts, setQueueCounts] = useState({ pending: 0, reports: 0 });
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const logRef = useRef<HTMLDivElement>(null);
@@ -289,7 +291,8 @@ export default function DiscoveryPage() {
   };
 
   return (
-    <div className="p-8 max-w-5xl mx-auto">
+    <div className="p-6 md:p-8 max-w-5xl mx-auto">
+      <Breadcrumb items={[{ label: 'Admin', to: '/dashboard' }, { label: 'Discovery' }]} />
       <PageHeader
         icon={<Radar className="w-6 h-6 text-glow" />}
         title="Discovery Engine"
@@ -520,8 +523,8 @@ export default function DiscoveryPage() {
             ))}
           </div>
 
-          <div className="rounded-xl border border-surface-border bg-[#0d0d12] overflow-hidden">
-            <div className="flex items-center gap-2 px-4 py-2 border-b border-surface-border bg-[#121218]">
+          <div className="rounded-xl border border-surface-border bg-surface-terminal overflow-hidden">
+            <div className="flex items-center gap-2 px-4 py-2 border-b border-surface-border bg-surface-panel">
               <Terminal className="w-4 h-4 text-glow" />
               <span className="text-xs font-medium text-gray-400 uppercase tracking-wide">Live Activity</span>
               <span className="text-xs text-gray-600 ml-auto">{activityLog.length} events</span>
@@ -676,14 +679,22 @@ export default function DiscoveryPage() {
           Rejected URLs go to <Link to="/review?tab=reports" className="text-glow hover:underline">Ban review</Link> for blocklist triage.
         </p>
         <div className="flex flex-wrap gap-2">
+          {adminToolsMsg && (
+            <p className="w-full text-xs text-emerald-300 mb-2 p-2 rounded-lg border border-emerald-500/25 bg-emerald-500/10">{adminToolsMsg}</p>
+          )}
           <button
             type="button"
             className="btn-secondary text-sm"
             onClick={async () => {
               if (!confirm('Re-check up to 10 stale verified casinos (homepage fetch)?')) return;
-              const r = await api.revalidateCatalog(10);
-              alert(`Revalidated ${r.passed}/${r.checked} OK (${r.failed} failed)`);
-              api.getStats().then(setDbStats).catch(() => {});
+              try {
+                const r = await api.revalidateCatalog(10);
+                setAdminToolsMsg(`Revalidated ${r.passed}/${r.checked} OK (${r.failed} failed)`);
+                api.getStats().then(setDbStats).catch(() => {});
+              } catch (e) {
+                setAdminToolsMsg(e instanceof Error ? e.message : 'Revalidation failed');
+              }
+              setTimeout(() => setAdminToolsMsg(''), 6000);
             }}
           >
             Revalidate stale catalog
@@ -693,8 +704,13 @@ export default function DiscoveryPage() {
             className="btn-secondary text-sm"
             onClick={async () => {
               if (!confirm('Clear discovery audit log? Scans still re-check all non-catalog URLs every run.')) return;
-              await api.clearDiscoverySeen();
-              alert('Discovery memory cleared.');
+              try {
+                await api.clearDiscoverySeen();
+                setAdminToolsMsg('Discovery audit log cleared.');
+              } catch (e) {
+                setAdminToolsMsg(e instanceof Error ? e.message : 'Clear failed');
+              }
+              setTimeout(() => setAdminToolsMsg(''), 6000);
             }}
           >
             Clear discovery audit log
@@ -704,8 +720,13 @@ export default function DiscoveryPage() {
             className="btn-secondary text-sm text-accent-red border-accent-red/30"
             onClick={async () => {
               if (!confirm('Reset catalog to verified seeds only? Pending discoveries will be removed. Blocklist is kept.')) return;
-              const r = await api.resetCatalog();
-              alert(`Reset complete: ${r.casinosAdded} verified casinos loaded.`);
+              try {
+                const r = await api.resetCatalog();
+                setAdminToolsMsg(`Reset complete: ${r.casinosAdded} verified casinos loaded.`);
+              } catch (e) {
+                setAdminToolsMsg(e instanceof Error ? e.message : 'Reset failed');
+              }
+              setTimeout(() => setAdminToolsMsg(''), 6000);
             }}
           >
             Reset to verified catalog

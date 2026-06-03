@@ -67,7 +67,7 @@ export default function SiteFooter() {
           <div className="flex flex-wrap justify-center gap-x-4 gap-y-1">
             <Link to="/login" className="hover:text-glow transition-colors">Dashboard login</Link>
             {invite && (
-              <a href={invite} className="text-[#5865F2] hover:underline" target="_blank" rel="noreferrer">
+              <a href={invite} className="text-discord hover:underline" target="_blank" rel="noreferrer">
                 Discord
               </a>
             )}

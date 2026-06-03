@@ -8,11 +8,14 @@ import {
   LEGAL_VERSION,
 } from '@shared/legal';
 
+import { usePageTitle } from '../hooks/usePageTitle';
+
 export default function PrivacyPage() {
+  usePageTitle('Privacy Policy — The Method Casinos');
   return (
-    <div className="p-8 max-w-4xl mx-auto">
+    <div className="p-6 md:p-8 max-w-4xl mx-auto">
       <PageHeader
-        icon={<Lock className="w-6 h-6 text-sky-400" />}
+        icon={<Lock className="w-6 h-6 text-glow" />}
         title="Privacy Policy"
         subtitle="How The Method Casinos handles your data"
       />
@@ -20,7 +23,7 @@ export default function PrivacyPage() {
       <motion.div
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
-        className="glass-glow p-6 mb-8 border-sky-500/20"
+        className="glass-glow p-6 mb-8 border-glow/20"
       >
         <p className="text-sm text-gray-400">
           Version {LEGAL_VERSION} · Last updated {LEGAL_LAST_UPDATED}. Also see{' '}

@@ -8,6 +8,9 @@ import { FEATURE_LABELS, FEATURE_CATEGORIES, ALL_FEATURES } from '../types';
 import PageHeader from '../components/PageHeader';
 import CasinoCard from '../components/CasinoCard';
 import EmptyState from '../components/EmptyState';
+import ErrorBanner from '../components/ErrorBanner';
+import RecentlyViewed from '../components/RecentlyViewed';
+import Breadcrumb from '../components/Breadcrumb';
 import { useAuth } from '../context/AuthContext';
 import { usePageTitle } from '../hooks/usePageTitle';
 import { isCatalogStale } from '../lib/freshness';
@@ -72,6 +75,7 @@ export default function CasinosPage() {
   const [form, setForm] = useState<FormData>(emptyForm);
   const [error, setError] = useState('');
   const [loadError, setLoadError] = useState('');
+  const [blockNotice, setBlockNotice] = useState('');
   const [showAll, setShowAll] = useState(false);
   const [staleOnly, setStaleOnly] = useState(false);
   const [sort, setSort] = useState<'name' | 'rating' | 'checked'>('rating');
@@ -236,7 +240,8 @@ export default function CasinosPage() {
       });
       load();
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'Failed to block');
+      setBlockNotice(err instanceof Error ? err.message : 'Failed to block');
+      setTimeout(() => setBlockNotice(''), 5000);
     }
   };
 
@@ -274,8 +279,18 @@ export default function CasinosPage() {
     }));
   };
 
+  const hasActiveFilters = Boolean(search.trim() || filter || noPhoneOnly || staleOnly);
+
   return (
-    <div className="p-8">
+    <div className="p-6 md:p-8 max-w-7xl mx-auto">
+      {hasActiveFilters && (
+        <Breadcrumb
+          items={[
+            { label: 'Catalog', to: '/casinos' },
+            { label: search.trim() ? `“${search.trim()}”` : 'Filtered results' },
+          ]}
+        />
+      )}
       <PageHeader
         title="Casinos"
         subtitle={showAll && user?.isAdmin ? `${filtered.length} casino(s) including pending` : `${filtered.length} verified catalog casino(s)`}
@@ -289,12 +304,15 @@ export default function CasinosPage() {
         }
       />
 
+      <RecentlyViewed className="mb-6" />
+
       <div className="flex flex-col sm:flex-row gap-3 mb-6">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
           <input
+            id="catalog-search-input"
             type="text"
-            placeholder="Search casinos..."
+            placeholder="Search casinos… (press /)"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="input-field pl-10"
@@ -398,13 +416,17 @@ export default function CasinosPage() {
         ))}
       </div>
 
-      {loadError && <p className="text-red-400 text-sm mb-4">{loadError}</p>}
+      {blockNotice && (
+        <p className="text-amber-300 text-sm mb-4 p-3 rounded-xl border border-amber-500/30 bg-amber-500/10">{blockNotice}</p>
+      )}
+
+      {loadError && <ErrorBanner message={loadError} onRetry={load} />}
 
       {loading ? (
         <div className="flex justify-center py-20">
           <div className="w-8 h-8 border-2 border-brand border-t-transparent rounded-full animate-spin" />
         </div>
-      ) : (
+      ) : filtered.length > 0 ? (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
           {filtered.map((casino, i) => (
             <CasinoCard
@@ -420,7 +442,7 @@ export default function CasinosPage() {
             />
           ))}
         </div>
-      )}
+      ) : null}
 
       {!loading && filtered.length === 0 && (
         <EmptyState

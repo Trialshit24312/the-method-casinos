@@ -9,7 +9,13 @@ export default {
           raised: '#0e0e12',
           overlay: '#16161e',
           muted: '#1a1a22',
+          panel: '#121218',
+          terminal: '#0d0d12',
           border: 'rgba(255,255,255,0.08)',
+        },
+        discord: {
+          DEFAULT: '#5865F2',
+          hover: '#4752C4',
         },
         brand: {
           DEFAULT: '#b87333',

@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { Phone, Copy, Check, RefreshCw, ExternalLink, Sparkles, AlertCircle } from 'lucide-react';
 import PageHeader from '../../components/PageHeader';
+import ToolsBreadcrumb from '../../components/ToolsBreadcrumb';
+import { usePageTitle } from '../../hooks/usePageTitle';
 import { ServiceGrid } from '../../components/ServiceCard';
 import { generatePhones, SMS_RECEIVER_SITES, PHONE_TOOL_SITES, GENERATOR_DISCLAIMER } from '../../lib/generators';
 
@@ -16,6 +18,7 @@ const FORMAT_LABELS: Record<PhoneFormat, string> = {
 const FEATURED_SMS = SMS_RECEIVER_SITES.filter((s) => s.badge === 'Popular').slice(0, 4);
 
 export default function PhoneGeneratorPage() {
+  usePageTitle('Phone Tools — The Method Casinos');
   const [format, setFormat] = useState<PhoneFormat>('national');
   const [count, setCount] = useState(5);
   const [phones, setPhones] = useState<string[]>(() => generatePhones(5, 'national'));
@@ -35,7 +38,8 @@ export default function PhoneGeneratorPage() {
   };
 
   return (
-    <div className="p-8 max-w-7xl mx-auto">
+    <div className="p-6 md:p-8 max-w-7xl mx-auto">
+      <ToolsBreadcrumb page="Phone tools" />
       <PageHeader
         icon={<Phone className="w-6 h-6 text-brand-light" />}
         title="Phone & SMS Tools"

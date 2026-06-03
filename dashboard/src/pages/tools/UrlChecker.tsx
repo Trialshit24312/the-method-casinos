@@ -3,6 +3,7 @@ import { Link, useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { ShieldCheck, ShieldAlert, Search, ExternalLink, AlertTriangle, Flag, Clock } from 'lucide-react';
 import PageHeader from '../../components/PageHeader';
+import ToolsBreadcrumb from '../../components/ToolsBreadcrumb';
 import { ServiceGrid } from '../../components/ServiceCard';
 import { api } from '../../api';
 import type { UrlCheckResult } from '../../types';
@@ -66,7 +67,8 @@ export default function UrlCheckerPage() {
   };
 
   return (
-    <div className="p-8 max-w-4xl mx-auto">
+    <div className="p-6 md:p-8 max-w-4xl mx-auto">
+      <ToolsBreadcrumb page="URL checker" />
       <PageHeader
         icon={<ShieldCheck className="w-6 h-6 text-glow" />}
         title="URL Safety Checker"

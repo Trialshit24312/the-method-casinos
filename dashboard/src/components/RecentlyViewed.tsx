@@ -4,7 +4,7 @@ import { motion } from 'framer-motion';
 import { History } from 'lucide-react';
 import { readRecentlyViewed, type RecentView } from '../lib/recently-viewed';
 
-export default function RecentlyViewed() {
+export default function RecentlyViewed({ className = '' }: { className?: string }) {
   const [items, setItems] = useState<RecentView[]>([]);
 
   useEffect(() => {
@@ -24,7 +24,7 @@ export default function RecentlyViewed() {
     <motion.section
       initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
-      className="glass-glow p-5 mb-8 border-glow/10"
+      className={`glass-glow p-5 mb-8 border-glow/10 ${className}`}
     >
       <h2 className="font-display font-semibold text-sm mb-3 text-white flex items-center gap-2">
         <History className="w-4 h-4 text-glow" />

@@ -10,11 +10,14 @@ import EmptyState from '../components/EmptyState';
 import TabPills from '../components/TabPills';
 import StatsSkeleton from '../components/StatsSkeleton';
 import { useAuth } from '../context/AuthContext';
+import { usePageTitle } from '../hooks/usePageTitle';
+import Breadcrumb from '../components/Breadcrumb';
 import { Navigate, Link, useSearchParams } from 'react-router-dom';
 
 type Tab = 'discoveries' | 'reports' | 'health' | 'history';
 
 export default function ReviewQueue() {
+  usePageTitle('Review Queue — The Method Casinos');
   const { user } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
   const tabParam = searchParams.get('tab');
@@ -135,7 +138,8 @@ export default function ReviewQueue() {
   ];
 
   return (
-    <div className="p-8 max-w-4xl mx-auto">
+    <div className="p-6 md:p-8 max-w-4xl mx-auto">
+      <Breadcrumb items={[{ label: 'Admin', to: '/dashboard' }, { label: 'Review queue' }]} />
       <PageHeader
         title="Review Queue"
         subtitle="Approve discoveries, ban rejected/scam URLs, and maintain catalog health."

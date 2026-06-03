@@ -114,6 +114,27 @@
     transform: translateY(-1px);
   }
 
+  .btn-discord {
+    @apply inline-flex items-center gap-2 px-6 py-3 rounded-lg font-medium transition-all;
+    background: theme('colors.discord.DEFAULT');
+    color: white;
+  }
+
+  .btn-discord:hover {
+    background: theme('colors.discord.hover');
+  }
+
+  .btn-discord-outline {
+    @apply inline-flex items-center gap-2 px-7 py-3 rounded-lg font-medium transition-all;
+    background: rgba(88, 101, 242, 0.15);
+    border: 1px solid rgba(88, 101, 242, 0.4);
+    color: theme('colors.discord.DEFAULT');
+  }
+
+  .btn-discord-outline:hover {
+    background: rgba(88, 101, 242, 0.25);
+  }
+
   .panel-muted {
     @apply bg-surface-muted border border-surface-border rounded-lg;
   }

@@ -1,7 +1,8 @@
 import { useEffect, useState, type FormEvent } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Search } from 'lucide-react';
+import { useNavigate, useLocation } from 'react-router-dom';
+import { Search, Clock } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { readRecentlyViewed } from '../lib/recently-viewed';
 
 const QUICK_LINKS = [
   { label: 'Casinos', path: '/casinos' },
@@ -25,8 +26,29 @@ const ADMIN_LINKS = [
 export default function GlobalSearch() {
   const [q, setQ] = useState('');
   const [open, setOpen] = useState(false);
+  const [recentViews, setRecentViews] = useState(readRecentlyViewed);
   const navigate = useNavigate();
+  const location = useLocation();
   const { user } = useAuth();
+
+  useEffect(() => {
+    const refresh = () => setRecentViews(readRecentlyViewed());
+    window.addEventListener('method-recent-view', refresh);
+    window.addEventListener('storage', refresh);
+    return () => {
+      window.removeEventListener('method-recent-view', refresh);
+      window.removeEventListener('storage', refresh);
+    };
+  }, []);
+
+  const focusSearch = () => {
+    if (location.pathname === '/casinos') {
+      document.getElementById('catalog-search-input')?.focus();
+      return;
+    }
+    setOpen(true);
+    document.getElementById('global-search-input')?.focus();
+  };
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -39,14 +61,13 @@ export default function GlobalSearch() {
         const tag = (e.target as HTMLElement)?.tagName;
         if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
         e.preventDefault();
-        setOpen(true);
-        document.getElementById('global-search-input')?.focus();
+        focusSearch();
       }
       if (e.key === 'Escape') setOpen(false);
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, []);
+  }, [location.pathname]);
 
   const submit = (e: FormEvent) => {
     e.preventDefault();
@@ -77,8 +98,25 @@ export default function GlobalSearch() {
         />
       </form>
       {open && (
-        <div className="absolute top-full left-0 right-0 mt-1 z-50 rounded-xl border border-surface-border bg-surface-raised/95 backdrop-blur-xl shadow-xl p-2">
-          <p className="text-[10px] uppercase tracking-wide text-gray-600 px-2 py-1">Quick jump</p>
+        <div className="absolute top-full left-0 right-0 mt-1 z-50 rounded-xl border border-surface-border bg-surface-raised/95 backdrop-blur-xl shadow-xl p-2 max-h-[min(24rem,70vh)] overflow-y-auto">
+          {recentViews.length > 0 && (
+            <>
+              <p className="text-[10px] uppercase tracking-wide text-gray-600 px-2 py-1 flex items-center gap-1">
+                <Clock className="w-3 h-3" /> Recently viewed
+              </p>
+              {recentViews.slice(0, 5).map((v) => (
+                <button
+                  key={v.id}
+                  type="button"
+                  onMouseDown={() => go(`/casinos/${v.slug}`)}
+                  className="w-full text-left px-2 py-1.5 text-sm text-gray-400 hover:text-glow hover:bg-white/5 rounded-lg truncate"
+                >
+                  {v.name}
+                </button>
+              ))}
+            </>
+          )}
+          <p className="text-[10px] uppercase tracking-wide text-gray-600 px-2 py-1 mt-1">Quick jump</p>
           {QUICK_LINKS.map((link) => (
             <button
               key={link.path}

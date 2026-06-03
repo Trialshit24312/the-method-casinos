@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { Mail, Copy, Check, RefreshCw, KeyRound, User, ExternalLink, Sparkles, AlertCircle } from 'lucide-react';
 import PageHeader from '../../components/PageHeader';
+import ToolsBreadcrumb from '../../components/ToolsBreadcrumb';
+import { usePageTitle } from '../../hooks/usePageTitle';
 import { ServiceGrid } from '../../components/ServiceCard';
 import {
   generateEmail,
@@ -17,6 +19,7 @@ import {
 const FEATURED = TEMP_MAIL_SERVICES.filter((s) => s.badge === 'Popular').slice(0, 4);
 
 export default function EmailGeneratorPage() {
+  usePageTitle('Email Tools — The Method Casinos');
   const [domain, setDomain] = useState('');
   const [batch, setBatch] = useState(5);
   const [emails, setEmails] = useState<string[]>([]);
@@ -42,7 +45,8 @@ export default function EmailGeneratorPage() {
   };
 
   return (
-    <div className="p-8 max-w-7xl mx-auto">
+    <div className="p-6 md:p-8 max-w-7xl mx-auto">
+      <ToolsBreadcrumb page="Email tools" />
       <PageHeader
         icon={<Mail className="w-6 h-6 text-glow" />}
         title="Email & Signup Tools"

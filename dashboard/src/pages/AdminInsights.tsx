@@ -5,7 +5,12 @@ import { api } from '../api';
 import type { DiscoveryHistoryEntry } from '../types';
 import StatsSkeleton from '../components/StatsSkeleton';
 import PageHeader from '../components/PageHeader';
+import EmptyState from '../components/EmptyState';
+import ErrorBanner from '../components/ErrorBanner';
+import Breadcrumb from '../components/Breadcrumb';
+import NoticeBanner from '../components/NoticeBanner';
 import { useAuth } from '../context/AuthContext';
+import { usePageTitle } from '../hooks/usePageTitle';
 import { apiBaseUrl } from '../lib/site';
 
 interface Insights {
@@ -24,15 +29,23 @@ function formatDuration(ms: number): string {
 }
 
 export default function AdminInsights() {
+  usePageTitle('Admin Insights — The Method Casinos');
   const { user } = useAuth();
   const [data, setData] = useState<Insights | null>(null);
   const [error, setError] = useState('');
+  const [exportMsg, setExportMsg] = useState('');
+  const [exporting, setExporting] = useState(false);
 
-  useEffect(() => {
-    if (!user?.isAdmin) return;
+  const load = () => {
+    setError('');
     api.getAdminInsights()
       .then(setData)
       .catch((e) => setError(e instanceof Error ? e.message : 'Failed to load'));
+  };
+
+  useEffect(() => {
+    if (!user?.isAdmin) return;
+    load();
   }, [user?.isAdmin]);
 
   if (!user) return <Navigate to="/login?next=/insights" replace />;
@@ -42,25 +55,36 @@ export default function AdminInsights() {
   const exportCatalogUrl = `${apiBaseUrl()}/api/casinos/catalog/export`;
 
   const downloadCsv = (url: string, filename: string) => {
+    setExporting(true);
+    setExportMsg('');
     void fetch(url, { credentials: 'include' })
-      .then((r) => r.blob())
+      .then((r) => {
+        if (!r.ok) throw new Error(`Export failed (${r.status})`);
+        return r.blob();
+      })
       .then((blob) => {
         const a = document.createElement('a');
         a.href = URL.createObjectURL(blob);
         a.download = filename;
         a.click();
-      });
+        setExportMsg(`Downloaded ${filename}`);
+        setTimeout(() => setExportMsg(''), 4000);
+      })
+      .catch((e) => setExportMsg(e instanceof Error ? e.message : 'Export failed'))
+      .finally(() => setExporting(false));
   };
 
   return (
     <div className="p-6 md:p-8 max-w-5xl mx-auto">
+      <Breadcrumb items={[{ label: 'Admin', to: '/dashboard' }, { label: 'Insights' }]} />
       <PageHeader
         icon={<BarChart3 className="w-6 h-6 text-glow" />}
         title="Admin Insights"
         subtitle="Discovery performance, review backlog, and catalog growth"
       />
 
-      {error && <p className="text-red-400 text-sm mb-4">{error}</p>}
+      {error && <ErrorBanner message={error} onRetry={load} />}
+      {exportMsg && <NoticeBanner message={exportMsg} variant={exportMsg.includes('Downloaded') ? 'success' : 'info'} />}
       {!data && !error && <StatsSkeleton count={4} />}
 
       {data && (
@@ -101,14 +125,16 @@ export default function AdminInsights() {
             </Link>
             <button
               type="button"
-              className="btn-secondary text-sm flex items-center gap-2"
+              disabled={exporting}
+              className="btn-secondary text-sm flex items-center gap-2 disabled:opacity-50"
               onClick={() => downloadCsv(exportPendingUrl, 'pending-casinos.csv')}
             >
               <Download className="w-4 h-4" /> Export pending CSV
             </button>
             <button
               type="button"
-              className="btn-secondary text-sm flex items-center gap-2"
+              disabled={exporting}
+              className="btn-secondary text-sm flex items-center gap-2 disabled:opacity-50"
               onClick={() => downloadCsv(exportCatalogUrl, 'verified-catalog.csv')}
             >
               <Download className="w-4 h-4" /> Export catalog CSV
@@ -132,7 +158,12 @@ export default function AdminInsights() {
           <div className="glass-glow p-5">
             <h3 className="font-semibold text-sm mb-4">Recent discovery runs</h3>
             {data.recentRuns.length === 0 ? (
-              <p className="text-gray-500 text-sm">No scans logged yet.</p>
+              <EmptyState
+                icon={Radar}
+                title="No discovery runs yet"
+                description="Run a scan from the Discovery page to populate this table."
+                action={<Link to="/discovery" className="btn-glow text-sm">Open Discovery</Link>}
+              />
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full text-sm text-left">

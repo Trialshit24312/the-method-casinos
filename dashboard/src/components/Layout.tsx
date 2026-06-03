@@ -167,7 +167,7 @@ export default function Layout() {
               target="_blank"
               rel="noreferrer"
               className="flex items-center gap-3 px-3 py-2 mt-2 rounded-lg text-sm font-medium
-                         text-[#5865F2] hover:bg-[#5865F2]/10 border border-[#5865F2]/30 transition-colors"
+                         text-discord hover:bg-discord/10 border border-discord/30 transition-colors"
             >
               Join Discord Server
             </a>

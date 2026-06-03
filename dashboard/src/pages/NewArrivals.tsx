@@ -5,6 +5,8 @@ import { api } from '../api';
 import type { Casino } from '../types';
 import PageHeader from '../components/PageHeader';
 import EmptyState from '../components/EmptyState';
+import Breadcrumb from '../components/Breadcrumb';
+import ErrorBanner from '../components/ErrorBanner';
 import CasinoCard from '../components/CasinoCard';
 import CarouselSkeleton from '../components/CarouselSkeleton';
 import { usePageTitle } from '../hooks/usePageTitle';
@@ -15,7 +17,9 @@ export default function NewArrivals() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
-  useEffect(() => {
+  const load = () => {
+    setLoading(true);
+    setError('');
     api.getNewArrivals(24)
       .then(setCasinos)
       .catch((e) => {
@@ -23,17 +27,22 @@ export default function NewArrivals() {
         setCasinos([]);
       })
       .finally(() => setLoading(false));
+  };
+
+  useEffect(() => {
+    load();
   }, []);
 
   return (
     <div className="p-6 md:p-8 max-w-7xl mx-auto">
+      <Breadcrumb items={[{ label: 'Catalog', to: '/casinos' }, { label: 'New arrivals' }]} />
       <PageHeader
         icon={<Sparkles className="w-6 h-6 text-glow" />}
         title="New Arrivals"
         subtitle="Recently approved sweepstakes casinos added to the verified catalog"
       />
 
-      {error && <p className="text-red-400 text-sm mb-4">{error}</p>}
+      {error && <ErrorBanner message={error} onRetry={load} />}
 
       {loading ? (
         <CarouselSkeleton title="Loading" />

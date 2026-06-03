@@ -42,6 +42,7 @@ export default function DashboardPage() {
   const [featured, setFeatured] = useState<Casino[]>([]);
   const [recent, setRecent] = useState<Casino[]>([]);
   const [carouselsLoading, setCarouselsLoading] = useState(true);
+  const [carouselError, setCarouselError] = useState(false);
 
   useEffect(() => {
     api.getStats()
@@ -57,7 +58,7 @@ export default function DashboardPage() {
         setFeatured(f);
         setRecent(r);
       })
-      .catch(console.error)
+      .catch(() => setCarouselError(true))
       .finally(() => setCarouselsLoading(false));
   }, []);
 
@@ -129,6 +130,12 @@ export default function DashboardPage() {
       ) : statsLoading ? (
         <StatsSkeleton count={user?.isAdmin ? 8 : 7} />
       ) : null}
+
+      {carouselError && (
+        <p className="text-amber-400/90 text-sm mb-6 p-3 rounded-xl border border-amber-500/25 bg-amber-500/10">
+          Could not load featured carousels — <Link to="/casinos" className="text-glow hover:underline">browse the catalog</Link> directly.
+        </p>
+      )}
 
       {carouselsLoading ? (
         <>

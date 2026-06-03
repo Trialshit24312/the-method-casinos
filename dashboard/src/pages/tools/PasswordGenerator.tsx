@@ -2,9 +2,12 @@ import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { KeyRound, Copy, Check, RefreshCw } from 'lucide-react';
 import PageHeader from '../../components/PageHeader';
+import ToolsBreadcrumb from '../../components/ToolsBreadcrumb';
+import { usePageTitle } from '../../hooks/usePageTitle';
 import { generateSecurePassword, passwordStrength } from '../../lib/generators';
 
 export default function PasswordGeneratorPage() {
+  usePageTitle('Password Generator — The Method Casinos');
   const [length, setLength] = useState(16);
   const [uppercase, setUppercase] = useState(true);
   const [lowercase, setLowercase] = useState(true);
@@ -27,7 +30,8 @@ export default function PasswordGeneratorPage() {
   };
 
   return (
-    <div className="p-8 max-w-3xl mx-auto">
+    <div className="p-6 md:p-8 max-w-3xl mx-auto">
+      <ToolsBreadcrumb page="Password generator" />
       <PageHeader
         icon={<KeyRound className="w-6 h-6 text-brand-light" />}
         title="Password Generator"

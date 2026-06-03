@@ -15,6 +15,7 @@ import {
   ChevronRight,
 } from 'lucide-react';
 import PageHeader from '../components/PageHeader';
+import { usePageTitle } from '../hooks/usePageTitle';
 import { FEATURE_LABELS, FEATURE_CATEGORIES } from '../types';
 import {
   RULES_CATEGORIES,
@@ -48,8 +49,9 @@ const CONSEQUENCES = RULES_CONSEQUENCES.map((c) => ({
 }));
 
 export default function RulesPage() {
+  usePageTitle('Community Rules — The Method Casinos');
   return (
-    <div className="p-8 max-w-6xl mx-auto">
+    <div className="p-6 md:p-8 max-w-6xl mx-auto">
       <PageHeader
         icon={<Shield className="w-6 h-6 text-glow" />}
         title="Community Rules"
@@ -202,7 +204,7 @@ export default function RulesPage() {
               <p className="text-xs uppercase tracking-wide text-brand-light mb-2">{cat.label}</p>
               <div className="flex flex-wrap gap-1">
                 {cat.features.slice(0, 8).map((f) => (
-                  <span key={f} className="text-[10px] px-1.5 py-0.5 rounded bg-[#121218] text-gray-500 border border-surface-border">
+                  <span key={f} className="text-[10px] px-1.5 py-0.5 rounded bg-surface-panel text-gray-500 border border-surface-border">
                     {FEATURE_LABELS[f]}
                   </span>
                 ))}
@@ -216,7 +218,7 @@ export default function RulesPage() {
       </motion.section>
 
       {/* Footer links */}
-      <div className="p-6 rounded-xl border border-surface-border bg-[#121218]/60 text-center">
+      <div className="p-6 rounded-xl border border-surface-border bg-surface-panel/60 text-center">
         <p className="text-sm text-gray-500 mb-3">
           Rules work alongside our Terms of Service. By participating, you agree to both.
         </p>

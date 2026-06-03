@@ -1,7 +1,7 @@
-import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { useEffect, useState, type FormEvent } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Dices, Shield, Radar, Wrench, ArrowRight, Sparkles, ShieldCheck, Globe, Zap, Star, Crown } from 'lucide-react';
+import { Dices, Shield, Radar, Wrench, ArrowRight, Sparkles, ShieldCheck, Globe, Zap, Star, Crown, Search, Bot } from 'lucide-react';
 import { api } from '../api';
 import type { Stats, Casino } from '../types';
 import { discordInviteUrl } from '../lib/site';
@@ -29,6 +29,8 @@ export default function Landing() {
   const [featured, setFeatured] = useState<Casino[]>([]);
   const [featuredLoading, setFeaturedLoading] = useState(true);
   const [newArrivals, setNewArrivals] = useState<Casino[]>([]);
+  const [heroQuery, setHeroQuery] = useState('');
+  const navigate = useNavigate();
   const discordInvite = discordInviteUrl();
 
   useEffect(() => {
@@ -95,9 +97,29 @@ export default function Landing() {
             <span className="block text-white mt-2">Casinos Hub</span>
           </h1>
 
-          <p className="text-gray-400 max-w-xl mx-auto mb-12 text-lg leading-relaxed">
+          <p className="text-gray-400 max-w-xl mx-auto mb-8 text-lg leading-relaxed">
             Professional-grade catalog, scam protection, and discovery tools — built for operators who want real sites, not listicles.
           </p>
+
+          <form
+            onSubmit={(e: FormEvent) => {
+              e.preventDefault();
+              const q = heroQuery.trim();
+              navigate(q ? `/casinos?q=${encodeURIComponent(q)}` : '/casinos');
+            }}
+            className="max-w-md mx-auto mb-10 relative"
+          >
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-600 pointer-events-none" />
+            <input
+              value={heroQuery}
+              onChange={(e) => setHeroQuery(e.target.value)}
+              placeholder="Search the catalog…"
+              className="input-field pl-11 pr-24 py-3 text-base"
+            />
+            <button type="submit" className="absolute right-2 top-1/2 -translate-y-1/2 btn-glow text-sm px-4 py-1.5">
+              Search
+            </button>
+          </form>
 
           <div className="flex flex-wrap gap-3 justify-center mb-12">
             <Link to="/casinos" className="btn-primary inline-flex items-center gap-2 px-7 py-3 text-base">
@@ -117,7 +139,7 @@ export default function Landing() {
                 href={discordInvite}
                 target="_blank"
                 rel="noreferrer"
-                className="inline-flex items-center gap-2 px-7 py-3 rounded-lg bg-[#5865F2]/15 border border-[#5865F2]/40 text-[#5865F2] hover:bg-[#5865F2]/25 transition-all font-medium"
+                className="btn-discord-outline px-7 py-3"
               >
                 Join Discord
               </a>
@@ -132,7 +154,11 @@ export default function Landing() {
             <StatsSkeleton count={4} />
           </div>
         ) : statsError ? (
-          <p className="text-center text-gray-500 text-sm mb-16">Live stats unavailable — catalog is still browsable.</p>
+          <p className="text-center text-gray-500 text-sm mb-16">
+            Live stats unavailable —{' '}
+            <Link to="/status" className="text-glow hover:underline">check status</Link>
+            {' '}or browse the catalog.
+          </p>
         ) : stats ? (
           <motion.div
             initial={{ opacity: 0, y: 16 }}
@@ -240,6 +266,8 @@ export default function Landing() {
               { to: '/random', title: 'Random pick', desc: 'Roll a verified casino with filters — same as Discord /random.', icon: Zap, color: 'from-glow/20 to-transparent' },
               { to: '/new', title: 'New arrivals', desc: 'Recently approved operators added to the verified catalog.', icon: Star, color: 'from-emerald-500/15 to-transparent' },
               { to: '/tools', title: 'Signup tools', desc: 'Email, phone, password generators and URL checker.', icon: Wrench, color: 'from-brand/15 to-transparent' },
+              { to: '/assistant', title: 'Catalog help', desc: 'Ask questions about the catalog, filters, and signup workflows.', icon: Bot, color: 'from-glow/15 to-transparent' },
+              { to: '/compare', title: 'Compare casinos', desc: 'Side-by-side feature and signup comparison.', icon: ShieldCheck, color: 'from-brand/15 to-transparent' },
               { to: '/tools/checker', title: 'URL safety', desc: 'Instant blocklist + catalog lookup before you click.', icon: ShieldCheck, color: 'from-emerald-500/15 to-transparent' },
               { to: '/blocked', title: 'Blocklist', desc: 'Known scam and phishing URLs — never sign up here.', icon: Globe, color: 'from-red-500/15 to-transparent' },
               { to: '/legal', title: 'Legal Hub', desc: 'Terms, rules, privacy — same as Discord /legal.', icon: Shield, color: 'from-amber-500/10 to-transparent' },

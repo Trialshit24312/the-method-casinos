@@ -8,6 +8,8 @@ import { FEATURE_LABELS, FEATURE_COLORS } from '../types';
 import PageHeader from '../components/PageHeader';
 import CasinoCombobox from '../components/CasinoCombobox';
 import EmptyState from '../components/EmptyState';
+import Breadcrumb from '../components/Breadcrumb';
+import ErrorBanner from '../components/ErrorBanner';
 import { usePageTitle } from '../hooks/usePageTitle';
 
 export default function ComparePage() {
@@ -22,10 +24,15 @@ export default function ComparePage() {
   const [error, setError] = useState('');
   const [shareMsg, setShareMsg] = useState('');
 
-  useEffect(() => {
+  const loadCatalog = () => {
+    setCatalogError('');
     api.getCasinos()
       .then(setCasinos)
       .catch(() => setCatalogError('Could not load casino catalog for comparison.'));
+  };
+
+  useEffect(() => {
+    loadCatalog();
   }, []);
 
   useEffect(() => {
@@ -77,6 +84,7 @@ export default function ComparePage() {
 
   return (
     <div className="p-6 md:p-8 max-w-5xl mx-auto">
+      <Breadcrumb items={[{ label: 'Catalog', to: '/casinos' }, { label: 'Compare' }]} />
       <PageHeader
         icon={<Scale className="w-6 h-6 text-glow" />}
         title="Compare Casinos"
@@ -96,7 +104,7 @@ export default function ComparePage() {
       />
 
       {shareMsg && <p className="text-emerald-400 text-sm mb-4">{shareMsg}</p>}
-      {catalogError && <p className="text-amber-400 text-sm mb-4">{catalogError}</p>}
+      {catalogError && <ErrorBanner message={catalogError} onRetry={loadCatalog} variant="warning" />}
 
       <div className="grid md:grid-cols-2 gap-4 mb-8">
         <CasinoCombobox label="Casino A" casinos={casinos} value={a} onChange={setA} />

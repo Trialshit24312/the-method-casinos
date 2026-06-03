@@ -6,6 +6,9 @@ import { api } from '../api';
 import type { Casino, SimilarCasinoMatch, SimilarWebDiscoveryResult } from '../types';
 import { FEATURE_LABELS, FEATURE_COLORS } from '../types';
 import PageHeader from '../components/PageHeader';
+import EmptyState from '../components/EmptyState';
+import Breadcrumb from '../components/Breadcrumb';
+import ErrorBanner from '../components/ErrorBanner';
 import { usePageTitle } from '../hooks/usePageTitle';
 import { useAuth } from '../context/AuthContext';
 
@@ -122,10 +125,15 @@ export default function SimilarCasinosPage() {
     }
   }, [setSearchParams]);
 
-  useEffect(() => {
+  const loadCatalog = () => {
+    setCatalogError('');
     api.getCasinos()
       .then(setAllCasinos)
       .catch(() => setCatalogError('Could not load casino catalog.'));
+  };
+
+  useEffect(() => {
+    loadCatalog();
   }, []);
 
   useEffect(() => {
@@ -165,7 +173,8 @@ export default function SimilarCasinosPage() {
   const showPicker = query.trim() && filtered.length > 0 && (!selected || !filtered.some((c) => c.id === selected.id));
 
   return (
-    <div className="p-8 max-w-6xl mx-auto">
+    <div className="p-6 md:p-8 max-w-6xl mx-auto">
+      <Breadcrumb items={[{ label: 'Catalog', to: '/casinos' }, { label: 'Similar' }]} />
       <PageHeader
         icon={<Sparkles className="w-6 h-6 text-glow" />}
         title="Similar Casinos"
@@ -221,9 +230,7 @@ export default function SimilarCasinosPage() {
       {error && (
         <div className="mb-6 p-4 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400 text-sm">{error}</div>
       )}
-      {catalogError && (
-        <div className="mb-6 p-4 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-300 text-sm">{catalogError}</div>
-      )}
+      {catalogError && <ErrorBanner message={catalogError} onRetry={loadCatalog} variant="warning" />}
 
       {loading && (
         <div className="flex justify-center py-16">
@@ -284,10 +291,11 @@ export default function SimilarCasinosPage() {
           )}
 
           {matches.length === 0 ? (
-            <div className="glass p-12 text-center">
-              <Dices className="w-12 h-12 text-gray-600 mx-auto mb-4" />
-              <p className="text-gray-500">No close catalog matches yet. Try <strong className="text-gray-400">Search web for more</strong> to find new operators.</p>
-            </div>
+            <EmptyState
+              icon={Dices}
+              title="No close catalog matches"
+              description="Try Search web for more to find new operators like this one."
+            />
           ) : (
             <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-4">
               {matches.map((m, i) => (
@@ -299,10 +307,11 @@ export default function SimilarCasinosPage() {
       )}
 
       {!selected && !loading && (
-        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="glass p-8 text-center">
-          <Sparkles className="w-10 h-10 text-glow/50 mx-auto mb-4" />
-          <p className="text-gray-500">Select a casino above — we match from the verified catalog, or search DuckDuckGo, Bing & Brave for new operators like it. 100% free, no API keys.</p>
-        </motion.div>
+        <EmptyState
+          icon={Sparkles}
+          title="Pick a casino to compare"
+          description="We match from the verified catalog, or search DuckDuckGo, Bing & Brave for new operators like it. 100% free, no API keys."
+        />
       )}
     </div>
   );

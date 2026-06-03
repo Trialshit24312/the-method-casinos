@@ -60,7 +60,7 @@ export default function Pricing() {
               href={discordInvite}
               target="_blank"
               rel="noreferrer"
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm border border-[#5865F2]/40 text-[#5865F2] hover:bg-[#5865F2]/10 transition-colors"
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm border border-discord/40 text-discord hover:bg-discord/10 transition-colors"
             >
               Join Discord for launch updates
             </a>

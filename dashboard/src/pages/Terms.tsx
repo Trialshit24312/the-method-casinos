@@ -13,6 +13,7 @@ import {
   ChevronRight,
 } from 'lucide-react';
 import PageHeader from '../components/PageHeader';
+import { usePageTitle } from '../hooks/usePageTitle';
 import {
   TERMS_SECTIONS,
   TERMS_TOC,
@@ -49,8 +50,9 @@ const FAQ = TERMS_FAQ;
 const LAST_UPDATED = LEGAL_LAST_UPDATED;
 
 export default function TermsPage() {
+  usePageTitle('Terms of Service — The Method Casinos');
   return (
-    <div className="p-8 max-w-6xl mx-auto">
+    <div className="p-6 md:p-8 max-w-6xl mx-auto">
       <PageHeader
         icon={<ScrollText className="w-6 h-6 text-brand-light" />}
         title="Terms of Service"
@@ -83,7 +85,7 @@ export default function TermsPage() {
                 <Link to="/privacy" className="text-glow hover:underline">Privacy Policy</Link>.
               </p>
             </div>
-            <div className="shrink-0 p-5 rounded-xl bg-[#121218]/80 border border-surface-border text-center">
+            <div className="shrink-0 p-5 rounded-xl bg-surface-panel/80 border border-surface-border text-center">
               <p className="text-xs text-gray-600 uppercase tracking-wide mb-1">Last Updated</p>
               <p className="text-sm font-medium text-white">{LAST_UPDATED}</p>
               <p className="text-xs text-gray-500 mt-2">Version {LEGAL_VERSION}</p>
@@ -172,7 +174,7 @@ export default function TermsPage() {
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            className="p-6 rounded-xl border border-surface-border bg-[#121218]/60 text-center"
+            className="p-6 rounded-xl border border-surface-border bg-surface-panel/60 text-center"
           >
             <p className="text-sm text-gray-500 mb-3">
               By using The Method Casinos, you acknowledge that you have read and agree to these terms.

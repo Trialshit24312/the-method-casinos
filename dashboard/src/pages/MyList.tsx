@@ -7,7 +7,9 @@ import PageHeader from '../components/PageHeader';
 import CasinoCard from '../components/CasinoCard';
 import EmptyState from '../components/EmptyState';
 import StatsSkeleton from '../components/StatsSkeleton';
+import ErrorBanner from '../components/ErrorBanner';
 import { useAuth } from '../context/AuthContext';
+import { usePageTitle } from '../hooks/usePageTitle';
 
 interface FavoriteRow {
   casino: Casino;
@@ -49,6 +51,7 @@ function FavoriteNote({ casinoId, initial }: { casinoId: string; initial: string
 }
 
 export default function MyList() {
+  usePageTitle('My List — The Method Casinos');
   const { user } = useAuth();
   const [favorites, setFavorites] = useState<FavoriteRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -121,7 +124,7 @@ export default function MyList() {
       />
 
       {copyMsg && <p className="text-emerald-400 text-sm mb-4">{copyMsg}</p>}
-      {error && <p className="text-red-400 text-sm mb-4">{error}</p>}
+      {error && <ErrorBanner message={error} onRetry={load} />}
 
       {loading && <StatsSkeleton count={3} />}
 

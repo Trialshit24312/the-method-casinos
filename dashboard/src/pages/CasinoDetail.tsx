@@ -13,6 +13,7 @@ import { useAuth } from '../context/AuthContext';
 import { usePageTitle } from '../hooks/usePageTitle';
 import { pushRecentlyViewed } from '../lib/recently-viewed';
 import Breadcrumb from '../components/Breadcrumb';
+import EmptyState from '../components/EmptyState';
 import { FEATURE_LABELS, FEATURE_COLORS, vpnLabel, formatTrackableValue } from '../types';
 import { formatLastChecked, isCatalogStale } from '../lib/freshness';
 
@@ -124,9 +125,34 @@ export default function CasinoDetail() {
 
   if (error || !casino) {
     return (
-      <div className="p-8 max-w-2xl mx-auto text-center">
-        <p className="text-red-400 mb-4">{error || 'Casino not found'}</p>
-        <Link to="/casinos" className="text-glow hover:underline">← Back to catalog</Link>
+      <div className="p-6 md:p-8 max-w-2xl mx-auto">
+        <Breadcrumb items={[{ label: 'Catalog', to: '/casinos' }, { label: 'Not found' }]} />
+        <EmptyState
+          icon={ShieldCheck}
+          title={error || 'Casino not found'}
+          description="This operator may have been removed or the link is incorrect."
+          action={
+            <div className="flex flex-wrap justify-center gap-3">
+              <Link to="/casinos" className="btn-secondary text-sm">Back to catalog</Link>
+              {slug && (
+                <button
+                  type="button"
+                  className="btn-glow text-sm"
+                  onClick={() => {
+                    setError('');
+                    setLoading(true);
+                    api.getCasino(slug)
+                      .then(setCasino)
+                      .catch((e) => setError(e instanceof Error ? e.message : 'Failed to load'))
+                      .finally(() => setLoading(false));
+                  }}
+                >
+                  Retry
+                </button>
+              )}
+            </div>
+          }
+        />
       </div>
     );
   }
