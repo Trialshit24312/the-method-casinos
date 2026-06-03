@@ -1,6 +1,6 @@
 import fs from 'fs';
 import path from 'path';
-import { isDiscoveryRunning } from '../discovery/run-state.js';
+import { canStartDiscoveryRun } from '../discovery/run-state.js';
 import { isDiscoveryLiveActive } from '../discovery/live-state.js';
 import { runDiscovery } from '../discovery/engine.js';
 import { startContinuousDiscovery, isContinuousDiscoveryEnabled } from '../discovery/continuous.js';
@@ -53,7 +53,7 @@ export function scheduleBackgroundJobs(): void {
     const ms = discoveryHours * 60 * 60 * 1000;
     const deep = process.env.DISCOVERY_SCHEDULE_DEEP === 'true';
     setInterval(() => {
-      if (isDiscoveryRunning() || isDiscoveryLiveActive()) return;
+      if (!canStartDiscoveryRun() || isDiscoveryLiveActive()) return;
       console.log(`🔍 Scheduled ${deep ? 'deep' : 'quick'} discovery starting…`);
       void runDiscovery(deep).then((r) => {
         console.log(`🔍 Scheduled discovery done: +${r.added} queued, ${r.rejected} rejected`);

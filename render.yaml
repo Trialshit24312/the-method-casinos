@@ -84,6 +84,8 @@ services:
 
       - key: DISCOVERY_CONTINUOUS
         value: "true"
+      - key: DISCOVERY_MAX_CONCURRENT
+        value: "3"
       - key: DISCOVERY_CONTINUOUS_COOLDOWN_SEC
         value: "90"
       - key: DISCOVERY_CONTINUOUS_BOOT_DELAY_SEC

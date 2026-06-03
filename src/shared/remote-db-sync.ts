@@ -103,6 +103,7 @@ export async function uploadRemoteDatabase(): Promise<void> {
 
 let debouncedUploadTimer: ReturnType<typeof setTimeout> | null = null;
 let uploadInFlight = false;
+let persistQueued = false;
 
 /** Call after any SQLite write — uploads to R2 within a few seconds (survives Render restarts). */
 export function notifyDatabaseChanged(): void {
@@ -119,7 +120,10 @@ export function notifyDatabaseChanged(): void {
 /** Force checkpoint + upload now (discovery complete, shutdown, etc.). */
 export async function persistDatabaseNow(): Promise<boolean> {
   if (!isRemoteDbSyncEnabled()) return false;
-  if (uploadInFlight) return false;
+  if (uploadInFlight) {
+    persistQueued = true;
+    return false;
+  }
   uploadInFlight = true;
   try {
     const { getDatabase } = await import('../database/index.js');
@@ -131,6 +135,10 @@ export async function persistDatabaseNow(): Promise<boolean> {
     return false;
   } finally {
     uploadInFlight = false;
+    if (persistQueued) {
+      persistQueued = false;
+      void persistDatabaseNow();
+    }
   }
 }
 

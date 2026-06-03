@@ -52,7 +52,13 @@ import {
   exportVerifiedCasinosCsv,
 } from '../database/index.js';
 import { runDiscovery } from '../discovery/engine.js';
-import { cancelDiscoveryRun, isDiscoveryRunning } from '../discovery/run-state.js';
+import {
+  cancelDiscoveryRun,
+  canStartDiscoveryRun,
+  getActiveDiscoveryRunCount,
+  getMaxConcurrentDiscoveries,
+  isDiscoveryRunning,
+} from '../discovery/run-state.js';
 import { runRevalidationBatch, revalidateCasinoById } from '../discovery/revalidate.js';
 import { requireAuth, requireAdmin, exchangeCode, getDiscordAuthUrl, getAvatarUrl, createOAuthState, parseOAuthState } from './auth.js';
 import type { CasinoFeature, CasinoInput, BlockedSiteInput, DiscoveryResult } from '../shared/types.js';
@@ -334,18 +340,20 @@ export function createServer(): express.Application {
     res.json(getPendingCasinos());
   });
 
-  app.post('/api/casinos/pending/approve-all', requireAuth, requireAdmin, (req, res) => {
+  app.post('/api/casinos/pending/approve-all', requireAuth, requireAdmin, async (req, res) => {
     const limit = Math.min(100, Math.max(1, parseInt(String(req.body?.limit ?? '50'), 10) || 50));
-    const result = approveAllPendingCasinos(req.session.user?.username, limit);
+    const result = await approveAllPendingCasinos(req.session.user?.username, limit);
     res.json({ ok: true, ...result, remaining: getPendingCasinos().length });
   });
 
-  app.post('/api/casinos/:id/approve', requireAuth, requireAdmin, (req, res) => {
+  app.post('/api/casinos/:id/approve', requireAuth, requireAdmin, async (req, res) => {
     const approved = approveCasino(String(req.params.id), req.session.user?.username);
     if (!approved) {
-      res.status(404).json({ error: 'Not found' });
+      res.status(404).json({ error: 'Not found or approval did not apply' });
       return;
     }
+    const { persistDatabaseNow } = await import('../shared/remote-db-sync.js');
+    await persistDatabaseNow();
     void notifyCasinoApproved(approved, req.session.user?.username ?? 'admin');
     res.json(approved);
   });
@@ -625,8 +633,11 @@ export function createServer(): express.Application {
 
   app.post('/api/discover/client/start', discoverStartLimit, requireAuth, requireAdmin, (req, res) => {
     const deep = Boolean(req.body?.deep);
-    if (isDiscoveryRunning() || isDiscoveryLiveActive()) {
-      res.status(409).json({ error: 'Discovery scan already running' });
+    if (!canStartDiscoveryRun()) {
+      res.status(409).json({
+        error: `Maximum concurrent discovery runs (${getMaxConcurrentDiscoveries()}) reached`,
+        active: getActiveDiscoveryRunCount(),
+      });
       return;
     }
     if (hasDiscoverySession()) {
@@ -662,8 +673,8 @@ export function createServer(): express.Application {
       res.status(404).json({ error: 'No saved scan to resume' });
       return;
     }
-    if (isDiscoveryRunning() || isDiscoveryLiveActive()) {
-      res.status(409).json({ error: 'Discovery scan already running' });
+    if (!canStartDiscoveryRun()) {
+      res.status(409).json({ error: `Maximum concurrent discovery runs (${getMaxConcurrentDiscoveries()}) reached` });
       return;
     }
     try {
@@ -830,13 +841,20 @@ export function createServer(): express.Application {
 
     try {
       if (stream) {
-        if (isDiscoveryRunning() || isDiscoveryLiveActive() || hasDiscoverySession()) {
-          res.status(409).json({ error: 'Discovery scan already running — use client mode from the dashboard' });
+        if (!canStartDiscoveryRun()) {
+          res.status(409).json({
+            error: `Maximum concurrent discovery runs (${getMaxConcurrentDiscoveries()}) reached`,
+            active: getActiveDiscoveryRunCount(),
+          });
+          return;
+        }
+        if (hasDiscoverySession()) {
+          res.status(409).json({ error: 'Client discovery session active — finish or resume from the dashboard first' });
           return;
         }
 
         const mode = deep ? 'deep' : 'quick';
-        beginDiscoveryLive(mode);
+        if (!isDiscoveryLiveActive()) beginDiscoveryLive(mode);
 
         void (async () => {
           try {
@@ -854,8 +872,15 @@ export function createServer(): express.Application {
         return;
       }
 
-      if (isDiscoveryRunning() || isDiscoveryLiveActive() || hasDiscoverySession()) {
-        res.status(409).json({ error: 'Discovery scan already running' });
+      if (!canStartDiscoveryRun()) {
+        res.status(409).json({
+          error: `Maximum concurrent discovery runs (${getMaxConcurrentDiscoveries()}) reached`,
+          active: getActiveDiscoveryRunCount(),
+        });
+        return;
+      }
+      if (hasDiscoverySession()) {
+        res.status(409).json({ error: 'Client discovery session active on the dashboard' });
         return;
       }
 

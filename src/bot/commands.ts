@@ -40,6 +40,7 @@ import {
 import { saveDiscoveryCandidateForReview } from '../discovery/engine.js';
 import { revalidateCasinoById } from '../discovery/revalidate.js';
 import { runDiscovery } from '../discovery/engine.js';
+import { canStartDiscoveryRun, getActiveDiscoveryRunCount, getMaxConcurrentDiscoveries } from '../discovery/run-state.js';
 import {
   buildCasinoEmbed,
   buildCasinoButtons,
@@ -441,14 +442,24 @@ export const commands: Command[] = [
   {
     data: new SlashCommandBuilder()
       .setName('discover')
-      .setDescription('Scan for NEW casinos (admin — quick ~8 min, deep ~30 min, hundreds of URLs)')
+      .setDescription('Scan list sites + catalog for NEW casinos (admin — rotates roundup URLs)')
       .addBooleanOption((o) =>
-        o.setName('deep').setDescription('Deep scan — all queries, page crawl, ~30 min').setRequired(false),
+        o.setName('deep').setDescription('Deep scan — more list sites, page crawl, ~30 min').setRequired(false),
       ),
 
     async execute(interaction) {
       if (!isAdmin(interaction.user.id)) {
         await interaction.reply({ content: '❌ Admin only command.', ephemeral: true });
+        return;
+      }
+
+      if (!canStartDiscoveryRun()) {
+        const max = getMaxConcurrentDiscoveries();
+        const active = getActiveDiscoveryRunCount();
+        await interaction.reply({
+          content: `❌ ${active}/${max} discovery scans already running. Wait for one to finish or raise DISCOVERY_MAX_CONCURRENT.`,
+          ephemeral: true,
+        });
         return;
       }
 
@@ -1061,7 +1072,7 @@ export const commands: Command[] = [
       }
       const limit = interaction.options.getInteger('limit') ?? 50;
       await interaction.deferReply({ ephemeral: true });
-      const result = approveAllPendingCasinos(interaction.user.tag, limit);
+      const result = await approveAllPendingCasinos(interaction.user.tag, limit);
       const remaining = getPendingCasinos().length;
       await interaction.editReply({
         content: result.approved > 0

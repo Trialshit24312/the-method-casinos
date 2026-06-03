@@ -11,7 +11,7 @@ import { STALE_CATALOG_DAYS } from '../shared/freshness.js';
 import { VERIFIED_CASINO_SEEDS } from '../shared/verified-casinos.js';
 import { getDataDir, getDbPath, maybeMigrateLegacyDatabase } from '../shared/data-path.js';
 import { logPersistenceStatus } from '../shared/persistence.js';
-import { notifyDatabaseChanged } from '../shared/remote-db-sync.js';
+import { notifyDatabaseChanged, persistDatabaseNow } from '../shared/remote-db-sync.js';
 import type { DiscoveryLiveStats, DiscoveryProgressEvent, DiscoveryResult } from '../shared/types.js';
 
 let db: Database.Database;
@@ -384,7 +384,7 @@ export function addCasino(input: CasinoInput): Casino | null {
   if (hostDuplicate.some((row) => casinoHostKey(row.url) === host)) return null;
 
   const reviewStatus: ReviewStatus = input.reviewStatus
-    ?? (input.verified ? 'approved' : (input.source === 'web_scan' ? 'pending' : 'approved'));
+    ?? (input.verified ? 'approved' : 'pending');
 
   const casino: Casino = {
     id: nanoid(12),
@@ -457,15 +457,20 @@ export function updateCasino(id: string, input: Partial<CasinoInput>): Casino | 
       : existing.trackables,
     rating: input.rating ?? existing.rating,
     verified: input.verified ?? existing.verified,
-    reviewStatus: input.reviewStatus ?? existing.reviewStatus,
+    reviewStatus: input.reviewStatus
+      ?? (input.verified === true ? 'approved' : existing.reviewStatus),
     updatedAt: now,
   };
+  const active = updated.reviewStatus !== 'rejected' ? 1 : 0;
+  if (input.verified === true && updated.reviewStatus === 'approved') {
+    updated.verified = true;
+  }
 
   db.prepare(`
     UPDATE casinos SET name=@name, url=@url, url_normalized=@urlNormalized, description=@description,
       features=@features, signup_requirements=@signupRequirements, bonus_info=@bonusInfo,
       cash_out_before_blocked=@cashOutBeforeBlocked, trackables=@trackables,
-      rating=@rating, verified=@verified, review_status=@reviewStatus, updated_at=@updatedAt
+      rating=@rating, verified=@verified, review_status=@reviewStatus, active=@active, updated_at=@updatedAt
     WHERE id=@id
   `).run({
     id,
@@ -481,9 +486,14 @@ export function updateCasino(id: string, input: Partial<CasinoInput>): Casino | 
     rating: updated.rating,
     verified: updated.verified ? 1 : 0,
     reviewStatus: updated.reviewStatus,
+    active,
     updatedAt: updated.updatedAt,
   });
 
+  notifyDatabaseChanged();
+  if (updated.verified && updated.reviewStatus === 'approved') {
+    void persistDatabaseNow();
+  }
   return updated;
 }
 
@@ -729,24 +739,31 @@ export function approveCasino(id: string, approvedBy?: string): Casino | null {
   const existing = getCasinoById(id);
   if (!existing) return null;
   const now = new Date().toISOString();
-  db.prepare(`
+  const result = db.prepare(`
     UPDATE casinos SET verified = 1, review_status = 'approved', active = 1, updated_at = @now,
       approved_by = @approvedBy, approved_at = @now,
       health_status = 'ok', health_note = ''
     WHERE id = @id
   `).run({ id, now, approvedBy: approvedBy ?? null });
+  if (result.changes === 0) return null;
+
+  markDiscoverySeen(existing.url, 'added', 'admin approved');
   notifyDatabaseChanged();
-  return getCasinoById(id);
+  void persistDatabaseNow();
+
+  const approved = getCasinoById(id);
+  if (!approved?.verified || approved.reviewStatus !== 'approved') return null;
+  return approved;
 }
 
-export function approveAllPendingCasinos(approvedBy?: string, limit = 50): { approved: number; ids: string[] } {
+export async function approveAllPendingCasinos(approvedBy?: string, limit = 50): Promise<{ approved: number; ids: string[] }> {
   const pending = getPendingCasinos().slice(0, Math.min(limit, 100));
   const ids: string[] = [];
   for (const casino of pending) {
     const approved = approveCasino(casino.id, approvedBy);
     if (approved) ids.push(approved.id);
   }
-  if (ids.length > 0) notifyDatabaseChanged();
+  if (ids.length > 0) await persistDatabaseNow();
   return { approved: ids.length, ids };
 }
 

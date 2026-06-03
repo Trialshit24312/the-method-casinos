@@ -22,8 +22,9 @@ import { getVerifiedCuratedDiscoveries } from '../shared/verified-casinos.js';
 import { buildSearchQueries, SEARCH_PAGES_DEEP, SEARCH_PAGES_QUICK } from './queries.js';
 import { collectFreeSearchLinks, extractCasinoUrlsFromHtml, normalizeSearchLink } from './free-search.js';
 import { extractOperatorLinksFromListPage, mineOperatorsFromDirectoryPage } from './directory-miner.js';
-import { getSweepstakesListSiteUrls, isListSiteDiscoveryEnabled, isWebSearchDiscoveryEnabled } from './list-sources.js';
-import { beginDiscoveryRun, endDiscoveryRun, throwIfCancelled } from './run-state.js';
+import { isListSiteDiscoveryEnabled, isWebSearchDiscoveryEnabled } from './list-sources.js';
+import { beginDiscoveryRun, canStartDiscoveryRun, endDiscoveryRun, getMaxConcurrentDiscoveries, throwIfCancelled } from './run-state.js';
+import { claimListSitesForRun, markListSiteCrawled, releaseListSitesForRun } from './list-site-coordinator.js';
 import { beginDiscoveryLive, pushDiscoveryLiveEvent, finishDiscoveryLive } from './live-state.js';
 import { resumeDiscoveryLiveStorage } from '../database/index.js';
 import {
@@ -121,6 +122,7 @@ export interface DiscoverySessionState {
   browserCrawlUrls: string[];
   listSiteUrls: string[];
   listSiteIndex: number;
+  discoveryRunId: string;
 }
 
 export interface ClientSearchRequest {
@@ -301,7 +303,7 @@ function enqueue(state: DiscoverySessionState, url: string, onProgress?: (e: Dis
   return true;
 }
 
-function buildInitialState(deep: boolean): DiscoverySessionState {
+function buildInitialState(deep: boolean, discoveryRunId: string): DiscoverySessionState {
   const config = deep ? DEEP_CONFIG : QUICK_CONFIG;
   const curatedByHost: DiscoverySessionState['curatedByHost'] = {};
   for (const c of CURATED_DISCOVERIES) {
@@ -344,8 +346,9 @@ function buildInitialState(deep: boolean): DiscoverySessionState {
     pendingClientSearch: null,
     browserValidateUrls: [],
     browserCrawlUrls: [],
-    listSiteUrls: isListSiteDiscoveryEnabled() ? getSweepstakesListSiteUrls(deep) : [],
+    listSiteUrls: isListSiteDiscoveryEnabled() ? claimListSitesForRun(discoveryRunId, deep) : [],
     listSiteIndex: 0,
+    discoveryRunId,
   };
 }
 
@@ -377,7 +380,8 @@ function finishSession(state: DiscoverySessionState, onProgress?: ProgressPublis
   publish(onProgress, { type: 'complete', result });
   finishDiscoveryLive(result);
   clearDiscoverySession();
-  endDiscoveryRun();
+  releaseListSitesForRun(state.discoveryRunId);
+  endDiscoveryRun(state.discoveryRunId);
   void persistDatabaseNow();
   void notifyDiscoveryComplete(result);
   return result;
@@ -387,9 +391,12 @@ export function startClientDiscovery(deep: boolean): void {
   if (hasDiscoverySession()) {
     throw new Error('Discovery session already active');
   }
-  const state = buildInitialState(deep);
+  if (!canStartDiscoveryRun()) {
+    throw new Error(`Maximum concurrent discovery runs (${getMaxConcurrentDiscoveries()}) reached`);
+  }
+  const { runId } = beginDiscoveryRun();
+  const state = buildInitialState(deep, runId);
   beginDiscoveryLive(deep ? 'deep' : 'quick');
-  beginDiscoveryRun();
   saveDiscoverySession(state);
   setPhase(state, 'curated', 'Client-driven scan — runs while this tab is open', pushDiscoveryLiveEvent);
   saveDiscoverySession(state);
@@ -401,7 +408,12 @@ export function resumeClientDiscovery(): void {
     throw new Error('No discovery session to resume');
   }
   resumeDiscoveryLiveStorage(state.mode);
-  beginDiscoveryRun();
+  if (!state.discoveryRunId) {
+    const { runId } = beginDiscoveryRun();
+    state.discoveryRunId = runId;
+  } else {
+    beginDiscoveryRun(state.discoveryRunId);
+  }
   setPhase(state, state.phase, 'Resuming scan…', pushDiscoveryLiveEvent);
   saveDiscoverySession(state);
 }
@@ -428,15 +440,21 @@ async function runClientDiscoveryStepInner(
   if (!state.browserCrawlUrls) {
     state.browserCrawlUrls = [];
   }
-  if (!state.listSiteUrls) {
-    state.listSiteUrls = isListSiteDiscoveryEnabled() ? getSweepstakesListSiteUrls(state.mode === 'deep') : [];
+  if (!state.discoveryRunId) {
+    const { runId } = beginDiscoveryRun();
+    state.discoveryRunId = runId;
+  }
+  if (!state.listSiteUrls?.length) {
+    state.listSiteUrls = isListSiteDiscoveryEnabled()
+      ? claimListSitesForRun(state.discoveryRunId, state.mode === 'deep')
+      : [];
     state.listSiteIndex = state.listSiteIndex ?? 0;
   }
 
   // Keep in sync with DB — casinos added in prior steps must stay known.
   state.knownHosts = [...getKnownHosts()];
 
-  throwIfCancelled();
+  throwIfCancelled(state.discoveryRunId);
 
   if (timeLeft(state) <= 0) {
     return { done: true, result: finishSession(state, onProgress) };
@@ -526,6 +544,7 @@ async function runClientDiscoveryStepInner(
     } else if (!state.browserCrawlUrls.includes(siteUrl)) {
       state.browserCrawlUrls.push(siteUrl);
     }
+    markListSiteCrawled(siteUrl);
     if (savedCount > 0) void persistDatabaseNow();
     publish(onProgress, {
       type: 'crawl_summary',
@@ -788,8 +807,14 @@ async function processOneUrl(state: DiscoverySessionState, onProgress?: Progress
 }
 
 export function cancelClientDiscovery(): boolean {
+  const state = loadDiscoverySession() as DiscoverySessionState | null;
+  if (state?.discoveryRunId) {
+    releaseListSitesForRun(state.discoveryRunId);
+    endDiscoveryRun(state.discoveryRunId);
+  } else {
+    endDiscoveryRun();
+  }
   clearDiscoverySession();
-  endDiscoveryRun();
   return true;
 }
 

@@ -28,7 +28,14 @@ import { mineOperatorsFromDirectoryPage, mineAllListSites, type ListOperatorResu
 import { persistDatabaseNow } from '../shared/remote-db-sync.js';
 import { isSweepstakesDirectoryUrl } from './filters.js';
 import { getSweepstakesListSiteUrls, isListSiteDiscoveryEnabled, isWebSearchDiscoveryEnabled } from './list-sources.js';
-import { beginDiscoveryRun, endDiscoveryRun, throwIfCancelled } from './run-state.js';
+import { claimListSitesForRun, markListSiteCrawled, releaseListSitesForRun } from './list-site-coordinator.js';
+import {
+  beginDiscoveryRun,
+  endDiscoveryRun,
+  getMaxConcurrentDiscoveries,
+  throwIfCancelled,
+  tryBeginDiscoveryRun,
+} from './run-state.js';
 import { notifyDiscoveryComplete, notifyPendingDiscovery } from '../shared/notify.js';
 
 export type DiscoveryProgressCallback = (event: DiscoveryProgressEvent) => void;
@@ -276,10 +283,11 @@ async function collectFromSearch(
   sessionHosts: Set<string>,
   urls: Set<string>,
   searchPages: number,
-  onProgress?: DiscoveryProgressCallback,
+  onProgress: DiscoveryProgressCallback | undefined,
+  runId: string | undefined,
 ): Promise<number> {
   let checked = 0;
-  throwIfCancelled();
+  throwIfCancelled(runId);
 
   const links = await collectFreeSearchLinks(query, searchPages, (engine, q, linkCount) => {
     checked++;
@@ -320,8 +328,26 @@ async function crawlKnownCasinosForLinks(
   return { crawled, linksQueued };
 }
 
-export async function runDiscovery(deep = false, onProgress?: DiscoveryProgressCallback): Promise<DiscoveryResult> {
-  beginDiscoveryRun();
+export interface DiscoveryRunOptions {
+  runId?: string;
+  /** When false, caller manages run registration (e.g. pre-registered worker id). */
+  registerRun?: boolean;
+}
+
+export async function runDiscovery(
+  deep = false,
+  onProgress?: DiscoveryProgressCallback,
+  options?: DiscoveryRunOptions,
+): Promise<DiscoveryResult> {
+  const registerRun = options?.registerRun !== false;
+  let runId = options?.runId;
+  if (registerRun) {
+    const started = runId ? beginDiscoveryRun(runId) : tryBeginDiscoveryRun();
+    if (!started) {
+      throw new Error(`Maximum concurrent discovery runs (${getMaxConcurrentDiscoveries()}) reached`);
+    }
+    runId = started.runId;
+  }
   const config = deep ? DEEP_CONFIG : QUICK_CONFIG;
   const searchQueries = buildSearchQueries(deep);
   const startTime = Date.now();
@@ -472,13 +498,14 @@ export async function runDiscovery(deep = false, onProgress?: DiscoveryProgressC
   };
 
   if (isListSiteDiscoveryEnabled()) {
-    const listUrls = getSweepstakesListSiteUrls(deep);
-    setPhase('lists', `Crawling ${listUrls.length} sweepstakes list sites — saving casinos to database…`);
+    const listUrls = runId ? claimListSitesForRun(runId, deep) : getSweepstakesListSiteUrls(deep);
+    setPhase('lists', `Crawling ${listUrls.length} list sites (rotating, non-overlapping)…`);
     const { sitesCrawled, saved: listSaved, queued: listQueued } = await mineAllListSites(
       listUrls,
       fetchPage,
       handleListOperator,
       (siteUrl, saved, queued) => {
+        markListSiteCrawled(siteUrl);
         onProgress?.({
           type: 'crawl_summary',
           crawled: 1,
@@ -521,7 +548,7 @@ export async function runDiscovery(deep = false, onProgress?: DiscoveryProgressC
   if (isWebSearchDiscoveryEnabled() && searchQueries.length > 0) {
   setPhase('search', `Web search — ${searchQueries.length} queries (DDG, Bing, Brave)…`);
   for (queryIndex = 0; queryIndex < searchQueries.length && timeLeft() > 0; queryIndex++) {
-    throwIfCancelled();
+    throwIfCancelled(runId);
     const query = searchQueries[queryIndex];
     onProgress?.({ type: 'search_query', query });
     try {
@@ -532,6 +559,7 @@ export async function runDiscovery(deep = false, onProgress?: DiscoveryProgressC
         pendingFromSearch,
         config.searchPages,
         onProgress,
+        runId,
       );
       for (const u of pendingFromSearch) enqueue(u);
       pendingFromSearch.clear();
@@ -695,7 +723,8 @@ export async function runDiscovery(deep = false, onProgress?: DiscoveryProgressC
     return result;
   } finally {
     if (heartbeat) clearInterval(heartbeat);
-    endDiscoveryRun();
+    if (runId) releaseListSitesForRun(runId);
+    if (registerRun && runId) endDiscoveryRun(runId);
   }
 }
 

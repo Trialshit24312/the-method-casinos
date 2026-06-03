@@ -3,10 +3,13 @@
  * Discovery crawls these directly — no generic web search required.
  */
 
+import { claimListSitesForRun } from './list-site-coordinator.js';
+
 export const SWEEPSTAKES_LIST_SITE_URLS: string[] = [
   'https://www.sweepskings.com/',
   'https://www.sweepskings.com/sweepstakes-casinos',
   'https://www.sweepslounge.com/',
+  'https://www.sweepslounge.com/sweepstakes-casinos',
   'https://www.playusa.com/sweepstakes-casinos/',
   'https://www.casino.org/sweepstakes-casinos/',
   'https://www.gambling.com/online-casinos/sweepstakes/',
@@ -19,6 +22,19 @@ export const SWEEPSTAKES_LIST_SITE_URLS: string[] = [
   'https://www.covers.com/sweepstakes-casinos',
   'https://www.sigma.world/news/sweepstakes-casinos',
   'https://www.vegasinsider.com/sweepstakes-casinos',
+  'https://www.askgamblers.com/online-casinos/sweepstakes',
+  'https://www.casino.us/sweepstakes-casinos/',
+  'https://www.online-casinos.com/sweepstakes-casinos/',
+  'https://igamingfuture.com/sweepstakes-casinos/',
+  'https://gamingamerica.com/sweepstakes-casinos/',
+  'https://www.pennlive.com/sweepstakes-casinos/',
+  'https://www.mlive.com/sweepstakes-casinos/',
+  'https://www.syracuse.com/sweepstakes-casinos/',
+  'https://www.oregonlive.com/sweepstakes-casinos/',
+  'https://www.chicagotribune.com/sweepstakes-casinos/',
+  'https://www.lines.com/sweepstakes-casinos',
+  'https://www.pokernews.com/sweepstakes-casinos/',
+  'https://www.oddspedia.com/us/sweepstakes-casinos',
 ];
 
 export function isListSiteDiscoveryEnabled(): boolean {
@@ -32,16 +48,42 @@ export function isWebSearchDiscoveryEnabled(): boolean {
   return on === '1' || on === 'true';
 }
 
-/** URLs to crawl: built-in list + optional DISCOVERY_LIST_SITE_URLS (comma or newline). */
-export function getSweepstakesListSiteUrls(deep: boolean): string[] {
+/** Full built-in + env list (deduped). */
+export function getAllSweepstakesListSiteUrls(): string[] {
   const extra = process.env.DISCOVERY_LIST_SITE_URLS?.trim();
   const fromEnv = extra
     ? extra.split(/[\n,]+/).map((u) => u.trim()).filter((u) => u.startsWith('http'))
     : [];
 
-  const merged = [...SWEEPSTAKES_LIST_SITE_URLS, ...fromEnv];
-  const unique = [...new Set(merged)];
+  return [...new Set([...SWEEPSTAKES_LIST_SITE_URLS, ...fromEnv])];
+}
 
-  if (deep) return unique;
-  return unique.slice(0, Math.min(10, unique.length));
+/**
+ * List URLs for a discovery run. With runId, claims a non-overlapping rotating subset.
+ * Without runId (legacy/tests), returns a rotating slice of the full pool.
+ */
+export function getSweepstakesListSiteUrls(deep: boolean, runId?: string): string[] {
+  if (runId) {
+    return claimListSitesForRun(runId, deep);
+  }
+
+  const unique = getAllSweepstakesListSiteUrls();
+  const limit = deep ? unique.length : Math.min(10, unique.length);
+  const offset = getLegacyListOffset(limit, unique.length);
+  const rotated = [...unique.slice(offset), ...unique.slice(0, offset)];
+  return rotated.slice(0, limit);
+}
+
+function getLegacyListOffset(batchSize: number, poolSize: number): number {
+  if (poolSize <= batchSize) return 0;
+  const cursor = parseInt(process.env.DISCOVERY_LIST_CURSOR ?? '0', 10) || 0;
+  return cursor % poolSize;
+}
+
+/** Advance cursor after a legacy (non-claimed) list pass — used in tests only if needed. */
+export function advanceLegacyListCursor(count: number): void {
+  const pool = getAllSweepstakesListSiteUrls().length;
+  if (pool === 0) return;
+  const cur = parseInt(process.env.DISCOVERY_LIST_CURSOR ?? '0', 10) || 0;
+  process.env.DISCOVERY_LIST_CURSOR = String((cur + count) % pool);
 }
