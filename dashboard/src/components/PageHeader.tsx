@@ -13,19 +13,21 @@ export default function PageHeader({ title, subtitle, action, icon }: PageHeader
     <motion.div
       initial={{ opacity: 0, y: -10 }}
       animate={{ opacity: 1, y: 0 }}
-      className="relative mb-10 pb-6 border-b border-[#2a2a35]"
+      className="relative mb-10 pb-6 border-b border-[#2a2a35]/80"
     >
-      <div className="absolute bottom-0 left-0 w-24 h-0.5 bg-gradient-to-r from-[#b87333] to-[#00aeef]" />
-      <div className="flex items-start justify-between gap-4">
+      <div className="absolute bottom-0 left-0 w-32 h-0.5 bg-gradient-to-r from-[#b87333] via-[#00aeef] to-transparent rounded-full" />
+      <div className="flex items-start justify-between gap-4 flex-wrap">
         <div className="flex items-start gap-4">
           {icon && (
-            <div className="p-3 rounded-xl bg-[#00aeef]/10 border border-[#00aeef]/25 shrink-0">
+            <div className="p-3 rounded-xl bg-gradient-to-br from-[#00aeef]/15 to-[#b87333]/10 border border-[#00aeef]/25 shrink-0 shadow-method-glow">
               {icon}
             </div>
           )}
           <div>
-            <h1 className="font-display text-3xl font-bold tracking-tight text-white">{title}</h1>
-            {subtitle && <p className="text-gray-400 mt-2 max-w-2xl leading-relaxed">{subtitle}</p>}
+            <h1 className="font-display text-3xl md:text-4xl font-bold tracking-tight text-white">{title}</h1>
+            {subtitle && (
+              <p className="text-gray-400 mt-2 max-w-2xl leading-relaxed text-sm md:text-base">{subtitle}</p>
+            )}
           </div>
         </div>
         {action}

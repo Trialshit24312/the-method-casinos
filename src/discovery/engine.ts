@@ -1,5 +1,6 @@
 import * as cheerio from 'cheerio';
 import type { CasinoFeature, DiscoveryProgressEvent, DiscoveryResult, DiscoveryPhase, DiscoveryLiveStats } from '../shared/types.js';
+import { inferFeaturesFromText } from '../shared/feature-inference.js';
 import { addCasino, getKnownHosts, logDiscovery, getBlockedUrls, isUrlBlocked, getDiscoverySeenHosts, markDiscoverySeen, getAllCasinos, touchLastCheckedAt } from '../database/index.js';
 import { casinoHostKey, toCasinoRootUrl, isValidCasinoHost } from '../shared/utils.js';
 import { inferRating } from '../shared/rating.js';
@@ -8,11 +9,10 @@ import {
   isBlockedDomain,
   validateSweepstakesPage,
   sanitizeCasinoName,
-  shouldQueueSearchUrl,
 } from './filters.js';
 import { getVerifiedCuratedDiscoveries } from '../shared/verified-casinos.js';
 import { buildSearchQueries, SEARCH_PAGES_DEEP, SEARCH_PAGES_QUICK } from './queries.js';
-import { isSerperEnabled, searchSerper } from './serper.js';
+import { collectFreeSearchLinks, extractCasinoUrlsFromHtml } from './free-search.js';
 import { beginDiscoveryRun, endDiscoveryRun, throwIfCancelled } from './run-state.js';
 import { notifyDiscoveryComplete } from '../shared/notify.js';
 
@@ -61,173 +61,12 @@ const DEEP_CONFIG: ScanConfig = {
 
 const FETCH_TIMEOUT_MS = 12_000;
 
-const VPN_BLOCKED_KEYWORDS = ['vpn not allowed', 'vpn blocked', 'no vpn', 'vpn prohibited', 'vpn detected', 'disable vpn'];
-const VPN_ALLOWED_KEYWORDS = ['vpn allowed', 'vpn friendly', 'works with vpn', 'vpn ok', 'vpn supported'];
-const GEO_RESTRICTED_KEYWORDS = ['geo restricted', 'not available in your region', 'not available in your state', 'region locked'];
-const NO_PHONE_KEYWORDS = ['no phone', 'email only', 'email signup', 'no verification', 'no sms'];
-const SLOT_KEYWORDS = ['slots', 'slot games', 'spin', 'jackpot'];
-const LIVE_KEYWORDS = ['live dealer', 'live casino', 'live games'];
-
 const URL_IN_TEXT_REGEX = /https?:\/\/(?:www\.)?[a-z0-9][-a-z0-9]{0,62}\.[a-z]{2,24}(?:\/[^\s"'<>]*)?/gi;
 
 const CURATED_DISCOVERIES: RawDiscovery[] = getVerifiedCuratedDiscoveries();
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-function resolveRedirectUrl(href: string, baseUrl: string, depth = 0): string | null {
-  if (depth > 4) return null;
-  try {
-    let absolute = href;
-    if (href.startsWith('//')) absolute = `https:${href}`;
-    else if (href.startsWith('/')) absolute = new URL(href, baseUrl).href;
-    else if (!href.startsWith('http')) absolute = new URL(href, baseUrl).href;
-
-    const parsed = new URL(absolute);
-
-    if (parsed.hostname.includes('duckduckgo.com')) {
-      const raw = absolute;
-      const adDomain = raw.match(/ad_domain=([a-z0-9.-]+\.[a-z]{2,})/i)?.[1];
-      if (adDomain) return `https://${adDomain.replace(/^www\./, '')}`;
-
-      if (parsed.searchParams.has('uddg')) {
-        const uddg = decodeURIComponent(parsed.searchParams.get('uddg')!);
-        const nested = resolveRedirectUrl(uddg, baseUrl, depth + 1);
-        if (nested) return nested;
-      }
-    }
-
-    if (parsed.hostname.includes('bing.com') && parsed.pathname.includes('ck/a')) {
-      const u = parsed.searchParams.get('u');
-      if (u) {
-        try {
-          const decoded = atob(u.startsWith('a1') ? u.slice(2) : u);
-          return resolveRedirectUrl(decoded, baseUrl, depth + 1) ?? decoded;
-        } catch {
-          return resolveRedirectUrl(decodeURIComponent(u), baseUrl, depth + 1);
-        }
-      }
-    }
-
-    return absolute;
-  } catch {
-    return null;
-  }
-}
-
-function normalizeLinkToRoot(href: string, baseUrl: string): string | null {
-  const resolved = resolveRedirectUrl(href, baseUrl);
-  if (!resolved || isBlockedDomain(resolved) || !shouldQueueSearchUrl(resolved)) return null;
-  try {
-    const root = toCasinoRootUrl(resolved);
-    if (!isValidCasinoHost(casinoHostKey(root))) return null;
-    return root;
-  } catch {
-    return null;
-  }
-}
-
-function extractUrlsFromHtml(html: string, baseUrl: string): string[] {
-  const links = new Set<string>();
-  const $ = cheerio.load(html);
-
-  $('a.result__a, a.result-link, a[data-testid="result-title-a"]').each((_, el) => {
-    const href = $(el).attr('href');
-    if (!href) return;
-    const root = normalizeLinkToRoot(href, baseUrl);
-    if (root) links.add(root);
-  });
-
-  $('a.result__url, span.result__url').each((_, el) => {
-    const href = $(el).attr('href');
-    const text = $(el).text().trim().split(/\s/)[0]?.replace(/^www\./, '');
-    const candidates = [href, text].filter(Boolean) as string[];
-    for (const raw of candidates) {
-      const guess = raw.startsWith('http') ? raw : `https://${raw.split('/')[0]}`;
-      const root = normalizeLinkToRoot(guess, baseUrl);
-      if (root) links.add(root);
-    }
-  });
-
-  $('li.b_algo h2 a, .b_algo cite').each((_, el) => {
-    const href = $(el).attr('href') || $(el).text();
-    if (!href) return;
-    const root = normalizeLinkToRoot(href.startsWith('http') ? href : `https://${href}`, baseUrl);
-    if (root) links.add(root);
-  });
-
-  const textUrls = html.match(URL_IN_TEXT_REGEX) || [];
-  for (const raw of textUrls) {
-    const clean = raw.replace(/[),.;]+$/, '');
-    const root = normalizeLinkToRoot(clean, baseUrl);
-    if (root) links.add(root);
-  }
-
-  return [...links];
-}
-
-function inferFeatures(text: string): CasinoFeature[] {
-  const lower = text.toLowerCase();
-  const features: CasinoFeature[] = ['sweepstakes'];
-  if (NO_PHONE_KEYWORDS.some((k) => lower.includes(k))) {
-    features.push('no_phone');
-    if (lower.includes('email only') || lower.includes('email signup') || lower.includes('no phone')) {
-      features.push('email_only');
-    }
-  }
-  if (SLOT_KEYWORDS.some((k) => lower.includes(k))) features.push('slots');
-  if (LIVE_KEYWORDS.some((k) => lower.includes(k))) features.push('live_games');
-  if (lower.includes('table') || lower.includes('poker') || lower.includes('blackjack')) features.push('table_games');
-  if (lower.includes('sport')) features.push('sports');
-  if (lower.includes('crypto') || lower.includes('bitcoin')) features.push('crypto');
-  if (lower.includes('instant') || lower.includes('no download')) features.push('instant_play');
-  if (VPN_BLOCKED_KEYWORDS.some((k) => lower.includes(k))) features.push('vpn_blocked');
-  else if (VPN_ALLOWED_KEYWORDS.some((k) => lower.includes(k))) features.push('vpn_allowed');
-  if (GEO_RESTRICTED_KEYWORDS.some((k) => lower.includes(k))) features.push('geo_restricted');
-  if (lower.includes('no kyc')) features.push('no_kyc');
-  if (lower.includes('daily bonus') || lower.includes('login bonus')) features.push('daily_bonus');
-  if (lower.includes('welcome bonus') || lower.includes('welcome offer')) features.push('welcome_bonus');
-  if (lower.includes('signup bonus') || lower.includes('sign-up bonus') || lower.includes('sign up bonus')) features.push('signup_bonus');
-  if (lower.includes('no wagering') || lower.includes('zero wagering')) features.push('no_wagering');
-  if (lower.includes('multiple states') || lower.includes('multi-state') || lower.includes('available in')) features.push('multi_state');
-  if (lower.includes('pragmatic play') || lower.includes('pragmatic')) features.push('pragmatic_play');
-  if (lower.includes('gift card')) features.push('gift_card_redeem');
-  if (lower.includes('paypal')) features.push('paypal_redeem');
-  if (lower.includes('mobile app')) features.push('mobile_app');
-  if (lower.includes('bingo')) features.push('bingo');
-  if (lower.includes('fish game') || lower.includes('fish shoot')) features.push('fish_games');
-  if (lower.includes('poker')) features.push('poker');
-  if (lower.includes('wheel') || lower.includes('spin wheel')) features.push('wheel_spin');
-  if (lower.includes('no deposit') || lower.includes('free bonus')) features.push('no_deposit_bonus');
-  if (lower.includes('venmo')) features.push('venmo_redeem');
-  if (lower.includes('apple pay')) features.push('apple_pay');
-  if (lower.includes('us only') || lower.includes('usa only')) features.push('us_only');
-  if (lower.includes('progressive jackpot') || lower.includes('progressive')) features.push('progressive_jackpot');
-  if (lower.includes('social') || lower.includes('friends')) features.push('social_features');
-  if (lower.includes('web only') || lower.includes('browser only')) features.push('web_only');
-  if (lower.includes('new casino') || lower.includes('just launched')) features.push('new_casino');
-  if (lower.includes('cash app')) features.push('cash_app');
-  if (lower.includes('zelle')) features.push('zelle_redeem');
-  if (lower.includes('scratch')) features.push('scratch_cards');
-  if (lower.includes('tournament')) features.push('tournaments');
-  if (lower.includes('vip')) features.push('vip_program');
-  if (lower.includes('android')) features.push('android_app');
-  if (lower.includes('ios') || lower.includes('iphone')) features.push('ios_app');
-  if (lower.includes('plinko')) features.push('plinko');
-  if (lower.includes('keno')) features.push('keno');
-  if (lower.includes('free spin')) features.push('free_spins');
-  if (lower.includes('loyalty') || lower.includes('vip tier')) features.push('loyalty_program');
-  if (lower.includes('blackjack')) features.push('blackjack');
-  if (lower.includes('roulette')) features.push('roulette');
-  if (lower.includes('crash game') || lower.includes('aviator')) features.push('crash_games');
-  if (lower.includes('megaways')) features.push('megaways');
-  if (lower.includes('hold and win') || lower.includes('hold & win')) features.push('hold_and_win');
-  if (lower.includes('debit card')) features.push('debit_card_redeem');
-  if (lower.includes('ach') || lower.includes('direct bank')) features.push('ach_redeem');
-  if (lower.includes('live chat') || lower.includes('24/7 support')) features.push('live_chat');
-  if (!features.includes('no_phone') && lower.includes('sign up')) features.push('email_only');
-  return [...new Set(features)];
 }
 
 async function fetchPage(url: string, retries = 1): Promise<string | null> {
@@ -254,16 +93,6 @@ async function fetchPage(url: string, retries = 1): Promise<string | null> {
   return null;
 }
 
-function buildDdgUrl(query: string, page = 0): string {
-  const base = `https://html.duckduckgo.com/html/?q=${encodeURIComponent(query)}`;
-  return page > 0 ? `${base}&s=${page * 30}` : base;
-}
-
-function buildBingUrl(query: string, page = 0): string {
-  const first = 1 + page * 10;
-  return `https://www.bing.com/search?q=${encodeURIComponent(query)}&first=${first}&count=50`;
-}
-
 async function analyzeUrl(url: string, knownHosts: Set<string>): Promise<{ raw: RawDiscovery | null; rejectReason?: string }> {
   const root = toCasinoRootUrl(url);
   const host = casinoHostKey(root);
@@ -288,7 +117,7 @@ async function analyzeUrl(url: string, knownHosts: Set<string>): Promise<{ raw: 
   }
 
   const combined = `${title} ${metaDesc} ${bodyText}`.toLowerCase();
-  const features = inferFeatures(combined);
+  const features = inferFeaturesFromText(combined);
   const name = sanitizeCasinoName(title, root);
 
   return {
@@ -335,50 +164,19 @@ async function collectFromSearch(
   urls: Set<string>,
   searchPages: number,
   onProgress?: DiscoveryProgressCallback,
-  errors?: string[],
 ): Promise<number> {
   let checked = 0;
   throwIfCancelled();
 
-  if (isSerperEnabled()) {
-    for (let page = 1; page <= searchPages; page++) {
-      throwIfCancelled();
-      checked++;
-      onProgress?.({ type: 'search_engine', engine: 'serper', query: page > 1 ? `${query} (p${page})` : query });
-      const { links: serperLinks, error } = await searchSerper(query, page);
-      if (error && errors && !errors.some((e) => e.includes('Serper'))) {
-        errors.push(`Serper: ${error}`);
-      }
-      for (const link of serperLinks) {
-        const host = casinoHostKey(link);
-        if (!knownHosts.has(host) && !seenHosts.has(host) && !sessionHosts.has(host)) {
-          urls.add(link);
-        }
-      }
-      await sleep(120);
-    }
-    return checked;
-  }
+  const links = await collectFreeSearchLinks(query, searchPages, (engine, q, linkCount) => {
+    checked++;
+    onProgress?.({ type: 'search_engine', engine, query: q, linkCount });
+  });
 
-  for (let page = 0; page < searchPages; page++) {
-    const engines: { engine: 'duckduckgo' | 'bing'; url: string }[] = [
-      { engine: 'duckduckgo', url: buildDdgUrl(query, page) },
-      { engine: 'bing', url: buildBingUrl(query, page) },
-    ];
-
-    for (const { engine, url: searchUrl } of engines) {
-      checked++;
-      onProgress?.({ type: 'search_engine', engine, query: page > 0 ? `${query} (p${page + 1})` : query });
-      const html = await fetchPage(searchUrl);
-      if (html) {
-        for (const link of extractUrlsFromHtml(html, searchUrl)) {
-          const host = casinoHostKey(link);
-          if (!knownHosts.has(host) && !seenHosts.has(host) && !sessionHosts.has(host)) {
-            urls.add(link);
-          }
-        }
-      }
-      await sleep(180);
+  for (const link of links) {
+    const host = casinoHostKey(link);
+    if (!knownHosts.has(host) && !seenHosts.has(host) && !sessionHosts.has(host)) {
+      urls.add(link);
     }
   }
 
@@ -399,7 +197,7 @@ async function crawlKnownCasinosForLinks(
     const html = await fetchPage(root);
     crawled++;
     if (html) {
-      for (const link of extractUrlsFromHtml(html, root)) {
+      for (const link of extractCasinoUrlsFromHtml(html, root)) {
         if (enqueue(link)) linksQueued++;
       }
     }
@@ -521,7 +319,7 @@ export async function runDiscovery(deep = false, onProgress?: DiscoveryProgressC
     setPhase('crawl', `Mining links from ${deep ? 'all' : 'sample'} known casinos…`);
     const { crawled, linksQueued } = await crawlKnownCasinosForLinks(
       enqueue,
-      deep ? 80 : 25,
+      deep ? 100 : 40,
     );
     sourcesChecked += crawled;
     onProgress?.({
@@ -532,11 +330,7 @@ export async function runDiscovery(deep = false, onProgress?: DiscoveryProgressC
     });
   }
 
-  const searchEngineLabel = isSerperEnabled() ? 'Serper (Google)' : 'DuckDuckGo + Bing';
-  if (!isSerperEnabled()) {
-    errors.push('Serper not configured — using DuckDuckGo/Bing fallback (often returns 0 results on Render). Add SERPER_API_KEY to environment.');
-  }
-  setPhase('search', `Running ${searchQueries.length} unique searches via ${searchEngineLabel} (${config.searchPages} pages each)…`);
+  setPhase('search', `Running ${searchQueries.length} searches via free web search (DDG Lite, DDG, Bing, Brave — ${config.searchPages} pages each)…`);
   for (queryIndex = 0; queryIndex < searchQueries.length && timeLeft() > 0; queryIndex++) {
     throwIfCancelled();
     const query = searchQueries[queryIndex];
@@ -550,7 +344,6 @@ export async function runDiscovery(deep = false, onProgress?: DiscoveryProgressC
         pendingFromSearch,
         config.searchPages,
         onProgress,
-        errors,
       );
       for (const u of pendingFromSearch) enqueue(u);
       pendingFromSearch.clear();
@@ -633,7 +426,7 @@ export async function runDiscovery(deep = false, onProgress?: DiscoveryProgressC
           if (config.crawlLinks) {
             const pageHtml = await fetchPage(analyzed.url);
             if (pageHtml) {
-              for (const link of extractUrlsFromHtml(pageHtml, analyzed.url)) enqueue(link);
+              for (const link of extractCasinoUrlsFromHtml(pageHtml, analyzed.url)) enqueue(link);
             }
           }
         } else {

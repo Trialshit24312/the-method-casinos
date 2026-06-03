@@ -128,7 +128,7 @@ export const siteCommands: Command[] = [
     async execute(interaction) {
       await interaction.reply({
         embeds: [buildToolsEmbed()],
-        components: [buildToolsButtons()],
+        components: buildToolsButtons(),
       });
     },
   },

@@ -1,0 +1,248 @@
+import * as cheerio from 'cheerio';
+import { casinoHostKey, toCasinoRootUrl, isValidCasinoHost } from '../shared/utils.js';
+import { isBlockedDomain, shouldQueueSearchUrl } from './filters.js';
+
+export type FreeSearchEngine = 'duckduckgo' | 'duckduckgo_lite' | 'bing' | 'brave';
+
+const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36';
+const FETCH_TIMEOUT_MS = 14_000;
+
+const URL_IN_TEXT_REGEX = /https?:\/\/(?:www\.)?[a-z0-9][-a-z0-9]{0,62}\.[a-z]{2,24}(?:\/[^\s"'<>]*)?/gi;
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((r) => setTimeout(r, ms));
+}
+
+export function resolveSearchRedirect(href: string, baseUrl: string, depth = 0): string | null {
+  if (depth > 5) return null;
+  try {
+    let absolute = href;
+    if (href.startsWith('//')) absolute = `https:${href}`;
+    else if (href.startsWith('/')) absolute = new URL(href, baseUrl).href;
+    else if (!href.startsWith('http')) absolute = new URL(href, baseUrl).href;
+
+    const parsed = new URL(absolute);
+    const raw = absolute;
+
+    if (parsed.hostname.includes('duckduckgo.com')) {
+      const adDomain = raw.match(/ad_domain=([a-z0-9.-]+\.[a-z]{2,})/i)?.[1];
+      if (adDomain) return `https://${adDomain.replace(/^www\./, '')}`;
+
+      if (parsed.searchParams.has('uddg')) {
+        const uddg = decodeURIComponent(parsed.searchParams.get('uddg')!);
+        return resolveSearchRedirect(uddg, baseUrl, depth + 1);
+      }
+    }
+
+    if (parsed.hostname.includes('bing.com') && (parsed.pathname.includes('ck/a') || parsed.searchParams.has('u'))) {
+      const u = parsed.searchParams.get('u');
+      if (u) {
+        try {
+          const decoded = atob(u.startsWith('a1') ? u.slice(2) : u);
+          return resolveSearchRedirect(decoded, baseUrl, depth + 1) ?? decoded;
+        } catch {
+          return resolveSearchRedirect(decodeURIComponent(u), baseUrl, depth + 1);
+        }
+      }
+    }
+
+    if (parsed.hostname.includes('brave.com') && parsed.searchParams.has('u')) {
+      return resolveSearchRedirect(decodeURIComponent(parsed.searchParams.get('u')!), baseUrl, depth + 1);
+    }
+
+    return absolute;
+  } catch {
+    return null;
+  }
+}
+
+export function normalizeSearchLink(href: string, baseUrl: string): string | null {
+  const resolved = resolveSearchRedirect(href, baseUrl);
+  if (!resolved || isBlockedDomain(resolved) || !shouldQueueSearchUrl(resolved)) return null;
+  try {
+    const root = toCasinoRootUrl(resolved);
+    if (!isValidCasinoHost(casinoHostKey(root))) return null;
+    return root;
+  } catch {
+    return null;
+  }
+}
+
+export function extractCasinoUrlsFromHtml(html: string, baseUrl: string): string[] {
+  const links = new Set<string>();
+  const $ = cheerio.load(html);
+  $('script, style, noscript, svg').remove();
+
+  $('a[href]').each((_, el) => {
+    const href = $(el).attr('href');
+    if (!href) return;
+    const root = normalizeSearchLink(href, baseUrl);
+    if (root) links.add(root);
+  });
+
+  $('cite, .snippet-url, .result__url, span.result__url, .b_algo cite, .snippet-title').each((_, el) => {
+    const text = $(el).text().trim().split(/\s/)[0]?.replace(/^www\./, '');
+    if (!text || !text.includes('.')) return;
+    const guess = text.startsWith('http') ? text : `https://${text.split('/')[0]}`;
+    const root = normalizeSearchLink(guess, baseUrl);
+    if (root) links.add(root);
+  });
+
+  // Only scan visible result blocks — avoids JSON-LD / footer noise
+  const resultText = $('.results, #links, .b_algo, .snippet-content, .result')
+    .toArray()
+    .map((el) => $(el).text())
+    .join(' ');
+  for (const raw of resultText.match(URL_IN_TEXT_REGEX) ?? []) {
+    const root = normalizeSearchLink(raw.replace(/[),.;]+$/, ''), baseUrl);
+    if (root) links.add(root);
+  }
+
+  return [...links];
+}
+
+async function fetchHtml(url: string, init?: RequestInit): Promise<string | null> {
+  for (let attempt = 0; attempt <= 1; attempt++) {
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+      const res = await fetch(url, {
+        ...init,
+        signal: controller.signal,
+        headers: {
+          'User-Agent': UA,
+          Accept: 'text/html,application/xhtml+xml',
+          'Accept-Language': 'en-US,en;q=0.9',
+          ...(init?.headers as Record<string, string> | undefined),
+        },
+        redirect: 'follow',
+      });
+      clearTimeout(timeout);
+      if (!res.ok) continue;
+      return await res.text();
+    } catch {
+      if (attempt < 1) await sleep(350);
+    }
+  }
+  return null;
+}
+
+function buildDdgHtmlUrl(query: string, page = 0): string {
+  const base = `https://html.duckduckgo.com/html/?q=${encodeURIComponent(query)}`;
+  return page > 0 ? `${base}&s=${page * 30}` : base;
+}
+
+function buildBingUrl(query: string, page = 0): string {
+  return `https://www.bing.com/search?q=${encodeURIComponent(query)}&first=${1 + page * 10}&count=30`;
+}
+
+function buildBraveUrl(query: string, page = 0): string {
+  return `https://search.brave.com/search?q=${encodeURIComponent(query)}&offset=${page * 10}`;
+}
+
+async function searchDdgLite(query: string): Promise<string | null> {
+  const body = new URLSearchParams({ q: query });
+  return fetchHtml('https://lite.duckduckgo.com/lite/', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: body.toString(),
+  });
+}
+
+export interface FreeSearchHit {
+  engine: FreeSearchEngine;
+  query: string;
+  links: string[];
+}
+
+export interface CollectFreeSearchOptions {
+  /** Stop once this many unique operator URLs are found. */
+  maxLinks?: number;
+}
+
+export async function runFreeSearchQuery(
+  query: string,
+  page = 0,
+  engines: FreeSearchEngine[] = ['duckduckgo_lite', 'duckduckgo', 'bing', 'brave'],
+): Promise<FreeSearchHit[]> {
+  const hits: FreeSearchHit[] = [];
+  const activeEngines = page > 0
+    ? engines.filter((e) => e !== 'duckduckgo_lite')
+    : engines;
+
+  for (const engine of activeEngines) {
+    let html: string | null = null;
+    let baseUrl = '';
+
+    switch (engine) {
+      case 'duckduckgo':
+        baseUrl = buildDdgHtmlUrl(query, page);
+        html = await fetchHtml(baseUrl);
+        break;
+      case 'duckduckgo_lite':
+        baseUrl = 'https://lite.duckduckgo.com/lite/';
+        html = await searchDdgLite(query);
+        break;
+      case 'bing':
+        baseUrl = buildBingUrl(query, page);
+        html = await fetchHtml(baseUrl);
+        break;
+      case 'brave':
+        baseUrl = buildBraveUrl(query, page);
+        html = await fetchHtml(baseUrl);
+        break;
+    }
+
+    if (html) {
+      hits.push({
+        engine,
+        query: page > 0 ? `${query} (p${page + 1})` : query,
+        links: extractCasinoUrlsFromHtml(html, baseUrl),
+      });
+    }
+    await sleep(160);
+  }
+
+  return hits;
+}
+
+/** Collect unique operator URLs from all free engines across pages. */
+export async function collectFreeSearchLinks(
+  query: string,
+  pages: number,
+  onEngine?: (engine: FreeSearchEngine, query: string, linkCount: number) => void,
+  options: CollectFreeSearchOptions = {},
+): Promise<string[]> {
+  const urls = new Set<string>();
+  const maxLinks = options.maxLinks ?? Infinity;
+
+  for (let page = 0; page < pages; page++) {
+    if (urls.size >= maxLinks) break;
+    const hits = await runFreeSearchQuery(query, page);
+    for (const hit of hits) {
+      for (const link of hit.links) urls.add(link);
+      onEngine?.(hit.engine, hit.query, hit.links.length);
+      if (urls.size >= maxLinks) break;
+    }
+  }
+
+  return [...urls];
+}
+
+/** Web queries to find casinos similar to a named operator. */
+export function buildSimilarWebQueries(casinoName: string, host?: string): string[] {
+  const name = casinoName.replace(/\s+casino$/i, '').trim();
+  const short = name.split(/\s+/)[0];
+  const queries = [
+    `casinos like ${name} sweepstakes`,
+    `sites like ${name} social casino sweeps coins`,
+    `alternative to ${name} sweepstakes casino`,
+    `${name} competitor sweepstakes casino usa`,
+    `similar to ${name} no purchase necessary casino`,
+  ];
+  if (host) {
+    queries.push(`casinos like ${host.replace(/^www\./, '')}`);
+    queries.push(`alternative to ${short} sweeps casino`);
+  }
+  return [...new Set(queries)];
+}

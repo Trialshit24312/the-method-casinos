@@ -6,10 +6,10 @@ export function isCatalogStale(lastCheckedAt: string | null, now = Date.now()): 
   return ageMs > STALE_CATALOG_DAYS * 24 * 60 * 60 * 1000;
 }
 
-export function formatLastChecked(lastCheckedAt: string | null): string {
+export function formatLastChecked(lastCheckedAt: string | null, now = Date.now()): string {
   if (!lastCheckedAt) return 'Never checked';
   const then = new Date(lastCheckedAt).getTime();
-  const days = Math.floor((Date.now() - then) / (24 * 60 * 60 * 1000));
+  const days = Math.floor((now - then) / (24 * 60 * 60 * 1000));
   if (days <= 0) return 'Checked today';
   if (days === 1) return 'Checked yesterday';
   if (days < 30) return `Checked ${days}d ago`;

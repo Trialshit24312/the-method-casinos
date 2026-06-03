@@ -12,10 +12,11 @@ import { truncate } from '../shared/utils.js';
 import { buildTrackablesText } from '../shared/trackables.js';
 import type { SimilarCasinoMatch } from '../shared/similarity.js';
 import { methodFooterText, sitePage } from '../shared/site.js';
+import { BRAND, brandAuthorBlock, brandThumbnailUrl } from './brand.js';
 
-const BRAND_COLOR = 0x7c3aed;
-const ACCENT_GREEN = 0x10b981;
-const ACCENT_GOLD = 0xf59e0b;
+const ACCENT_GREEN = BRAND.green;
+const ACCENT_GOLD = BRAND.gold;
+const BRAND_COLOR = BRAND.copper;
 
 function starRating(rating: number): string {
   const full = Math.floor(rating);
@@ -41,7 +42,9 @@ export function buildCasinoEmbed(casino: Casino, index?: number, total?: number)
     .join('\n');
 
   const embed = new EmbedBuilder()
-    .setColor(casino.verified ? ACCENT_GREEN : BRAND_COLOR)
+    .setColor(casino.verified ? ACCENT_GREEN : BRAND.cyan)
+    .setAuthor(brandAuthorBlock())
+    .setThumbnail(brandThumbnailUrl())
     .setTitle(`${casino.verified ? '✅ ' : '🎰 '}${casino.name}`)
     .setURL(casino.url)
     .setDescription(truncate(casino.description || 'No description available.', 300))
@@ -92,19 +95,26 @@ export function buildCasinoEmbed(casino: Casino, index?: number, total?: number)
   return embed;
 }
 
-export function buildCasinoButtons(casino: Casino): ActionRowBuilder<ButtonBuilder> {
-  return new ActionRowBuilder<ButtonBuilder>().addComponents(
-    new ButtonBuilder()
-      .setLabel('Visit Casino')
-      .setStyle(ButtonStyle.Link)
-      .setURL(casino.url)
-      .setEmoji('🔗'),
-    new ButtonBuilder()
-      .setLabel('Share')
-      .setStyle(ButtonStyle.Secondary)
-      .setCustomId(`share:${casino.id}`)
-      .setEmoji('📤'),
-  );
+export function buildCasinoButtons(casino: Casino): ActionRowBuilder<ButtonBuilder>[] {
+  return [
+    new ActionRowBuilder<ButtonBuilder>().addComponents(
+      new ButtonBuilder()
+        .setLabel('Visit Casino')
+        .setStyle(ButtonStyle.Link)
+        .setURL(casino.url)
+        .setEmoji('🔗'),
+      new ButtonBuilder()
+        .setLabel('Find Similar')
+        .setStyle(ButtonStyle.Link)
+        .setURL(sitePage(`/similar?casino=${casino.id}`))
+        .setEmoji('✨'),
+      new ButtonBuilder()
+        .setLabel('Share')
+        .setStyle(ButtonStyle.Secondary)
+        .setCustomId(`share:${casino.id}`)
+        .setEmoji('📤'),
+    ),
+  ];
 }
 
 export function buildListEmbed(
@@ -125,7 +135,9 @@ export function buildListEmbed(
   }
 
   return new EmbedBuilder()
-    .setColor(BRAND_COLOR)
+    .setColor(BRAND.cyan)
+    .setAuthor(brandAuthorBlock())
+    .setThumbnail(brandThumbnailUrl())
     .setTitle(`🎰 ${title}`)
     .setDescription(`${description}\n\n${lines.join('\n') || 'No casinos found.'}`)
     .setFooter({ text: methodFooterText(`${casinos.length} result(s)`) })
@@ -142,7 +154,9 @@ export function buildSimilarEmbed(
   });
 
   const embed = new EmbedBuilder()
-    .setColor(ACCENT_GOLD)
+    .setColor(BRAND.gold)
+    .setAuthor(brandAuthorBlock())
+    .setThumbnail(brandThumbnailUrl())
     .setTitle(`✨ Similar to ${source.name}`)
     .setDescription(
       matches.length
@@ -163,13 +177,36 @@ export function buildSimilarEmbed(
   return embed;
 }
 
+export function buildSimilarButtons(source: Casino): ActionRowBuilder<ButtonBuilder>[] {
+  return [
+    new ActionRowBuilder<ButtonBuilder>().addComponents(
+      new ButtonBuilder()
+        .setLabel('Open on Web')
+        .setStyle(ButtonStyle.Link)
+        .setURL(sitePage(`/similar?casino=${source.id}`))
+        .setEmoji('🌐'),
+      new ButtonBuilder()
+        .setLabel('Visit Source')
+        .setStyle(ButtonStyle.Link)
+        .setURL(source.url)
+        .setEmoji('🔗'),
+      new ButtonBuilder()
+        .setLabel('Browse Catalog')
+        .setStyle(ButtonStyle.Link)
+        .setURL(sitePage('/casinos'))
+        .setEmoji('🎰'),
+    ),
+  ];
+}
+
 export function buildCompareEmbed(a: Casino, b: Casino): EmbedBuilder {
   const shared = a.features.filter((f) => b.features.includes(f));
   const onlyA = a.features.filter((f) => !b.features.includes(f)).slice(0, 6);
   const onlyB = b.features.filter((f) => !a.features.includes(f)).slice(0, 6);
 
   return new EmbedBuilder()
-    .setColor(ACCENT_GOLD)
+    .setColor(BRAND.gold)
+    .setAuthor(brandAuthorBlock())
     .setTitle(`⚖️ ${a.name} vs ${b.name}`)
     .addFields(
       { name: a.name, value: `⭐ ${a.rating.toFixed(1)}\n${a.url}`, inline: true },
@@ -237,7 +274,8 @@ export function buildStatsEmbed(stats: {
   failedHealthCasinos?: number;
 }): EmbedBuilder {
   return new EmbedBuilder()
-    .setColor(ACCENT_GOLD)
+    .setColor(BRAND.cyan)
+    .setAuthor(brandAuthorBlock())
     .setTitle('📊 The Method Casinos — Stats')
     .addFields(
       { name: '🎰 Total Casinos', value: `${stats.totalCasinos}`, inline: true },
@@ -282,7 +320,8 @@ export function buildDiscoveryEmbed(result: {
   const modeLabel = result.mode === 'deep' ? 'Deep Scan' : 'Quick Scan';
 
   const embed = new EmbedBuilder()
-    .setColor(result.added > 0 ? ACCENT_GREEN : BRAND_COLOR)
+    .setColor(result.added > 0 ? ACCENT_GREEN : BRAND.cyan)
+    .setAuthor(brandAuthorBlock())
     .setTitle(`🔍 ${modeLabel} Complete`)
     .setDescription(
       result.added > 0
@@ -330,13 +369,14 @@ export function buildDiscoveryProgressEmbed(stats: {
 }): EmbedBuilder {
   const phaseLabels: Record<string, string> = {
     curated: '📋 Syncing verified catalog',
-    search: '🔎 Searching DuckDuckGo + Bing',
+    search: '🔎 Free web search (DDG · Bing · Brave)',
     analyze: '🔬 Validating sweepstakes pages',
     crawl: '🕸️ Crawling related links',
   };
 
   return new EmbedBuilder()
-    .setColor(BRAND_COLOR)
+    .setColor(BRAND.cyan)
+    .setAuthor(brandAuthorBlock())
     .setTitle(stats.mode === 'deep' ? '⚡ Deep Scan Running' : '🔍 Quick Scan Running')
     .setDescription(phaseLabels[stats.phase] ?? stats.phase)
     .addFields(
@@ -357,6 +397,7 @@ export function buildBlockedEmbed(
 ): EmbedBuilder {
   const embed = new EmbedBuilder()
     .setColor(0xef4444)
+    .setAuthor(brandAuthorBlock())
     .setTitle('⛔ Blocked & Dangerous Sites')
     .setDescription(
       query
@@ -387,6 +428,7 @@ export function buildUrlCheckEmbed(result: import('../shared/types.js').UrlCheck
   if (result.blocked) {
     return new EmbedBuilder()
       .setColor(0xef4444)
+      .setAuthor(brandAuthorBlock())
       .setTitle('⛔ DANGEROUS URL')
       .setDescription(`**Do not visit:** ${result.url}`)
       .addFields(
@@ -436,22 +478,57 @@ export function buildAskEmbed(question: string, answer: string, provider: string
 export function buildHelpEmbed(): EmbedBuilder {
   const site = sitePage('/');
   return new EmbedBuilder()
-    .setColor(BRAND_COLOR)
-    .setTitle('🎰 The Method Casinos — Commands')
+    .setColor(BRAND.copper)
+    .setAuthor(brandAuthorBlock())
+    .setThumbnail(brandThumbnailUrl())
+    .setTitle('🎰 The Method — Command Guide')
     .setDescription(
-      `Find free sweepstakes casinos with easy signup — no phone required.\n\n` +
-        `**Web dashboard:** ${site}\n` +
-        `Use **/website** for links, tools, and Login with Discord.`,
+      `**Verified US sweepstakes casinos** — no phone signup focus, URL safety, and free web discovery.\n\n` +
+        `🌐 **Dashboard:** ${site}\n` +
+        `Use **/website** for quick links to Similar search, tools, and sign-in.`,
     )
     .addFields(
-      { name: '🌐 Website & Legal', value: '`/website` `/legal` `/terms` `/rules` `/privacy` `/tools`', inline: false },
-      { name: '🔍 Search & Browse', value: '`/search` `/random` `/casino` `/similar` `/compare` `/stats` `/ask`', inline: false },
-      { name: '❤️ Personal', value: '`/mylist` `/favorite`', inline: false },
-      { name: '🏷️ Filters', value: '`/nophone` `/slots` `/live` `/vpn` `/fish` `/bingo` `/new` `/redeem`', inline: false },
-      { name: '🛡️ Safety', value: '`/check` `/blocked` `/report` — `/block` (admin)', inline: false },
-      { name: '⚙️ Admin', value: '`/discover` `/pending` `/approve` `/reject` `/dismissreport`', inline: false },
+      {
+        name: '🔍 Search & Match',
+        value:
+          '`/search` — find in catalog\n' +
+          '`/similar` — match by features\n' +
+          '`/similar search_web:true` — **free web search** for alike casinos\n' +
+          '`/compare` · `/casino` · `/random` · `/stats`',
+        inline: true,
+      },
+      {
+        name: '🏷️ Filters',
+        value:
+          '`/nophone` · `/slots` · `/live` · `/vpn`\n' +
+          '`/fish` · `/bingo` · `/new` · `/redeem`',
+        inline: true,
+      },
+      {
+        name: '🛡️ Safety',
+        value:
+          '`/check` — URL safety scan\n' +
+          '`/blocked` — scam list\n' +
+          '`/report` — flag suspicious URL',
+        inline: true,
+      },
+      {
+        name: '❤️ Personal',
+        value: '`/mylist` · `/favorite`',
+        inline: true,
+      },
+      {
+        name: '🌐 Website',
+        value: '`/website` · `/tools` · `/legal`',
+        inline: true,
+      },
+      {
+        name: '⚙️ Admin',
+        value: '`/discover` · `/pending` · `/approve` · `/block`',
+        inline: true,
+      },
     )
-    .setFooter({ text: methodFooterText('/help') })
+    .setFooter({ text: methodFooterText('100% free · No API keys required') })
     .setTimestamp();
 }
 
@@ -477,8 +554,8 @@ export async function replyWithCasino(
   casino: Casino,
 ): Promise<void> {
   const embed = buildCasinoEmbed(casino);
-  const row = buildCasinoButtons(casino);
-  await interaction.reply({ embeds: [embed], components: [row] });
+  const rows = buildCasinoButtons(casino);
+  await interaction.reply({ embeds: [embed], components: rows });
 }
 
 export async function handleCasinoAutocomplete(

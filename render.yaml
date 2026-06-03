@@ -1,4 +1,5 @@
 # Render Blueprint — https://github.com/Trialshit24312/the-method-casinos
+# 100% free stack: Discord + SQLite + free web search (no Serper/AI API keys)
 
 services:
   - type: web
@@ -39,19 +40,7 @@ services:
         sync: false
       - key: DISCORD_INVITE_URL
         sync: false
-      - key: SERPER_API_KEY
-        sync: false
       - key: DISCORD_WEBHOOK_URL
-        sync: false
-      - key: LANGSMITH_TRACING
-        sync: false
-      - key: LANGSMITH_API_KEY
-        sync: false
-      - key: LANGSMITH_PROJECT
-        sync: false
-      - key: GROQ_API_KEY
-        sync: false
-      - key: GEMINI_API_KEY
         sync: false
       - key: REVALIDATE_INTERVAL_HOURS
         value: "168"

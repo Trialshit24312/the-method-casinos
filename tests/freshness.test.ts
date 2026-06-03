@@ -17,6 +17,6 @@ describe('catalog freshness', () => {
   it('marks recent checks as fresh', () => {
     const recent = new Date(now - 5 * 86400000).toISOString();
     expect(isCatalogStale(recent, now)).toBe(false);
-    expect(formatLastChecked(recent)).toBe('Checked 5d ago');
+    expect(formatLastChecked(recent, now)).toBe('Checked 5d ago');
   });
 });

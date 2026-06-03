@@ -16,10 +16,10 @@ import {
   Star,
   Clock,
   Flag,
-  Bot,
 } from 'lucide-react';
 import { api } from '../api';
 import type { Stats, Casino } from '../types';
+import FeatureStrip from '../components/FeatureStrip';
 import PageHeader from '../components/PageHeader';
 import StatCard from '../components/StatCard';
 import CasinoCard from '../components/CasinoCard';
@@ -41,8 +41,12 @@ export default function DashboardPage() {
     <div className="p-8 max-w-7xl mx-auto">
       <PageHeader
         title={greeting}
-        subtitle="Verified US sweepstakes casinos — browse, compare, and check URLs before you sign up"
+        subtitle="Verified US sweepstakes casinos — browse, compare, check URLs, and find similar sites"
       />
+
+      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mb-8">
+        <FeatureStrip compact />
+      </motion.div>
 
       {user?.isAdmin && stats && (stats.pendingReview > 0 || (stats.openReports ?? 0) > 0 || (stats.failedHealthCasinos ?? 0) > 0) && (
         <motion.div
@@ -116,14 +120,12 @@ export default function DashboardPage() {
         <h2 className="font-display font-semibold text-lg mb-4 text-white">Quick Start</h2>
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
           {[
-            { title: 'My List', desc: user ? 'Your saved casinos — syncs with Discord /mylist.' : 'Sign in to save favorites.', path: user ? '/mylist' : '/login?next=/mylist', icon: Sparkles, accent: 'border-rose-500/30 hover:border-rose-500/60' },
+            { title: 'Similar Casinos', desc: 'Match by features — or search the web for casinos like any operator.', path: '/similar', icon: Sparkles, accent: 'border-[#00aeef]/30 hover:border-[#00aeef]/60' },
             { title: 'Browse Casinos', desc: 'Verified catalog — filter by VPN, slots, email-only.', path: '/casinos', icon: Dices, accent: 'border-[#b87333]/30 hover:border-[#b87333]/60' },
-            { title: 'Similar Casinos', desc: 'Pick a casino — find alike sites by features.', path: '/similar', icon: Sparkles, accent: 'border-[#00aeef]/30 hover:border-[#00aeef]/60' },
             { title: 'URL Safety Checker', desc: 'Check if a link is safe before visiting.', path: '/tools/checker', icon: ShieldCheck, accent: 'border-emerald-500/30 hover:border-emerald-500/60' },
             { title: 'The Method Guides', desc: 'Step-by-step signup & safety workflows.', path: '/guides', icon: BookOpen, accent: 'border-[#b87333]/30 hover:border-[#b87333]/60' },
             { title: 'Blocked Sites', desc: 'Scam, phishing, and dangerous URLs.', path: '/blocked', icon: Ban, accent: 'border-red-500/30 hover:border-red-500/60' },
             { title: 'Tools Hub', desc: 'Temp mail, SMS, passwords, and more.', path: '/tools', icon: Wrench, accent: 'border-[#00aeef]/30 hover:border-[#00aeef]/60' },
-            { title: 'AI Assistant', desc: 'Ask about verified casinos — Groq-powered, catalog-only.', path: '/assistant', icon: Bot, accent: 'border-violet-500/30 hover:border-violet-500/60' },
             { title: 'Legal Hub', desc: 'Terms, rules, privacy — same as Discord /legal.', path: '/legal', icon: Shield, accent: 'border-amber-500/30 hover:border-amber-500/60' },
             { title: 'Discovery Scan', desc: user?.isAdmin ? 'Quick or deep web scan for new casinos.' : 'Admin sign-in required.', path: user?.isAdmin ? '/discovery' : '/login?next=/discovery', icon: Radar, accent: 'border-[#00aeef]/30 hover:border-[#00aeef]/60' },
             { title: 'Review Queue', desc: user?.isAdmin ? 'Approve discoveries and user reports.' : 'Admin sign-in required.', path: user?.isAdmin ? '/review' : '/login?next=/review', icon: Flag, accent: 'border-amber-500/30 hover:border-amber-500/60' },

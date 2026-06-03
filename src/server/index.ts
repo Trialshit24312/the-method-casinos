@@ -50,10 +50,9 @@ import { applySecurityMiddleware } from './middleware.js';
 import { SqliteSessionStore } from './session-store.js';
 import { getBotHealth } from '../bot/state.js';
 import { registerHttpServer } from '../shared/shutdown.js';
-import { askCasinoAssistant, getAiProvider, isAiConfigured } from '../ai/assistant.js';
 import { notifySiteReport, notifyCasinoApproved } from '../shared/notify.js';
 import { checkCasinoUrl } from '../shared/url-check.js';
-import { isSerperEnabled } from '../discovery/serper.js';
+import { discoverSimilarOnWeb } from '../discovery/similar-search.js';
 
 export function createServer(): express.Application {
   const app = express();
@@ -100,9 +99,8 @@ export function createServer(): express.Application {
         bot: bot.connected,
         botTag: bot.tag,
         discoveryRunning: isDiscoveryRunning(),
-        serper: isSerperEnabled(),
-        ai: isAiConfigured(),
-        aiProvider: getAiProvider(),
+        searchMode: 'free',
+        searchEngines: ['duckduckgo_lite', 'duckduckgo', 'bing', 'brave'],
         pendingReview: stats.pendingReview,
         openReports: stats.openReports,
         staleCatalog: stats.staleCatalogCasinos,
@@ -190,27 +188,13 @@ export function createServer(): express.Application {
   });
 
   app.get('/api/ai/status', (_req, res) => {
-    res.json({
-      available: isAiConfigured(),
-      provider: getAiProvider(),
-    });
+    res.json({ available: false, provider: 'none', disabled: true });
   });
 
-  app.post('/api/ask', async (req, res) => {
-    const query = req.body?.query as string | undefined;
-    const history = req.body?.history as { role: 'user' | 'assistant'; content: string }[] | undefined;
-    if (!query?.trim()) {
-      res.status(400).json({ error: 'query required' });
-      return;
-    }
-    try {
-      const result = await askCasinoAssistant(query, history);
-      res.json(result);
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'AI request failed';
-      const status = message.includes('not configured') ? 503 : 500;
-      res.status(status).json({ error: message });
-    }
+  app.post('/api/ask', (_req, res) => {
+    res.status(410).json({
+      error: 'AI assistant is disabled. Use Similar Casinos or Discovery — 100% free web search, no API keys.',
+    });
   });
 
   app.get('/api/casinos', (req, res) => {
@@ -348,6 +332,25 @@ export function createServer(): express.Application {
       return;
     }
     res.json(result);
+  });
+
+  app.post('/api/similar/:id/discover-web', async (req, res) => {
+    const casinoId = String(req.params.id);
+    const isAdmin = Boolean(req.session.user?.isAdmin);
+    try {
+      const result = await discoverSimilarOnWeb(casinoId, {
+        maxQueries: isAdmin ? 6 : 4,
+        maxAnalyze: isAdmin ? 15 : 8,
+        searchPages: isAdmin ? 2 : 1,
+      });
+      if (!result) {
+        res.status(404).json({ error: 'Casino not found' });
+        return;
+      }
+      res.json(result);
+    } catch (err) {
+      res.status(500).json({ error: err instanceof Error ? err.message : 'Web discovery failed' });
+    }
   });
 
   app.get('/api/casinos/:id', (req, res) => {

@@ -1,4 +1,4 @@
-import type { Casino, Stats, User, DiscoveryResult, DiscoveryProgressEvent, DiscoveryLiveStats, BlockedSite, BlockReason, BlockSeverity, UrlCheckResult, SimilarCasinosResult, SiteReport, DiscoveryHistoryEntry } from './types';
+import type { Casino, Stats, User, DiscoveryResult, DiscoveryProgressEvent, DiscoveryLiveStats, BlockedSite, BlockReason, BlockSeverity, UrlCheckResult, SimilarCasinosResult, SimilarWebDiscoveryResult, SiteReport, DiscoveryHistoryEntry } from './types';
 
 import { apiBaseUrl } from './lib/site';
 
@@ -35,6 +35,8 @@ export const api = {
     if (opts.limit) params.set('limit', String(opts.limit));
     return request<SimilarCasinosResult>(`/api/similar?${params}`);
   },
+  discoverSimilarWeb: (casinoId: string) =>
+    request<SimilarWebDiscoveryResult>(`/api/similar/${casinoId}/discover-web`, { method: 'POST' }),
   addCasino: (data: Partial<Casino>) =>
     request<Casino>('/api/casinos', { method: 'POST', body: JSON.stringify(data) }),
   updateCasino: (id: string, data: Partial<Casino>) =>
@@ -159,12 +161,6 @@ export const api = {
     request<{ ok: boolean }>(`/api/reports/${id}/dismiss`, { method: 'POST' }),
   blockFromReport: (id: string) =>
     request<{ ok: boolean }>(`/api/reports/${id}/block`, { method: 'POST' }),
-  getAiStatus: () => request<{ available: boolean; provider: string }>('/api/ai/status'),
-  askAi: (query: string, history?: { role: 'user' | 'assistant'; content: string }[]) =>
-    request<{ answer: string; provider: string }>('/api/ask', {
-      method: 'POST',
-      body: JSON.stringify({ query, history }),
-    }),
   getDiscoveryHistory: (limit = 15) =>
     request<DiscoveryHistoryEntry[]>(`/api/discovery/history?limit=${limit}`),
   revalidateCatalog: (limit = 10) =>

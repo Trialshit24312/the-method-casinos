@@ -23,6 +23,11 @@ const BLOCKED_DOMAIN_FRAGMENTS = [
   'deadspin.', 'sweepskings.', 'sweepslounge.', 'playusa.', 'dimers.',
   'legalsportsreport.', 'ballislife.', 'lines.com', 'next.io', 'sigma.world',
   'gamingamerica.', 'pantagraph.', 'igamingfuture.', 'rg.org',
+  // Review / bonus / schema / media — not operators
+  'bonus.com', 'bonuses.com', 'bonuses.', 'schema.org', 'w3.org', 'example.com', 'example.org',
+  'hackerone.', 'livescore.', 'vegasinsider.', 'pokerfuse.', 'oddspedia.', 'askgamblers.',
+  'onlinecasino', 'casinobonus', 'playtoday.', 'soo-foo.', 'sweepstate.', 'stakester.',
+  'sportsbook', 'draftkings.', 'fanduel.',
   'nj.com', 'al.com', 'silive.', 'mlive.', 'pennlive.', 'cleveland.com',
   'syracuse.com', 'masslive.', 'oregonlive.', 'chicagotribune.',
 ];
@@ -77,20 +82,14 @@ export function isBlockedDomain(url: string): boolean {
   }
 }
 
-/** Queue from search results — block junk, allow valid operator roots (validation is later). */
+/** Queue from search results — operator-shaped hosts only; page validation is later. */
 export function shouldQueueSearchUrl(url: string): boolean {
   if (isBlockedDomain(url)) return false;
   try {
     const root = toCasinoRootUrl(url);
     const host = casinoHostKey(root);
     if (!isValidCasinoHost(host)) return false;
-    if (isDiscoveryCandidateUrl(root)) return true;
-    // Allow any plausible operator TLD if hostname is not a generic word
-    const label = host.split('.')[0];
-    if (label.length < 4) return false;
-    const generic = new Set(['www', 'mail', 'blog', 'news', 'shop', 'store', 'help', 'support']);
-    if (generic.has(label)) return false;
-    return true;
+    return isDiscoveryCandidateUrl(root);
   } catch {
     return false;
   }

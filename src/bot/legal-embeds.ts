@@ -7,7 +7,6 @@ import {
   RULES_DO_SUMMARY,
   RULES_DONT_SUMMARY,
   RULES_CONSEQUENCES,
-  WEBSITE_FEATURES,
   TOOLS_PATHS,
   LEGAL_LAST_UPDATED,
   LEGAL_VERSION,
@@ -15,8 +14,9 @@ import {
 import { getPublicSiteUrl, getDiscordInviteUrl, getDiscordOAuthLoginUrl, methodFooterText, sitePage } from '../shared/site.js';
 import { truncate } from '../shared/utils.js';
 
-const BRAND_COLOR = 0x7c3aed;
-const LEGAL_GOLD = 0xf59e0b;
+import { BRAND, brandAuthorBlock, brandThumbnailUrl } from './brand.js';
+
+const LEGAL_GOLD = BRAND.gold;
 const PRIVACY_BLUE = 0x0ea5e9;
 
 export function buildWebsiteEmbed(): EmbedBuilder {
@@ -24,24 +24,37 @@ export function buildWebsiteEmbed(): EmbedBuilder {
   const login = getDiscordOAuthLoginUrl();
   const invite = getDiscordInviteUrl();
 
-  const featureList = WEBSITE_FEATURES.map(
-    (f) => `• **${f.name}** — ${f.desc}`,
-  ).join('\n');
-
   const embed = new EmbedBuilder()
-    .setColor(BRAND_COLOR)
-    .setTitle('🌐 The Method Casinos — Dashboard')
+    .setColor(BRAND.copper)
+    .setAuthor(brandAuthorBlock())
+    .setThumbnail(brandThumbnailUrl())
+    .setTitle('🌐 The Method — Web Dashboard')
     .setDescription(
-      `Browse sweepstakes casinos, tools, and safety lists on the web dashboard.\n\n` +
-        `**Site:** ${site}`,
+      `**Verified sweepstakes catalog** with similar-casino search, URL checker, signup tools, and admin discovery.\n\n` +
+        `🔗 **Open:** ${site}`,
     )
     .addFields(
-      { name: 'What you can do', value: truncate(featureList, 1000), inline: false },
       {
-        name: 'Sign in',
+        name: '✨ Featured',
+        value:
+          `• **Similar Casinos** — ${sitePage('/similar')}\n` +
+          `• **URL Checker** — ${sitePage('/tools/checker')}\n` +
+          `• **Casino Catalog** — ${sitePage('/casinos')}`,
+        inline: true,
+      },
+      {
+        name: '🛠️ Tools & Safety',
+        value:
+          `• **Tools Hub** — ${sitePage('/tools')}\n` +
+          `• **Blocklist** — ${sitePage('/blocked')}\n` +
+          `• **Guides** — ${sitePage('/guides')}`,
+        inline: true,
+      },
+      {
+        name: '🔐 Admin sign-in',
         value:
           `Dashboard uses **Login with Discord** (OAuth).\n` +
-          `Open the site → Sign in with Discord, or use:\n${login}`,
+          `[Sign in →](${login})`,
         inline: false,
       },
     )
@@ -63,22 +76,39 @@ export function buildWebsiteButtons(): ActionRowBuilder<ButtonBuilder>[] {
   const site = getPublicSiteUrl();
   const rows: ActionRowBuilder<ButtonBuilder>[] = [
     new ActionRowBuilder<ButtonBuilder>().addComponents(
-      new ButtonBuilder().setLabel('Open Dashboard').setStyle(ButtonStyle.Link).setURL(site).setEmoji('🔗'),
+      new ButtonBuilder().setLabel('Open Site').setStyle(ButtonStyle.Link).setURL(site).setEmoji('🔗'),
+      new ButtonBuilder()
+        .setLabel('Similar Casinos')
+        .setStyle(ButtonStyle.Link)
+        .setURL(sitePage('/similar'))
+        .setEmoji('✨'),
+      new ButtonBuilder()
+        .setLabel('URL Checker')
+        .setStyle(ButtonStyle.Link)
+        .setURL(sitePage('/tools/checker'))
+        .setEmoji('🛡️'),
+      new ButtonBuilder()
+        .setLabel('Browse Catalog')
+        .setStyle(ButtonStyle.Link)
+        .setURL(sitePage('/casinos'))
+        .setEmoji('🎰'),
+    ),
+    new ActionRowBuilder<ButtonBuilder>().addComponents(
       new ButtonBuilder()
         .setLabel('Tools Hub')
         .setStyle(ButtonStyle.Link)
         .setURL(sitePage('/tools'))
         .setEmoji('🛠️'),
       new ButtonBuilder()
-        .setLabel('AI Assistant')
+        .setLabel('Blocklist')
         .setStyle(ButtonStyle.Link)
-        .setURL(sitePage('/assistant'))
-        .setEmoji('🤖'),
+        .setURL(sitePage('/blocked'))
+        .setEmoji('⛔'),
       new ButtonBuilder()
-        .setLabel('Terms')
+        .setLabel('Legal Hub')
         .setStyle(ButtonStyle.Link)
-        .setURL(sitePage('/terms'))
-        .setEmoji('📜'),
+        .setURL(sitePage('/legal'))
+        .setEmoji('⚖️'),
     ),
   ];
 
@@ -206,7 +236,8 @@ export function buildRulesEmbed(): EmbedBuilder {
   ).slice(0, 6);
 
   return new EmbedBuilder()
-    .setColor(BRAND_COLOR)
+    .setColor(BRAND.copper)
+    .setAuthor(brandAuthorBlock())
     .setTitle('🛡️ Community Rules')
     .setDescription(
       `**The Method Standard** — keep the database accurate and the community trustworthy.\n\n` +
@@ -264,7 +295,8 @@ export function buildToolsEmbed(): EmbedBuilder {
   const lines = TOOLS_PATHS.map((t) => `• **${t.name}** — ${sitePage(t.path)}`);
 
   return new EmbedBuilder()
-    .setColor(0x00aeef)
+    .setColor(BRAND.cyan)
+    .setAuthor(brandAuthorBlock())
     .setTitle('🛠️ Tools Hub')
     .setDescription(
       `Signup research tools on the dashboard — temp-mail lists, SMS receivers, password gen, URL checker.\n\n` +
@@ -276,7 +308,7 @@ export function buildToolsEmbed(): EmbedBuilder {
         name: 'Discord shortcuts',
         value:
           '• `/check` — safety check a casino URL\n' +
-          '• `/ask` — AI assistant (verified catalog only)\n' +
+          '• `/similar` — find casinos like one you like (catalog + free web search)\n' +
           '• `/blocked` — view scam/phishing list\n' +
           '• `/search` — find casinos in the database',
         inline: false,
@@ -286,19 +318,25 @@ export function buildToolsEmbed(): EmbedBuilder {
     .setTimestamp();
 }
 
-export function buildToolsButtons(): ActionRowBuilder<ButtonBuilder> {
-  return new ActionRowBuilder<ButtonBuilder>().addComponents(
-    new ButtonBuilder()
-      .setLabel('Tools Hub')
-      .setStyle(ButtonStyle.Link)
-      .setURL(sitePage('/tools')),
-    new ButtonBuilder()
-      .setLabel('URL Checker')
-      .setStyle(ButtonStyle.Link)
-      .setURL(sitePage('/tools/checker')),
-    new ButtonBuilder()
-      .setLabel('Email Tools')
-      .setStyle(ButtonStyle.Link)
-      .setURL(sitePage('/tools/email')),
-  );
+export function buildToolsButtons(): ActionRowBuilder<ButtonBuilder>[] {
+  return [
+    new ActionRowBuilder<ButtonBuilder>().addComponents(
+      new ButtonBuilder()
+        .setLabel('Tools Hub')
+        .setStyle(ButtonStyle.Link)
+        .setURL(sitePage('/tools')),
+      new ButtonBuilder()
+        .setLabel('URL Checker')
+        .setStyle(ButtonStyle.Link)
+        .setURL(sitePage('/tools/checker')),
+      new ButtonBuilder()
+        .setLabel('Similar Search')
+        .setStyle(ButtonStyle.Link)
+        .setURL(sitePage('/similar')),
+      new ButtonBuilder()
+        .setLabel('Email Tools')
+        .setStyle(ButtonStyle.Link)
+        .setURL(sitePage('/tools/email')),
+    ),
+  ];
 }

@@ -7,7 +7,7 @@ import Dashboard from './pages/Dashboard';
 import Casinos from './pages/Casinos';
 import Discovery from './pages/Discovery';
 import ReviewQueue from './pages/ReviewQueue';
-import Assistant from './pages/Assistant';
+import SimilarCasinos from './pages/SimilarCasinos';
 import ToolsHub from './pages/tools/ToolsHub';
 import EmailGenerator from './pages/tools/EmailGenerator';
 import PhoneGenerator from './pages/tools/PhoneGenerator';
@@ -17,7 +17,6 @@ import Guides from './pages/Guides';
 import PasswordGenerator from './pages/tools/PasswordGenerator';
 import UrlChecker from './pages/tools/UrlChecker';
 import BlockedSites from './pages/BlockedSites';
-import SimilarCasinos from './pages/SimilarCasinos';
 import Privacy from './pages/Privacy';
 import CasinoDetail from './pages/CasinoDetail';
 import MyList from './pages/MyList';
@@ -57,7 +56,7 @@ export default function App() {
           <Route path="/casinos/:slug" element={<CasinoDetail />} />
           <Route path="/mylist" element={<MyList />} />
           <Route path="/similar" element={<SimilarCasinos />} />
-          <Route path="/assistant" element={<Assistant />} />
+          <Route path="/assistant" element={<Navigate to="/similar" replace />} />
           <Route path="/blocked" element={<BlockedSites />} />
           <Route path="/guides" element={<Guides />} />
           <Route path="/tools" element={<ToolsHub />} />

@@ -20,7 +20,7 @@ export default function CasinoCard({ casino, index, onEdit, onBlock, admin }: Ca
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: index * 0.05 }}
       whileHover={{ y: -2 }}
-      className="glass p-5 group hover:border-brand/30 transition-all duration-300"
+      className="glass p-5 group card-shine hover:border-glow/25 transition-all duration-300 border-gradient"
     >
       <div className="flex items-start justify-between mb-3">
         <div className="flex items-center gap-2 flex-wrap">

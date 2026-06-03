@@ -16,7 +16,6 @@ import {
   KeyRound,
   ShieldCheck,
   Sparkles,
-  Bot,
   Lock as LockIcon,
   Heart,
   Bell,
@@ -32,7 +31,6 @@ const mainNav = [
   { to: '/casinos', icon: Dices, label: 'Casinos' },
   { to: '/mylist', icon: Heart, label: 'My List' },
   { to: '/similar', icon: Sparkles, label: 'Similar Casinos' },
-  { to: '/assistant', icon: Bot, label: 'AI Assistant' },
   { to: '/blocked', icon: Ban, label: 'Blocked Sites' },
 ];
 
@@ -84,8 +82,8 @@ function NavSection({
               className={({ isActive }) =>
                 `flex items-center gap-3 px-3 py-2 rounded-lg transition-all duration-200 ${
                   isActive
-                    ? 'bg-glow/10 text-glow border border-glow/30 shadow-method-glow'
-                    : 'text-gray-400 hover:text-gray-200 hover:bg-surface-overlay border border-transparent'
+                    ? 'bg-gradient-to-r from-glow/15 to-brand/10 text-glow border border-glow/35 shadow-method-glow'
+                    : 'text-gray-400 hover:text-gray-200 hover:bg-surface-overlay border border-transparent hover:border-surface-border'
                 }`
               }
             >
@@ -205,8 +203,9 @@ export default function Layout() {
         )}
       </aside>
 
-      <main className="flex-1 overflow-auto flex flex-col">
-        <div className="flex-1">
+      <main className="flex-1 overflow-auto flex flex-col relative">
+        <div className="absolute inset-0 app-background-grid pointer-events-none opacity-40" />
+        <div className="flex-1 relative z-10">
           <Outlet />
         </div>
         <SiteFooter />

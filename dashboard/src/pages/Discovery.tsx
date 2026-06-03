@@ -49,15 +49,18 @@ function eventToLog(event: DiscoveryProgressEvent): LogEntry | null {
     case 'search_query':
       return { id: Date.now(), type: event.type, message: `Searching: "${event.query}"`, tone: 'info' };
     case 'search_engine': {
-      const engineLabel = event.engine === 'serper'
-        ? 'Serper'
-        : event.engine === 'duckduckgo'
-          ? 'DuckDuckGo'
-          : 'Bing';
+      const labels: Record<string, string> = {
+        duckduckgo: 'DuckDuckGo',
+        duckduckgo_lite: 'DDG Lite',
+        bing: 'Bing',
+        brave: 'Brave',
+      };
+      const engineLabel = labels[event.engine] ?? event.engine;
+      const count = event.linkCount != null ? ` · ${event.linkCount} links` : '';
       return {
         id: Date.now(),
         type: event.type,
-        message: `${engineLabel} → ${event.query.slice(0, 50)}…`,
+        message: `${engineLabel} → ${event.query.slice(0, 50)}${count}`,
         tone: 'muted',
       };
     }
@@ -256,11 +259,11 @@ export default function DiscoveryPage() {
             </div>
             <div>
               <h3 className="font-display font-semibold text-lg">Deep Scan</h3>
-              <p className="text-sm text-gray-500">~15 min · 90 searches · 800 URL checks</p>
+              <p className="text-sm text-gray-500">~30 min · 90 searches · 800 URL checks</p>
             </div>
           </div>
           <ul className="text-xs text-gray-600 space-y-1 mb-4">
-            <li>• 5 search pages per query (DDG + Bing)</li>
+            <li>• 5 search pages per query (DDG Lite + Bing + Brave)</li>
             <li>• Crawls 80+ known casinos for new links</li>
             <li>• Remembers rejected URLs — only new candidates</li>
           </ul>
@@ -273,6 +276,13 @@ export default function DiscoveryPage() {
           </button>
         </motion.div>
       </div>
+
+      {!user?.isAdmin && (
+        <p className="text-sm text-gray-500 mb-6 text-center">
+          Discovery scans are admin-only.{' '}
+          <a href="/login" className="text-[#00aeef] hover:underline">Sign in with Discord</a> if you manage the catalog.
+        </p>
+      )}
 
       {isScanning && (
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="glass-glow p-8 mb-8">
@@ -313,6 +323,7 @@ export default function DiscoveryPage() {
               { label: 'Added', value: liveStats.added, color: 'text-emerald-400' },
               { label: 'Scanned', value: liveStats.scanned, color: 'text-[#00aeef]' },
               { label: 'Rejected', value: liveStats.rejected, color: 'text-amber-400' },
+              { label: 'Blocked', value: liveStats.blocked, color: 'text-red-400' },
               { label: 'Queue', value: liveStats.queued, color: 'text-gray-400' },
               { label: 'Sources', value: liveStats.sourcesChecked, color: 'text-[#d4956a]' },
               { label: 'Queries', value: `${liveStats.queryIndex}/${liveStats.queryTotal}`, color: 'text-gray-300' },

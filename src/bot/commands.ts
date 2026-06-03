@@ -19,6 +19,7 @@ import {
   buildHelpEmbed,
   buildBlockedEmbed,
   buildSimilarEmbed,
+  buildSimilarButtons,
   buildCompareEmbed,
   buildMyListEmbed,
   buildUrlCheckEmbed,
@@ -184,14 +185,18 @@ export const commands: Command[] = [
   {
     data: new SlashCommandBuilder()
       .setName('similar')
-      .setDescription('Find casinos similar to one you like — matched by features & signup')
+      .setDescription('Find casinos similar to one you like — catalog match or free web search')
       .addStringOption((o) =>
         o.setName('name').setDescription('Casino name to match against').setRequired(true).setAutocomplete(true),
+      )
+      .addBooleanOption((o) =>
+        o.setName('search_web').setDescription('Search the internet for new casinos like this one (free)').setRequired(false),
       ),
 
     async execute(interaction) {
       await interaction.deferReply();
       const name = interaction.options.getString('name', true);
+      const searchWeb = interaction.options.getBoolean('search_web') ?? false;
       const result = findSimilarCasinosByQuery(name, 10);
 
       if (!result) {
@@ -199,8 +204,28 @@ export const commands: Command[] = [
         return;
       }
 
+      if (searchWeb) {
+        const { discoverSimilarOnWeb } = await import('../discovery/similar-search.js');
+        const web = await discoverSimilarOnWeb(result.source.id);
+        if (web) {
+          const lines = web.candidates.slice(0, 8).map((c) =>
+            c.status === 'added' ? `✅ **${c.name}** — queued for review` : `– ${c.name} (${c.reason ?? c.status})`,
+          );
+          await interaction.editReply({
+            embeds: [buildSimilarEmbed(result.source, web.catalogMatches.length ? web.catalogMatches : result.matches)],
+            components: buildSimilarButtons(result.source),
+            content: [
+              `🌐 **Web search** (${web.webUrlsFound} URLs · ${web.added} added to review queue)`,
+              lines.length ? lines.join('\n') : 'No new operators found this time.',
+            ].join('\n'),
+          });
+          return;
+        }
+      }
+
       await interaction.editReply({
         embeds: [buildSimilarEmbed(result.source, result.matches)],
+        components: buildSimilarButtons(result.source),
       });
     },
 
@@ -747,39 +772,6 @@ export const commands: Command[] = [
   },
 
   ...siteCommands,
-
-  {
-    data: new SlashCommandBuilder()
-      .setName('ask')
-      .setDescription('Ask the AI assistant about verified sweepstakes casinos (free Groq/Gemini)')
-      .addStringOption((o) =>
-        o.setName('question').setDescription('Your question').setRequired(true),
-      ),
-
-    async execute(interaction) {
-      const question = interaction.options.getString('question', true);
-      await interaction.deferReply();
-
-      try {
-        const { askCasinoAssistant, isAiConfigured } = await import('../ai/assistant.js');
-        if (!isAiConfigured()) {
-          await interaction.editReply({
-            content: '❌ AI not configured on server. Admin: set `GROQ_API_KEY` in environment.',
-          });
-          return;
-        }
-        const { answer, provider } = await askCasinoAssistant(question);
-        const { buildAskEmbed } = await import('./embeds.js');
-        await interaction.editReply({
-          embeds: [buildAskEmbed(question, answer, provider)],
-        });
-      } catch (err) {
-        await interaction.editReply({
-          content: `❌ ${err instanceof Error ? err.message : 'AI request failed'}`,
-        });
-      }
-    },
-  },
 
   {
     data: new SlashCommandBuilder()

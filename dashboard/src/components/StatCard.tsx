@@ -21,7 +21,7 @@ export default function StatCard({ label, value, icon: Icon, color, delay = 0 }:
       <div className="flex items-start justify-between">
         <div>
           <p className="text-sm text-gray-500 mb-1">{label}</p>
-          <p className="text-3xl font-display font-bold">{value}</p>
+          <p className="text-3xl font-display font-bold bg-gradient-to-br from-white to-gray-400 bg-clip-text text-transparent">{value}</p>
         </div>
         <div
           className={`p-2.5 rounded-lg ${color} group-hover:scale-110 transition-transform duration-200`}

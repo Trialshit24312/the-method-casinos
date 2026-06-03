@@ -40,6 +40,14 @@ export function applySecurityMiddleware(app: Express): void {
     message: { error: 'Report rate limit' },
   }));
 
+  app.use('/api/similar', rateLimit({
+    windowMs: 60 * 60 * 1000,
+    max: 12,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { error: 'Similar web search rate limit — try again later' },
+  }));
+
   app.use('/api/ask', rateLimit({
     windowMs: 60 * 60 * 1000,
     max: 40,
