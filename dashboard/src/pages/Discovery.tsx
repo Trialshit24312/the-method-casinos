@@ -260,8 +260,8 @@ export default function DiscoveryPage() {
           </div>
           <ul className="text-xs text-gray-600 space-y-1 mb-4">
             <li>• Re-checks all non-catalog URLs every scan</li>
-            <li>• Mines links from known casinos + search pages</li>
-            <li>• Rotating query list — fresh sources each run</li>
+            <li>• Mines links from every active casino in the catalog</li>
+            <li>• Then runs {dbStats?.verifiedCasinos ?? '45+'} web searches with rotating queries</li>
           </ul>
           <button
             onClick={() => runScan(false)}
@@ -289,7 +289,7 @@ export default function DiscoveryPage() {
           </div>
           <ul className="text-xs text-gray-600 space-y-1 mb-4">
             <li>• 5 search pages per query (DDG Lite + Bing + Brave)</li>
-            <li>• Crawls 80+ known casinos for new links</li>
+            <li>• Crawls all active casinos, then 100+ web searches</li>
             <li>• Rejected URLs sent to Ban review for blocklist</li>
           </ul>
           <button
@@ -415,7 +415,12 @@ export default function DiscoveryPage() {
 
           {result.addedCasinos.length > 0 && (
             <div className="mb-4 p-4 rounded-xl bg-emerald-500/5 border border-emerald-500/20">
-              <p className="text-sm text-emerald-400 font-medium mb-2">New casinos added:</p>
+              <p className="text-sm text-emerald-400 font-medium mb-1">Queued for review ({result.added}):</p>
+              <p className="text-xs text-gray-500 mb-2">
+                Saved to the database as pending — approve in{' '}
+                <a href="/review?tab=discoveries" className="text-glow hover:underline">Review Queue → Discoveries</a>
+                {' '}before they appear in the public catalog.
+              </p>
               <ul className="text-sm text-gray-300 space-y-1">
                 {result.addedCasinos.map((c) => (
                   <li key={c.url}>

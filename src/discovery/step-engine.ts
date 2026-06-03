@@ -25,6 +25,17 @@ import { beginDiscoveryRun, endDiscoveryRun, throwIfCancelled } from './run-stat
 import { beginDiscoveryLive, pushDiscoveryLiveEvent, finishDiscoveryLive } from './live-state.js';
 import { ingestDiscovery, analyzeUrl, CURATED_DISCOVERIES } from './engine.js';
 
+type ProgressPublisher = (event: DiscoveryProgressEvent) => void;
+
+const CRAWL_BATCH_SIZE = 5;
+
+let stepLock: Promise<void> = Promise.resolve();
+
+function publish(onProgress: ProgressPublisher | undefined, event: DiscoveryProgressEvent): void {
+  const sink = onProgress ?? pushDiscoveryLiveEvent;
+  sink(event);
+}
+
 const FETCH_TIMEOUT_MS = 12_000;
 
 interface ScanConfig {
@@ -113,7 +124,7 @@ async function fetchPage(url: string): Promise<string | null> {
   }
 }
 
-function emitProgress(state: DiscoverySessionState, onProgress?: (e: DiscoveryProgressEvent) => void): void {
+function emitProgress(state: DiscoverySessionState, onProgress?: ProgressPublisher): void {
   const stats: DiscoveryLiveStats = {
     scanned: state.scanned,
     queued: state.urlQueue.length - state.queueIndex,
@@ -126,24 +137,21 @@ function emitProgress(state: DiscoverySessionState, onProgress?: (e: DiscoveryPr
     queryIndex: state.queryIndex,
     queryTotal: state.searchQueries.length,
   };
-  onProgress?.({ type: 'progress', stats });
-  pushDiscoveryLiveEvent({ type: 'progress', stats });
+  publish(onProgress, { type: 'progress', stats });
 }
 
-function setPhase(state: DiscoverySessionState, phase: DiscoveryPhase, label: string, onProgress?: (e: DiscoveryProgressEvent) => void): void {
+function setPhase(state: DiscoverySessionState, phase: DiscoveryPhase, label: string, onProgress?: ProgressPublisher): void {
   state.phase = phase;
-  onProgress?.({ type: 'phase', phase, label });
-  pushDiscoveryLiveEvent({ type: 'phase', phase, label });
+  publish(onProgress, { type: 'phase', phase, label });
   emitProgress(state, onProgress);
 }
 
-function recordRejection(state: DiscoverySessionState, root: string, host: string, reason: string, onProgress?: (e: DiscoveryProgressEvent) => void): void {
+function recordRejection(state: DiscoverySessionState, root: string, host: string, reason: string, onProgress?: ProgressPublisher): void {
   state.rejected++;
   if (!state.sessionHosts.includes(host)) state.sessionHosts.push(host);
   markDiscoverySeen(root, 'rejected', reason);
   queueDiscoveryBanReview(root, reason);
-  onProgress?.({ type: 'url_rejected', url: host, reason });
-  pushDiscoveryLiveEvent({ type: 'url_rejected', url: host, reason });
+  publish(onProgress, { type: 'url_rejected', url: host, reason });
 }
 
 function knownSet(state: DiscoverySessionState): Set<string> {
@@ -207,7 +215,8 @@ function buildInitialState(deep: boolean): DiscoverySessionState {
     curatedByHost[casinoHostKey(c.url)] = c;
   }
 
-  const crawlPool = getAllCasinos(true)
+  const crawlPool = getAllCasinos(false)
+    .filter((c) => c.reviewStatus !== 'rejected')
     .sort(() => Math.random() - 0.5)
     .slice(0, config.crawlLimit)
     .map((c) => toCasinoRootUrl(c.url));
@@ -258,7 +267,7 @@ function buildResult(state: DiscoverySessionState): DiscoveryResult {
   };
 }
 
-function finishSession(state: DiscoverySessionState, onProgress?: (e: DiscoveryProgressEvent) => void): DiscoveryResult {
+function finishSession(state: DiscoverySessionState, onProgress?: ProgressPublisher): DiscoveryResult {
   state.phase = 'complete';
   const result = buildResult(state);
   logDiscovery(result.found, result.added, result.skipped, result.errors, {
@@ -267,8 +276,7 @@ function finishSession(state: DiscoverySessionState, onProgress?: (e: DiscoveryP
     blocked: result.blocked,
     durationMs: result.durationMs,
   });
-  onProgress?.({ type: 'complete', result });
-  pushDiscoveryLiveEvent({ type: 'complete', result });
+  publish(onProgress, { type: 'complete', result });
   finishDiscoveryLive(result);
   clearDiscoverySession();
   endDiscoveryRun();
@@ -283,17 +291,20 @@ export function startClientDiscovery(deep: boolean): void {
   beginDiscoveryLive(deep ? 'deep' : 'quick');
   beginDiscoveryRun();
   saveDiscoverySession(state);
-  setPhase(state, 'curated', 'Client-driven scan — runs while this tab is open');
+  setPhase(state, 'curated', 'Client-driven scan — runs while this tab is open', pushDiscoveryLiveEvent);
   saveDiscoverySession(state);
 }
 
-export async function runClientDiscoveryStep(
-  onProgress?: (event: DiscoveryProgressEvent) => void,
+async function runClientDiscoveryStepInner(
+  onProgress?: ProgressPublisher,
 ): Promise<{ done: boolean; result?: DiscoveryResult }> {
   const state = loadDiscoverySession() as DiscoverySessionState | null;
   if (!state) {
     throw new Error('No active discovery session');
   }
+
+  // Keep in sync with DB — casinos added in prior steps must stay known.
+  state.knownHosts = [...getKnownHosts()];
 
   throwIfCancelled();
 
@@ -304,7 +315,9 @@ export async function runClientDiscoveryStep(
   const known = knownSet(state);
 
   if (state.phase === 'curated') {
-    setPhase(state, 'curated', 'Checking for missing verified operators…', onProgress);
+    if (state.curatedIndex === 0) {
+      setPhase(state, 'curated', 'Checking for missing verified operators…', onProgress);
+    }
     while (state.curatedIndex < CURATED_DISCOVERIES.length) {
       const raw = CURATED_DISCOVERIES[state.curatedIndex++];
       const host = casinoHostKey(raw.url);
@@ -313,13 +326,12 @@ export async function runClientDiscoveryStep(
         state.found++;
         if (!state.knownHosts.includes(host)) state.knownHosts.push(host);
         state.addedCasinos.push({ name: raw.name, url: toCasinoRootUrl(raw.url) });
-        onProgress?.({ type: 'url_added', url: toCasinoRootUrl(raw.url), name: raw.name });
-        pushDiscoveryLiveEvent({ type: 'url_added', url: toCasinoRootUrl(raw.url), name: raw.name });
+        publish(onProgress, { type: 'url_added', url: toCasinoRootUrl(raw.url), name: raw.name });
       }
     }
     if (state.config.crawlKnownCasinos && state.crawlCasinoUrls.length) {
       state.phase = 'crawl';
-      setPhase(state, 'crawl', `Mining links from known casinos (${state.crawlCasinoUrls.length})…`, onProgress);
+      setPhase(state, 'crawl', `Mining links from ${state.crawlCasinoUrls.length} active casinos…`, onProgress);
     } else {
       state.phase = 'search';
       setPhase(state, 'search', `Running ${state.searchQueries.length} fresh web searches…`, onProgress);
@@ -337,30 +349,28 @@ export async function runClientDiscoveryStep(
       return { done: false };
     }
 
-    const root = state.crawlCasinoUrls[state.crawlIndex++];
-    state.sourcesChecked++;
-    const html = await fetchPage(root);
-    let linksQueued = 0;
-    if (html) {
-      for (const link of extractCasinoUrlsFromHtml(html, root)) {
-        if (enqueue(state, link, onProgress)) linksQueued++;
+    let batchLinks = 0;
+    const batchEnd = Math.min(state.crawlIndex + CRAWL_BATCH_SIZE, state.crawlCasinoUrls.length);
+    while (state.crawlIndex < batchEnd) {
+      const root = state.crawlCasinoUrls[state.crawlIndex++];
+      state.sourcesChecked++;
+      const html = await fetchPage(root);
+      if (html) {
+        for (const link of extractCasinoUrlsFromHtml(html, root)) {
+          if (enqueue(state, link, onProgress)) batchLinks++;
+        }
       }
+      await sleep(80);
     }
-    if (linksQueued > 0) {
-      onProgress?.({
+
+    if (batchLinks > 0 || state.crawlIndex % CRAWL_BATCH_SIZE === 0) {
+      publish(onProgress, {
         type: 'crawl_summary',
         crawled: state.crawlIndex,
-        linksQueued,
-        label: `Crawled ${state.crawlIndex}/${state.crawlCasinoUrls.length} → +${linksQueued} queued`,
-      });
-      pushDiscoveryLiveEvent({
-        type: 'crawl_summary',
-        crawled: state.crawlIndex,
-        linksQueued,
-        label: `Crawled ${state.crawlIndex}/${state.crawlCasinoUrls.length} → +${linksQueued} queued`,
+        linksQueued: batchLinks,
+        label: `Crawled ${state.crawlIndex}/${state.crawlCasinoUrls.length} → +${batchLinks} queued`,
       });
     }
-    await sleep(120);
     saveDiscoverySession(state);
     emitProgress(state, onProgress);
     return { done: false };
@@ -375,8 +385,7 @@ export async function runClientDiscoveryStep(
     }
 
     const query = state.searchQueries[state.queryIndex];
-    onProgress?.({ type: 'search_query', query });
-    pushDiscoveryLiveEvent({ type: 'search_query', query });
+    publish(onProgress, { type: 'search_query', query });
 
     try {
       const links = await collectFreeSearchLinks(
@@ -384,8 +393,7 @@ export async function runClientDiscoveryStep(
         state.config.searchPages,
         (engine, q, linkCount) => {
           state.sourcesChecked++;
-          onProgress?.({ type: 'search_engine', engine, query: q, linkCount });
-          pushDiscoveryLiveEvent({ type: 'search_engine', engine, query: q, linkCount });
+          publish(onProgress, { type: 'search_engine', engine, query: q, linkCount });
         },
       );
       for (const link of links) {
@@ -424,7 +432,24 @@ export async function runClientDiscoveryStep(
   return { done: true, result: finishSession(state, onProgress) };
 }
 
-async function processOneUrl(state: DiscoverySessionState, onProgress?: (e: DiscoveryProgressEvent) => void): Promise<void> {
+export async function runClientDiscoveryStep(
+  onProgress?: ProgressPublisher,
+): Promise<{ done: boolean; result?: DiscoveryResult }> {
+  let release!: () => void;
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const prev = stepLock;
+  stepLock = prev.then(() => gate);
+  await prev;
+  try {
+    return await runClientDiscoveryStepInner(onProgress);
+  } finally {
+    release();
+  }
+}
+
+async function processOneUrl(state: DiscoverySessionState, onProgress?: ProgressPublisher): Promise<void> {
   if (state.queueIndex >= state.urlQueue.length) return;
 
   const url = state.urlQueue[state.queueIndex++];
@@ -450,16 +475,14 @@ async function processOneUrl(state: DiscoverySessionState, onProgress?: (e: Disc
       state.added++;
       if (!state.knownHosts.includes(host)) state.knownHosts.push(host);
       state.addedCasinos.push({ name: curated.name, url: root });
-      onProgress?.({ type: 'url_added', url: root, name: curated.name });
-      pushDiscoveryLiveEvent({ type: 'url_added', url: root, name: curated.name });
+      publish(onProgress, { type: 'url_added', url: root, name: curated.name });
     }
     return;
   }
 
   state.scanned++;
   state.webAnalyzes++;
-  onProgress?.({ type: 'url_scanning', url: host });
-  pushDiscoveryLiveEvent({ type: 'url_scanning', url: host });
+  publish(onProgress, { type: 'url_scanning', url: host });
 
   try {
     const { raw: analyzed, rejectReason } = await analyzeUrl(root, known);
@@ -476,8 +499,7 @@ async function processOneUrl(state: DiscoverySessionState, onProgress?: (e: Disc
       if (!state.knownHosts.includes(host)) state.knownHosts.push(host);
       markDiscoverySeen(root, 'added', 'verified sweeps');
       state.addedCasinos.push({ name: analyzed.name, url: analyzed.url });
-      onProgress?.({ type: 'url_added', url: analyzed.url, name: analyzed.name });
-      pushDiscoveryLiveEvent({ type: 'url_added', url: analyzed.url, name: analyzed.name });
+      publish(onProgress, { type: 'url_added', url: analyzed.url, name: analyzed.name });
 
       if (state.config.crawlLinks) {
         const pageHtml = await fetchPage(analyzed.url);

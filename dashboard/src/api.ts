@@ -65,6 +65,7 @@ export const api = {
     });
 
     let cursor = 0;
+    let stepping = false;
 
     while (true) {
       if (signal?.aborted) {
@@ -77,16 +78,32 @@ export const api = {
         throw new DOMException('Aborted', 'AbortError');
       }
 
-      const step = await request<{
+      if (stepping) {
+        await new Promise((resolve) => setTimeout(resolve, 100));
+        continue;
+      }
+
+      stepping = true;
+      let step: {
         done: boolean;
         result?: DiscoveryResult;
         cancelled?: boolean;
         live: DiscoveryLiveSnapshot;
-      }>('/api/discover/client/step', {
-        method: 'POST',
-        body: JSON.stringify({ since: cursor }),
-        signal,
-      });
+      };
+      try {
+        step = await request<{
+          done: boolean;
+          result?: DiscoveryResult;
+          cancelled?: boolean;
+          live: DiscoveryLiveSnapshot;
+        }>('/api/discover/client/step', {
+          method: 'POST',
+          body: JSON.stringify({ since: cursor }),
+          signal,
+        });
+      } finally {
+        stepping = false;
+      }
 
       for (const raw of step.live.events) {
         const { seq, ...event } = raw;
@@ -104,7 +121,7 @@ export const api = {
 
       if (step.done && step.result) return step.result;
 
-      await new Promise((resolve) => setTimeout(resolve, 60));
+      await new Promise((resolve) => setTimeout(resolve, 80));
     }
   },
   getDiscoveryLive: (since = 0) =>
