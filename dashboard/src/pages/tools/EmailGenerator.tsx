@@ -44,7 +44,7 @@ export default function EmailGeneratorPage() {
   return (
     <div className="p-8 max-w-7xl mx-auto">
       <PageHeader
-        icon={<Mail className="w-6 h-6 text-[#00aeef]" />}
+        icon={<Mail className="w-6 h-6 text-glow" />}
         title="Email & Signup Tools"
         subtitle="30+ working temp-mail websites plus generators for casino signups — every link opens a real inbox"
         action={
@@ -77,12 +77,12 @@ export default function EmailGeneratorPage() {
             href={svc.url}
             target="_blank"
             rel="noopener noreferrer"
-            className="p-4 rounded-xl border border-[#00aeef]/30 bg-[#00aeef]/5
-                       hover:bg-[#00aeef]/10 hover:border-[#00aeef]/50 transition-all group"
+            className="p-4 rounded-xl border border-glow/30 bg-glow/5
+                       hover:bg-glow/10 hover:border-glow/50 transition-all group"
           >
             <div className="flex items-center justify-between mb-1">
-              <span className="font-semibold text-white group-hover:text-[#00aeef]">{svc.name}</span>
-              <ExternalLink className="w-3.5 h-3.5 text-gray-600 group-hover:text-[#00aeef]" />
+              <span className="font-semibold text-white group-hover:text-glow">{svc.name}</span>
+              <ExternalLink className="w-3.5 h-3.5 text-gray-600 group-hover:text-glow" />
             </div>
             <p className="text-xs text-gray-500 line-clamp-2">{svc.description}</p>
           </a>
@@ -97,8 +97,8 @@ export default function EmailGeneratorPage() {
       />
 
       <div className="grid lg:grid-cols-2 gap-6 mb-10">
-        <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} className="glass-glow p-6 border-[#00aeef]/20">
-          <h3 className="font-display font-semibold mb-1 text-[#00aeef]">Random Email Generator</h3>
+        <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} className="glass-glow p-6 border-glow/20">
+          <h3 className="font-display font-semibold mb-1 text-glow">Random Email Generator</h3>
           <p className="text-xs text-amber-400/80 mb-4">Format only, NOT real inboxes — use temp-mail sites above for working mail</p>
           <div className="grid sm:grid-cols-2 gap-3 mb-4">
             <div>
@@ -119,9 +119,9 @@ export default function EmailGeneratorPage() {
           </button>
           <div className="space-y-2 max-h-64 overflow-y-auto">
             {(emails.length ? emails : [generateEmail(domain || undefined)]).map((email) => (
-              <div key={email} className="flex items-center gap-2 p-3 rounded-lg bg-[#1a1a22] border border-[#2a2a35]">
-                <code className="flex-1 text-sm text-[#00aeef] truncate">{email}</code>
-                <button onClick={() => copy(email)} className="p-2 rounded-lg hover:bg-[#00aeef]/10 text-gray-400">
+              <div key={email} className="flex items-center gap-2 p-3 rounded-lg bg-surface-muted border border-surface-border">
+                <code className="flex-1 text-sm text-glow truncate">{email}</code>
+                <button onClick={() => copy(email)} className="p-2 rounded-lg hover:bg-glow/10 text-gray-400">
                   {copied === email ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
                 </button>
               </div>
@@ -136,11 +136,11 @@ export default function EmailGeneratorPage() {
             { label: 'Username', value: username || generateUsername(), icon: User },
             { label: 'Password', value: password || generatePassword(), icon: KeyRound },
           ].map(({ label, value, icon: Icon }) => (
-            <div key={label} className="p-3 rounded-lg bg-[#1a1a22] border border-[#2a2a35]">
+            <div key={label} className="p-3 rounded-lg bg-surface-muted border border-surface-border">
               <div className="flex items-center gap-2 text-xs text-gray-500 mb-1"><Icon className="w-3 h-3" />{label}</div>
               <div className="flex items-center gap-2">
                 <code className="flex-1 text-sm text-white truncate">{value}</code>
-                <button onClick={() => copy(value)} className="p-1.5 text-gray-400 hover:text-[#00aeef]">
+                <button onClick={() => copy(value)} className="p-1.5 text-gray-400 hover:text-glow">
                   {copied === value ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
                 </button>
               </div>

@@ -104,7 +104,7 @@ export default function StatusPage() {
                 ))}
               </div>
               {health.discoveryRunning && (
-                <p className="text-sm text-[#00aeef] mt-3 flex items-center gap-2">
+                <p className="text-sm text-glow mt-3 flex items-center gap-2">
                   <Radar className="w-4 h-4 animate-pulse" />
                   Server discovery scan in progress —{' '}
                   <Link to="/discovery" className="underline">open Discovery</Link>

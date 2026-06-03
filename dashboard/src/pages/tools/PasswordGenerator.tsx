@@ -35,9 +35,9 @@ export default function PasswordGeneratorPage() {
       />
 
       <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} className="glass-glow p-6 border-[#b87333]/20">
-        <div className="flex items-center gap-2 p-4 rounded-xl bg-[#1a1a22] border border-[#2a2a35] mb-6">
-          <code className="flex-1 text-lg text-[#00aeef] font-mono break-all">{password}</code>
-          <button onClick={copy} className="p-2 text-gray-400 hover:text-[#00aeef] shrink-0">
+        <div className="flex items-center gap-2 p-4 rounded-xl bg-surface-muted border border-surface-border mb-6">
+          <code className="flex-1 text-lg text-glow font-mono break-all">{password}</code>
+          <button onClick={copy} className="p-2 text-gray-400 hover:text-glow shrink-0">
             {copied ? <Check className="w-5 h-5 text-emerald-400" /> : <Copy className="w-5 h-5" />}
           </button>
         </div>
@@ -68,7 +68,7 @@ export default function PasswordGeneratorPage() {
             { label: 'Numbers', checked: numbers, set: setNumbers },
             { label: 'Symbols', checked: symbols, set: setSymbols },
           ].map(({ label, checked, set }) => (
-            <label key={label} className="flex items-center gap-2 p-3 rounded-lg bg-[#1a1a22] border border-[#2a2a35] cursor-pointer text-sm text-gray-400">
+            <label key={label} className="flex items-center gap-2 p-3 rounded-lg bg-surface-muted border border-surface-border cursor-pointer text-sm text-gray-400">
               <input type="checkbox" checked={checked} onChange={(e) => set(e.target.checked)} />
               {label}
             </label>

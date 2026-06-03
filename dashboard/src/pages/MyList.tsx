@@ -5,6 +5,8 @@ import { api } from '../api';
 import type { Casino } from '../types';
 import PageHeader from '../components/PageHeader';
 import CasinoCard from '../components/CasinoCard';
+import EmptyState from '../components/EmptyState';
+import StatsSkeleton from '../components/StatsSkeleton';
 import { useAuth } from '../context/AuthContext';
 
 interface FavoriteRow {
@@ -51,9 +53,11 @@ export default function MyList() {
   const [favorites, setFavorites] = useState<FavoriteRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [copyMsg, setCopyMsg] = useState('');
 
   const load = () => {
     setLoading(true);
+    setError('');
     api.getFavorites()
       .then(setFavorites)
       .catch((e) => setError(e instanceof Error ? e.message : 'Failed to load'))
@@ -67,7 +71,7 @@ export default function MyList() {
   if (!user) return <Navigate to="/login?next=/mylist" replace />;
 
   return (
-    <div className="p-8 max-w-6xl mx-auto">
+    <div className="p-6 md:p-8 max-w-6xl mx-auto">
       <PageHeader
         title="My List"
         subtitle="Saved casinos with private notes — synced with Discord /mylist when signed in"
@@ -88,6 +92,8 @@ export default function MyList() {
                     })
                     .join('\n');
                   void navigator.clipboard.writeText(text);
+                  setCopyMsg('List copied to clipboard');
+                  setTimeout(() => setCopyMsg(''), 2500);
                 }}
               >
                 <Copy className="w-4 h-4" /> Copy
@@ -114,30 +120,37 @@ export default function MyList() {
         }
       />
 
+      {copyMsg && <p className="text-emerald-400 text-sm mb-4">{copyMsg}</p>}
       {error && <p className="text-red-400 text-sm mb-4">{error}</p>}
 
-      {loading && <p className="text-gray-500">Loading…</p>}
+      {loading && <StatsSkeleton count={3} />}
 
       {!loading && favorites.length === 0 && (
-        <div className="glass-glow p-10 text-center text-gray-500">
-          <Heart className="w-10 h-10 mx-auto mb-3 text-gray-600" />
-          <p>No saved casinos yet.</p>
-          <p className="text-sm mt-2">
-            Browse the{' '}
-            <Link to="/casinos" className="text-glow hover:underline">catalog</Link>
-            {' '}and tap the heart on any casino page.
-          </p>
-        </div>
+        <EmptyState
+          icon={Heart}
+          title="No saved casinos yet"
+          description="Tap the heart on any casino card or profile to build your personal list."
+          action={<Link to="/casinos" className="btn-glow text-sm">Browse catalog</Link>}
+        />
       )}
 
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-        {favorites.map(({ casino, note }, i) => (
-          <div key={casino.id} className="flex flex-col">
-            <CasinoCard casino={casino} index={i} />
-            <FavoriteNote casinoId={casino.id} initial={note} />
-          </div>
-        ))}
-      </div>
+      {!loading && favorites.length > 0 && (
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+          {favorites.map(({ casino, note }, i) => (
+            <div key={casino.id} className="flex flex-col">
+              <CasinoCard
+                casino={casino}
+                index={i}
+                onToggleFavorite={() => {
+                  api.removeFavorite(casino.id).then(load).catch(() => {});
+                }}
+                favorited
+              />
+              <FavoriteNote casinoId={casino.id} initial={note} />
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

@@ -1,8 +1,9 @@
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { BookOpen, Mail, ShieldCheck, Ban, Radar, Dices, KeyRound, AlertTriangle, Sparkles, Heart, Scale, Shuffle } from 'lucide-react';
+import { BookOpen, Mail, ShieldCheck, Ban, Radar, Dices, KeyRound, AlertTriangle, Sparkles, Heart, Scale, Shuffle, HelpCircle } from 'lucide-react';
 import PageHeader from '../components/PageHeader';
 import { usePageTitle } from '../hooks/usePageTitle';
+import { useAuth } from '../context/AuthContext';
 
 const GUIDES = [
   {
@@ -22,7 +23,7 @@ const GUIDES = [
     steps: [
       'Browse the Casinos page — filter by No Phone, VPN Allowed, Slots, etc.',
       'Prefer verified casinos with trackables filled in (cash-out limits, min redeem).',
-      'Run Discovery scans periodically to find new sites automatically.',
+      'Admins run Discovery scans periodically to find new sites automatically.',
       'Use /random in Discord with filters for quick picks.',
     ],
   },
@@ -78,35 +79,43 @@ const GUIDES = [
   },
 ];
 
-const QUICK_LINKS = [
-  { to: '/similar', label: 'Similar Finder', icon: Sparkles },
-  { to: '/tools/checker', label: 'URL Checker', icon: ShieldCheck },
-  { to: '/tools/email', label: 'Email Tools', icon: Mail },
-  { to: '/tools/password', label: 'Password Gen', icon: KeyRound },
-  { to: '/blocked', label: 'Blocked Sites', icon: Ban },
-  { to: '/casinos', label: 'Casinos', icon: Dices },
-  { to: '/random', label: 'Random Pick', icon: Shuffle },
-  { to: '/compare', label: 'Compare', icon: Scale },
-  { to: '/mylist', label: 'My List', icon: Heart },
-  { to: '/discovery', label: 'Discovery', icon: Radar },
-];
-
 export default function GuidesPage() {
   usePageTitle('Guides — The Method Casinos');
+  const { user } = useAuth();
+
+  const quickLinks = [
+    { to: '/similar', label: 'Similar Finder', icon: Sparkles },
+    { to: '/tools/checker', label: 'URL Checker', icon: ShieldCheck },
+    { to: '/tools/email', label: 'Email Tools', icon: Mail },
+    { to: '/tools/password', label: 'Password Gen', icon: KeyRound },
+    { to: '/blocked', label: 'Blocked Sites', icon: Ban },
+    { to: '/casinos', label: 'Casinos', icon: Dices },
+    { to: '/random', label: 'Random Pick', icon: Shuffle },
+    { to: '/compare', label: 'Compare', icon: Scale },
+    { to: '/mylist', label: 'My List', icon: Heart },
+    { to: '/assistant', label: 'Catalog Help', icon: HelpCircle },
+    ...(user?.isAdmin
+      ? [{ to: '/discovery', label: 'Discovery', icon: Radar }]
+      : [{ to: '/login?next=/discovery', label: 'Discovery', icon: Radar }]),
+  ];
+
   return (
-    <div className="p-8 max-w-5xl mx-auto">
+    <div className="p-6 md:p-8 max-w-5xl mx-auto">
       <PageHeader
-        icon={<BookOpen className="w-6 h-6 text-[#b87333]" />}
+        icon={<BookOpen className="w-6 h-6 text-brand-light" />}
         title="The Method Guides"
         subtitle="Step-by-step workflows for safe sweepstakes casino signup and research"
       />
 
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 mb-10">
-        {QUICK_LINKS.map((link, i) => (
-          <motion.div key={link.to} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }}>
-            <Link to={link.to} className="block p-3 rounded-xl border border-[#2a2a35] bg-[#121218]/80
-              hover:border-[#00aeef]/40 text-center transition-all group">
-              <link.icon className="w-5 h-5 mx-auto mb-1 text-[#b87333] group-hover:text-[#00aeef]" />
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 mb-10">
+        {quickLinks.map((link, i) => (
+          <motion.div key={link.to} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.04 }}>
+            <Link
+              to={link.to}
+              className="block p-3 rounded-xl border border-surface-border bg-surface-raised/80
+                hover:border-glow/40 text-center transition-all group card-shine"
+            >
+              <link.icon className="w-5 h-5 mx-auto mb-1 text-brand-light group-hover:text-glow transition-colors" />
               <span className="text-xs text-gray-400 group-hover:text-white">{link.label}</span>
             </Link>
           </motion.div>
@@ -119,12 +128,12 @@ export default function GuidesPage() {
             key={guide.title}
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: i * 0.08 }}
-            className="glass-glow p-6 border-[#2a2a35]"
+            transition={{ delay: i * 0.06 }}
+            className="glass-glow p-6 border-surface-border"
           >
             <div className="flex items-center gap-3 mb-4">
-              <div className="p-2 rounded-lg bg-[#00aeef]/10 border border-[#00aeef]/25">
-                <guide.icon className="w-5 h-5 text-[#00aeef]" />
+              <div className="p-2 rounded-lg bg-glow/10 border border-glow/25">
+                <guide.icon className="w-5 h-5 text-glow" />
               </div>
               <h3 className="font-display font-semibold text-white">{guide.title}</h3>
             </div>

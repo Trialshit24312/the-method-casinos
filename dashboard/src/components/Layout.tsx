@@ -37,6 +37,7 @@ import { discordInviteUrl } from '../lib/site';
 import { api } from '../api';
 import ReportSiteModal from './ReportSiteModal';
 import ShortcutsHelp from './ShortcutsHelp';
+import BackToTop from './BackToTop';
 
 const mainNav = [
   { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
@@ -123,6 +124,10 @@ export default function Layout() {
   const discordInvite = discordInviteUrl();
   const [notifyTotal, setNotifyTotal] = useState(0);
   const [reportOpen, setReportOpen] = useState(false);
+
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [location.pathname]);
 
   useEffect(() => {
     if (!user?.isAdmin) return;
@@ -259,6 +264,7 @@ export default function Layout() {
           </AnimatePresence>
         </div>
         <SiteFooter />
+        <BackToTop />
       </main>
     </div>
   );

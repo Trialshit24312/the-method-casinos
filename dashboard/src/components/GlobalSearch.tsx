@@ -12,6 +12,7 @@ const QUICK_LINKS = [
   { label: 'Guides', path: '/guides' },
   { label: 'URL checker', path: '/tools/checker' },
   { label: 'My list', path: '/mylist' },
+  { label: 'Catalog help', path: '/assistant' },
   { label: 'Status', path: '/status' },
 ];
 
@@ -69,7 +70,7 @@ export default function GlobalSearch() {
         />
       </form>
       {open && (
-        <div className="absolute top-full left-0 right-0 mt-1 z-50 rounded-xl border border-white/10 bg-[#121218] shadow-xl p-2">
+        <div className="absolute top-full left-0 right-0 mt-1 z-50 rounded-xl border border-surface-border bg-surface-raised/95 backdrop-blur-xl shadow-xl p-2">
           <p className="text-[10px] uppercase tracking-wide text-gray-600 px-2 py-1">Quick jump</p>
           {QUICK_LINKS.map((link) => (
             <button

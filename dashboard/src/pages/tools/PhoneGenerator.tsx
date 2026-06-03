@@ -119,7 +119,7 @@ export default function PhoneGeneratorPage() {
         </button>
         <div className="space-y-2">
           {phones.map((phone) => (
-            <div key={phone} className="flex items-center gap-2 p-3 rounded-lg bg-[#1a1a22] border border-[#2a2a35]">
+            <div key={phone} className="flex items-center gap-2 p-3 rounded-lg bg-surface-muted border border-surface-border">
               <code className="flex-1 text-sm text-[#d4956a] font-mono">{phone}</code>
               <button onClick={() => copy(phone)} className="p-2 text-gray-400 hover:text-[#d4956a]">
                 {copied === phone ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}

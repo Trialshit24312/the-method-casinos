@@ -73,12 +73,12 @@ export default function UrlCheckerPage() {
   return (
     <div className="p-8 max-w-4xl mx-auto">
       <PageHeader
-        icon={<ShieldCheck className="w-6 h-6 text-[#00aeef]" />}
+        icon={<ShieldCheck className="w-6 h-6 text-glow" />}
         title="URL Safety Checker"
         subtitle="Check if a casino URL is in our database, on the blocklist, or unknown"
       />
 
-      <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="glass-glow p-6 mb-8 border-[#00aeef]/20">
+      <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="glass-glow p-6 mb-8 border-glow/20">
         <div className="flex gap-3 mb-4">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-600" />
@@ -137,7 +137,7 @@ export default function UrlCheckerPage() {
                 <p className="text-sm text-gray-500 mt-1">Rating: {result.casino.rating.toFixed(1)}/5</p>
                 <div className="flex flex-wrap gap-3 mt-3 text-sm">
                   <a href={result.casino.url} target="_blank" rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1 text-[#00aeef] hover:underline">
+                    className="inline-flex items-center gap-1 text-glow hover:underline">
                     Visit site <ExternalLink className="w-3 h-3" />
                   </a>
                   <Link to={`/casinos/${result.casino.urlNormalized ?? result.casino.id}`} className="text-glow hover:underline">

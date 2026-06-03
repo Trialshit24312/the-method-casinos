@@ -26,14 +26,14 @@ export default function ServiceCard({ service, index = 0 }: ServiceCardProps) {
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: index * 0.03 }}
       whileHover={{ y: -3, scale: 1.01 }}
-      className="group block p-4 rounded-xl border border-[#2a2a35] bg-gradient-to-br from-[#121218] to-[#0f0f14]
-                 hover:border-[#00aeef]/50 hover:shadow-[0_0_28px_rgba(0,174,239,0.18)] transition-all duration-200"
+      className="group block p-4 rounded-xl border border-surface-border bg-gradient-to-br from-surface-raised to-surface
+                 hover:border-glow/50 hover:shadow-method-glow transition-all duration-200 card-shine"
     >
       <div className="flex items-start justify-between gap-3 mb-2">
-        <h4 className="font-semibold text-white group-hover:text-[#00aeef] transition-colors">
+        <h4 className="font-semibold text-white group-hover:text-glow transition-colors">
           {service.name}
         </h4>
-        <ExternalLink className="w-4 h-4 text-gray-600 group-hover:text-[#00aeef] shrink-0 mt-0.5" />
+        <ExternalLink className="w-4 h-4 text-gray-600 group-hover:text-glow shrink-0 mt-0.5" />
       </div>
       <p className="text-sm text-gray-500 mb-3 leading-relaxed line-clamp-2">{service.description}</p>
       <div className="flex flex-wrap gap-1.5">
@@ -43,7 +43,7 @@ export default function ServiceCard({ service, index = 0 }: ServiceCardProps) {
           </span>
         )}
         {service.tags.slice(0, 3).map((tag) => (
-          <span key={tag} className="text-[10px] px-2 py-0.5 rounded-full bg-[#1a1a22] text-gray-500 border border-[#2a2a35]">
+          <span key={tag} className="text-[10px] px-2 py-0.5 rounded-full bg-surface-muted text-gray-500 border border-surface-border">
             {tag}
           </span>
         ))}
@@ -76,7 +76,7 @@ export function ServiceGrid({ title, subtitle, services, searchable = false }: S
   return (
     <section className="mb-10">
       <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3 mb-4">
-        <div className="pl-3 border-l-2 border-[#b87333]">
+        <div className="pl-3 border-l-2 border-brand">
           <h3 className="font-display font-semibold text-lg text-white">{title}</h3>
           {subtitle && <p className="text-sm text-gray-500 mt-0.5">{subtitle}</p>}
           <p className="text-xs text-gray-600 mt-1">{filtered.length} site{filtered.length !== 1 ? 's' : ''}</p>

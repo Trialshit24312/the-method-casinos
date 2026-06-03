@@ -7,6 +7,7 @@ import type { Casino, CasinoFeature } from '../types';
 import { FEATURE_LABELS } from '../types';
 import PageHeader from '../components/PageHeader';
 import CasinoCard from '../components/CasinoCard';
+import EmptyState from '../components/EmptyState';
 import { usePageTitle } from '../hooks/usePageTitle';
 
 const FILTER_CHIPS: { label: string; noPhone?: boolean; vpn?: boolean; features?: CasinoFeature[] }[] = [
@@ -121,9 +122,16 @@ export default function RandomPick() {
       )}
 
       {!pick && !loading && !error && (
-        <p className="text-gray-500 text-sm text-center py-12">
-          Choose a filter preset and roll — or use <code className="text-glow">/random</code> in Discord.
-        </p>
+        <EmptyState
+          icon={Dices}
+          title="Ready to roll"
+          description="Choose a filter preset above, then spin the verified catalog — same engine as Discord /random."
+          action={
+            <button type="button" onClick={() => void roll()} className="btn-primary text-sm">
+              Roll now
+            </button>
+          }
+        />
       )}
     </div>
   );

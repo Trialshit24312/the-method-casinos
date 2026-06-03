@@ -82,9 +82,9 @@ export default function AdminInsights() {
               <p className="text-3xl font-bold text-emerald-300 mt-1">{data.catalogGrowth30d}</p>
               <p className="text-xs text-gray-600 mt-1">approved operators</p>
             </div>
-            <div className="glass-glow p-4 border-[#00aeef]/20">
+            <div className="glass-glow p-4 border-glow/20">
               <p className="text-xs text-gray-500 uppercase">Discovery 7d</p>
-              <p className="text-lg font-bold text-[#00aeef] mt-1">
+              <p className="text-lg font-bold text-glow mt-1">
                 +{data.discoveryLast7d.added} / {data.discoveryLast7d.rejected} rej
               </p>
               <p className="text-xs text-gray-600">{data.discoveryLast7d.runs} scan runs</p>
