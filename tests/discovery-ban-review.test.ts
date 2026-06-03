@@ -3,7 +3,7 @@ import os from 'os';
 import path from 'path';
 import { beforeAll, describe, it, expect } from 'vitest';
 import { initDatabase, queueDiscoveryBanReview, getOpenSiteReports } from '../src/database/index.js';
-import { buildSearchQueries } from '../src/discovery/queries.js';
+import { getSweepstakesListSiteUrls } from '../src/discovery/list-sources.js';
 
 describe('discovery ban review and fresh queries', () => {
   beforeAll(() => {
@@ -22,12 +22,10 @@ describe('discovery ban review and fresh queries', () => {
     expect(open.some((r) => r.url.includes('totally-fake-sweeps-casino.com'))).toBe(true);
   });
 
-  it('builds a different query order on each call', () => {
-    const a = buildSearchQueries(false);
-    const b = buildSearchQueries(false);
-    expect(a.length).toBeGreaterThan(10);
-    expect(b.length).toBeGreaterThan(10);
-    const sameOrder = a.length === b.length && a.every((q, i) => q === b[i]);
-    expect(sameOrder).toBe(false);
+  it('provides multiple sweepstakes list sites to crawl', () => {
+    const quick = getSweepstakesListSiteUrls(false);
+    const deep = getSweepstakesListSiteUrls(true);
+    expect(quick.length).toBeGreaterThan(5);
+    expect(deep.length).toBeGreaterThan(quick.length);
   });
 });

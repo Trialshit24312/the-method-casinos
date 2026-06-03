@@ -177,7 +177,7 @@ export interface DiscoveryResult {
   addedCasinos: { name: string; url: string }[];
 }
 
-export type DiscoveryPhase = 'curated' | 'search' | 'analyze' | 'crawl';
+export type DiscoveryPhase = 'curated' | 'lists' | 'search' | 'analyze' | 'crawl';
 
 export interface DiscoveryLiveStats {
   scanned: number;

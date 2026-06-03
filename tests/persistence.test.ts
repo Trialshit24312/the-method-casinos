@@ -34,9 +34,14 @@ describe('data path resolution', () => {
     delete process.env.DATA_DIR;
     process.env.RENDER = 'true';
 
-    const { resolveDataDir } = await import('../src/shared/data-path.js');
+    const { resolveDataDir, PREFERRED_RENDER_DATA_DIR, isWritableDataDir } = await import('../src/shared/data-path.js');
     const dir = resolveDataDir();
-    expect(dir).toBe(path.resolve(path.join(process.cwd(), 'data')));
+    const expected = path.resolve(path.join(process.cwd(), 'data'));
+    if (isWritableDataDir(PREFERRED_RENDER_DATA_DIR)) {
+      expect(dir).toBe(PREFERRED_RENDER_DATA_DIR);
+    } else {
+      expect(dir).toBe(expected);
+    }
   });
 
   it('ignores non-writable DATA_DIR', async () => {

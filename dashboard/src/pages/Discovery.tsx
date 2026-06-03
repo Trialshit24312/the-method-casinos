@@ -31,6 +31,7 @@ function shortUrl(url: string): string {
 
 const PHASE_LABELS: Record<string, string> = {
   curated: 'Syncing verified catalog',
+  lists: 'Crawling sweepstakes list sites',
   search: 'Searching the web',
   analyze: 'Validating sweepstakes pages',
   crawl: 'Crawling related links',

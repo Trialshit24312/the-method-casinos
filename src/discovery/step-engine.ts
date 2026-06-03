@@ -21,7 +21,8 @@ import {
 import { getVerifiedCuratedDiscoveries } from '../shared/verified-casinos.js';
 import { buildSearchQueries, SEARCH_PAGES_DEEP, SEARCH_PAGES_QUICK } from './queries.js';
 import { collectFreeSearchLinks, extractCasinoUrlsFromHtml, normalizeSearchLink } from './free-search.js';
-import { mineOperatorsFromDirectoryPage } from './directory-miner.js';
+import { extractOperatorLinksFromListPage, mineOperatorsFromDirectoryPage } from './directory-miner.js';
+import { getSweepstakesListSiteUrls, isListSiteDiscoveryEnabled, isWebSearchDiscoveryEnabled } from './list-sources.js';
 import { beginDiscoveryRun, endDiscoveryRun, throwIfCancelled } from './run-state.js';
 import { beginDiscoveryLive, pushDiscoveryLiveEvent, finishDiscoveryLive } from './live-state.js';
 import { resumeDiscoveryLiveStorage } from '../database/index.js';
@@ -117,6 +118,8 @@ export interface DiscoverySessionState {
   pendingClientSearch: { queries: string[]; searchPages: number } | null;
   browserValidateUrls: string[];
   browserCrawlUrls: string[];
+  listSiteUrls: string[];
+  listSiteIndex: number;
 }
 
 export interface ClientSearchRequest {
@@ -338,6 +341,8 @@ function buildInitialState(deep: boolean): DiscoverySessionState {
     pendingClientSearch: null,
     browserValidateUrls: [],
     browserCrawlUrls: [],
+    listSiteUrls: isListSiteDiscoveryEnabled() ? getSweepstakesListSiteUrls(deep) : [],
+    listSiteIndex: 0,
   };
 }
 
@@ -419,6 +424,10 @@ async function runClientDiscoveryStepInner(
   if (!state.browserCrawlUrls) {
     state.browserCrawlUrls = [];
   }
+  if (!state.listSiteUrls) {
+    state.listSiteUrls = isListSiteDiscoveryEnabled() ? getSweepstakesListSiteUrls(state.mode === 'deep') : [];
+    state.listSiteIndex = state.listSiteIndex ?? 0;
+  }
 
   // Keep in sync with DB — casinos added in prior steps must stay known.
   state.knownHosts = [...getKnownHosts()];
@@ -447,22 +456,77 @@ async function runClientDiscoveryStepInner(
         publish(onProgress, { type: 'url_added', url: toCasinoRootUrl(raw.url), name: raw.name });
       }
     }
-    if (state.config.crawlKnownCasinos && state.crawlCasinoUrls.length) {
+    if (isListSiteDiscoveryEnabled() && state.listSiteUrls.length) {
+      state.phase = 'lists';
+      setPhase(state, 'lists', `Crawling ${state.listSiteUrls.length} sweepstakes list sites…`, onProgress);
+    } else if (state.config.crawlKnownCasinos && state.crawlCasinoUrls.length) {
       state.phase = 'crawl';
       setPhase(state, 'crawl', `Mining links from ${state.crawlCasinoUrls.length} active casinos…`, onProgress);
-    } else {
+    } else if (state.searchQueries.length > 0) {
       state.phase = 'search';
-      setPhase(state, 'search', `Browser search — ${state.searchQueries.length} queries from your computer…`, onProgress);
+      setPhase(state, 'search', `Browser search — ${state.searchQueries.length} queries…`, onProgress);
+    } else {
+      state.phase = 'analyze';
+      setPhase(state, 'analyze', `Validating ${state.urlQueue.length} candidate URLs…`, onProgress);
     }
     saveDiscoverySession(state);
     emitProgress(state, onProgress);
     return { done: false };
   }
 
+  if (state.phase === 'lists') {
+    if (state.listSiteIndex >= state.listSiteUrls.length) {
+      if (state.config.crawlKnownCasinos && state.crawlCasinoUrls.length) {
+        state.phase = 'crawl';
+        state.crawlIndex = 0;
+        setPhase(state, 'crawl', `Mining links from ${state.crawlCasinoUrls.length} active casinos…`, onProgress);
+      } else if (state.searchQueries.length > 0) {
+        state.phase = 'search';
+        setPhase(state, 'search', `Browser search — ${state.searchQueries.length} queries…`, onProgress);
+      } else {
+        state.phase = 'analyze';
+        setPhase(state, 'analyze', `Validating ${state.urlQueue.length - state.queueIndex} URLs…`, onProgress);
+      }
+      saveDiscoverySession(state);
+      return { done: false };
+    }
+
+    const siteUrl = state.listSiteUrls[state.listSiteIndex++]!;
+    state.sourcesChecked++;
+    publish(onProgress, { type: 'url_scanning', url: `${new URL(siteUrl).hostname} (list site)` });
+    let linksQueued = 0;
+    const html = await fetchPage(siteUrl);
+    if (html) {
+      for (const link of extractOperatorLinksFromListPage(html, siteUrl)) {
+        if (enqueue(state, link, onProgress)) linksQueued++;
+      }
+    } else if (!state.browserCrawlUrls.includes(siteUrl)) {
+      state.browserCrawlUrls.push(siteUrl);
+    }
+    publish(onProgress, {
+      type: 'crawl_summary',
+      crawled: state.listSiteIndex,
+      linksQueued,
+      label: `List site ${new URL(siteUrl).hostname} → ${linksQueued} casinos queued`,
+    });
+    saveDiscoverySession(state);
+    emitProgress(state, onProgress);
+
+    const browserCrawl = maybeReturnBrowserCrawl(state, onProgress);
+    if (browserCrawl) return browserCrawl;
+
+    return { done: false };
+  }
+
   if (state.phase === 'crawl') {
     if (state.crawlIndex >= state.crawlCasinoUrls.length) {
-      state.phase = 'search';
-      setPhase(state, 'search', `Browser search — ${state.searchQueries.length} queries from your computer…`, onProgress);
+      if (state.searchQueries.length > 0) {
+        state.phase = 'search';
+        setPhase(state, 'search', `Browser search — ${state.searchQueries.length} queries…`, onProgress);
+      } else {
+        state.phase = 'analyze';
+        setPhase(state, 'analyze', `Validating ${state.urlQueue.length - state.queueIndex} URLs…`, onProgress);
+      }
       saveDiscoverySession(state);
       return { done: false };
     }
@@ -853,7 +917,10 @@ export function submitBrowserCrawlPages(
   for (const page of pages.slice(0, 6)) {
     if (!page.url?.trim() || !page.html?.trim()) continue;
     const root = toCasinoRootUrl(page.url);
-    for (const link of extractCasinoUrlsFromHtml(page.html, root, 'page')) {
+    const links = isSweepstakesDirectoryUrl(root)
+      ? extractOperatorLinksFromListPage(page.html, root)
+      : extractCasinoUrlsFromHtml(page.html, root, 'page');
+    for (const link of links) {
       if (enqueue(state, link, onProgress)) linksQueued++;
     }
   }

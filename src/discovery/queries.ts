@@ -1,6 +1,7 @@
 import { VERIFIED_CASINO_SEEDS } from '../shared/verified-casinos.js';
+import { isWebSearchDiscoveryEnabled } from './list-sources.js';
 
-/** Find roundup / directory pages that list dozens or hundreds of sweepstakes casinos. */
+/** Optional — only when DISCOVERY_WEB_SEARCH=1 (default is list-site crawl only). */
 const SWEEPSTAKES_LIST_QUERIES = [
   'complete list of US sweepstakes casinos',
   'full list sweepstakes casino sites USA',
@@ -70,8 +71,10 @@ function uniqueStrings(items: string[]): string[] {
   return [...new Set(items.map((s) => s.trim()).filter(Boolean))];
 }
 
-/** Build sweepstakes-only queries — list pages first, then operators. */
+/** Web search queries — empty unless DISCOVERY_WEB_SEARCH=1. */
 export function buildSearchQueries(deep: boolean): string[] {
+  if (!isWebSearchDiscoveryEnabled()) return [];
+
   const queries: string[] = [...SWEEPSTAKES_LIST_QUERIES, ...SWEEPSTAKES_OPERATOR_QUERIES];
 
   for (const op of TOP_OPERATORS) {

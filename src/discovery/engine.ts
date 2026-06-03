@@ -24,8 +24,9 @@ import {
 import { getVerifiedCuratedDiscoveries } from '../shared/verified-casinos.js';
 import { buildSearchQueries, SEARCH_PAGES_DEEP, SEARCH_PAGES_QUICK } from './queries.js';
 import { collectFreeSearchLinks, extractCasinoUrlsFromHtml } from './free-search.js';
-import { mineOperatorsFromDirectoryPage } from './directory-miner.js';
+import { mineOperatorsFromDirectoryPage, mineAllListSites } from './directory-miner.js';
 import { isSweepstakesDirectoryUrl } from './filters.js';
+import { getSweepstakesListSiteUrls, isListSiteDiscoveryEnabled, isWebSearchDiscoveryEnabled } from './list-sources.js';
 import { beginDiscoveryRun, endDiscoveryRun, throwIfCancelled } from './run-state.js';
 import { notifyDiscoveryComplete, notifyPendingDiscovery } from '../shared/notify.js';
 
@@ -448,6 +449,37 @@ export async function runDiscovery(deep = false, onProgress?: DiscoveryProgressC
   }
   emitProgress();
 
+  if (isListSiteDiscoveryEnabled()) {
+    const listUrls = getSweepstakesListSiteUrls(deep);
+    setPhase('lists', `Crawling ${listUrls.length} sweepstakes list sites for casino links…`);
+    const { sitesCrawled, linksQueued } = await mineAllListSites(
+      listUrls,
+      fetchPage,
+      enqueue,
+      (siteUrl, n) => {
+        onProgress?.({
+          type: 'crawl_summary',
+          crawled: 1,
+          linksQueued: n,
+          label: `List site ${new URL(siteUrl).hostname} → ${n} casinos queued`,
+        });
+      },
+    );
+    sourcesChecked += sitesCrawled;
+    onProgress?.({
+      type: 'crawl_summary',
+      crawled: sitesCrawled,
+      linksQueued,
+      label: `List sites done: ${linksQueued} operators queued from ${sitesCrawled} pages`,
+    });
+    emitProgress();
+
+    while (queueIndex < urlQueue.length && timeLeft() > 0 && webAnalyzes < config.maxWebAnalyzes) {
+      const processed = await processQueueBatch(3);
+      if (processed === 0) break;
+    }
+  }
+
   if (config.crawlKnownCasinos) {
     setPhase('crawl', `Mining links from ${deep ? 'all' : 'sample'} known casinos…`);
     const { crawled, linksQueued } = await crawlKnownCasinosForLinks(
@@ -463,7 +495,8 @@ export async function runDiscovery(deep = false, onProgress?: DiscoveryProgressC
     });
   }
 
-  setPhase('search', `Sweepstakes list & operator search — ${searchQueries.length} queries (DDG, Bing, Brave — ${config.searchPages} pages each)…`);
+  if (isWebSearchDiscoveryEnabled() && searchQueries.length > 0) {
+  setPhase('search', `Web search — ${searchQueries.length} queries (DDG, Bing, Brave)…`);
   for (queryIndex = 0; queryIndex < searchQueries.length && timeLeft() > 0; queryIndex++) {
     throwIfCancelled();
     const query = searchQueries[queryIndex];
@@ -491,6 +524,9 @@ export async function runDiscovery(deep = false, onProgress?: DiscoveryProgressC
     }
 
     await sleep(config.delayMs);
+  }
+  } else if (!isListSiteDiscoveryEnabled()) {
+    setPhase('search', 'No list sites or web search configured — enable list sites (default) or DISCOVERY_WEB_SEARCH=1');
   }
 
   setPhase('analyze', 'Validating remaining candidate URLs…');

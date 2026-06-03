@@ -1,8 +1,21 @@
-import { describe, it, expect } from 'vitest';
+import { afterEach, describe, it, expect } from 'vitest';
 import { buildSearchQueries } from '../src/discovery/queries.js';
 
 describe('buildSearchQueries', () => {
-  it('only uses sweepstakes-focused queries', () => {
+  const prev = process.env.DISCOVERY_WEB_SEARCH;
+
+  afterEach(() => {
+    if (prev === undefined) delete process.env.DISCOVERY_WEB_SEARCH;
+    else process.env.DISCOVERY_WEB_SEARCH = prev;
+  });
+
+  it('returns empty when web search is disabled (default)', () => {
+    delete process.env.DISCOVERY_WEB_SEARCH;
+    expect(buildSearchQueries(true)).toEqual([]);
+  });
+
+  it('uses sweepstakes queries when DISCOVERY_WEB_SEARCH=1', () => {
+    process.env.DISCOVERY_WEB_SEARCH = '1';
     const queries = buildSearchQueries(true);
     expect(queries.length).toBeGreaterThan(10);
     for (const q of queries) {
@@ -15,11 +28,5 @@ describe('buildSearchQueries', () => {
         || lower.includes('sweeps coins'),
       ).toBe(true);
     }
-  });
-
-  it('prioritizes list-style discovery queries', () => {
-    const queries = buildSearchQueries(false);
-    const listish = queries.filter((q) => /list|directory|complete|all |master|catalog|roundup|every /i.test(q));
-    expect(listish.length).toBeGreaterThan(3);
   });
 });

@@ -469,6 +469,7 @@ export function buildDiscoveryProgressEmbed(stats: {
 }): EmbedBuilder {
   const phaseLabels: Record<string, string> = {
     curated: '📋 Syncing verified catalog',
+    lists: '📋 Crawling sweepstakes list sites',
     search: '🔎 Free web search (DDG · Bing · Brave)',
     analyze: '🔬 Validating sweepstakes pages',
     crawl: '🕸️ Crawling related links',
