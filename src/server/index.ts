@@ -54,9 +54,10 @@ import {
 import { runDiscovery } from '../discovery/engine.js';
 import {
   cancelDiscoveryRun,
-  canStartDiscoveryRun,
+  ensureUserDiscoverySlot,
   getActiveDiscoveryRunCount,
   getMaxConcurrentDiscoveries,
+  getMaxSystemDiscoveries,
   isDiscoveryRunning,
 } from '../discovery/run-state.js';
 import { runRevalidationBatch, revalidateCasinoById } from '../discovery/revalidate.js';
@@ -635,9 +636,9 @@ export function createServer(): express.Application {
 
   app.post('/api/discover/client/start', discoverStartLimit, requireAuth, requireAdmin, (req, res) => {
     const deep = Boolean(req.body?.deep);
-    if (!canStartDiscoveryRun()) {
+    if (!ensureUserDiscoverySlot()) {
       res.status(409).json({
-        error: `Maximum concurrent discovery runs (${getMaxConcurrentDiscoveries()}) reached`,
+        error: `Discovery slots full (${getActiveDiscoveryRunCount()}/${getMaxConcurrentDiscoveries()} — ${getMaxSystemDiscoveries()} reserved for 24/7 workers). Try again shortly or cancel a running scan.`,
         active: getActiveDiscoveryRunCount(),
       });
       return;
@@ -675,8 +676,8 @@ export function createServer(): express.Application {
       res.status(404).json({ error: 'No saved scan to resume' });
       return;
     }
-    if (!canStartDiscoveryRun()) {
-      res.status(409).json({ error: `Maximum concurrent discovery runs (${getMaxConcurrentDiscoveries()}) reached` });
+    if (!ensureUserDiscoverySlot()) {
+      res.status(409).json({ error: `Discovery slots full — 24/7 workers are using all slots. A slot will free up when you start a scan (oldest worker paused) or wait for completion.` });
       return;
     }
     try {
@@ -843,9 +844,9 @@ export function createServer(): express.Application {
 
     try {
       if (stream) {
-        if (!canStartDiscoveryRun()) {
+        if (!ensureUserDiscoverySlot()) {
           res.status(409).json({
-            error: `Maximum concurrent discovery runs (${getMaxConcurrentDiscoveries()}) reached`,
+            error: `Discovery slots full (${getActiveDiscoveryRunCount()}/${getMaxConcurrentDiscoveries()}). Oldest 24/7 worker will pause when you retry.`,
             active: getActiveDiscoveryRunCount(),
           });
           return;
@@ -874,9 +875,9 @@ export function createServer(): express.Application {
         return;
       }
 
-      if (!canStartDiscoveryRun()) {
+      if (!ensureUserDiscoverySlot()) {
         res.status(409).json({
-          error: `Maximum concurrent discovery runs (${getMaxConcurrentDiscoveries()}) reached`,
+          error: `Discovery slots full (${getActiveDiscoveryRunCount()}/${getMaxConcurrentDiscoveries()}). Try again — a 24/7 worker slot may be freed.`,
           active: getActiveDiscoveryRunCount(),
         });
         return;

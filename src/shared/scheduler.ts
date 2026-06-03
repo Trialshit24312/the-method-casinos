@@ -53,7 +53,7 @@ export function scheduleBackgroundJobs(): void {
     const ms = discoveryHours * 60 * 60 * 1000;
     const deep = process.env.DISCOVERY_SCHEDULE_DEEP === 'true';
     setInterval(() => {
-      if (!canStartDiscoveryRun() || isDiscoveryLiveActive()) return;
+      if (!canStartDiscoveryRun('system') || isDiscoveryLiveActive()) return;
       console.log(`🔍 Scheduled ${deep ? 'deep' : 'quick'} discovery starting…`);
       void runDiscovery(deep).then((r) => {
         console.log(`🔍 Scheduled discovery done: +${r.added} queued, ${r.rejected} rejected`);

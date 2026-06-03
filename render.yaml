@@ -85,7 +85,13 @@ services:
       - key: DISCOVERY_CONTINUOUS
         value: "true"
       - key: DISCOVERY_MAX_CONCURRENT
-        value: "3"
+        value: "4"
+      - key: DISCOVERY_SYSTEM_MAX
+        value: "1"
+      - key: DISCOVERY_USER_SLOTS
+        value: "2"
+      - key: DISCOVERY_LIST_RECRAWL_HOURS
+        value: "12"
       - key: DISCOVERY_CONTINUOUS_COOLDOWN_SEC
         value: "90"
       - key: DISCOVERY_CONTINUOUS_BOOT_DELAY_SEC

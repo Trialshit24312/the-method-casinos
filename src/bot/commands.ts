@@ -40,7 +40,7 @@ import {
 import { saveDiscoveryCandidateForReview } from '../discovery/engine.js';
 import { revalidateCasinoById } from '../discovery/revalidate.js';
 import { runDiscovery } from '../discovery/engine.js';
-import { canStartDiscoveryRun, getActiveDiscoveryRunCount, getMaxConcurrentDiscoveries } from '../discovery/run-state.js';
+import { ensureUserDiscoverySlot, getActiveDiscoveryRunCount, getMaxConcurrentDiscoveries, getMaxSystemDiscoveries } from '../discovery/run-state.js';
 import {
   buildCasinoEmbed,
   buildCasinoButtons,
@@ -453,11 +453,12 @@ export const commands: Command[] = [
         return;
       }
 
-      if (!canStartDiscoveryRun()) {
+      if (!ensureUserDiscoverySlot()) {
         const max = getMaxConcurrentDiscoveries();
         const active = getActiveDiscoveryRunCount();
+        const systemMax = getMaxSystemDiscoveries();
         await interaction.reply({
-          content: `❌ ${active}/${max} discovery scans already running. Wait for one to finish or raise DISCOVERY_MAX_CONCURRENT.`,
+          content: `❌ ${active}/${max} discovery slots in use (${systemMax} reserved for 24/7 workers). Retrying will pause the oldest worker, or wait for a scan to finish.`,
           ephemeral: true,
         });
         return;

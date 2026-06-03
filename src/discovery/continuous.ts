@@ -4,7 +4,9 @@ import {
   canStartDiscoveryRun,
   endDiscoveryRun,
   getActiveDiscoveryRunCount,
+  getActiveSystemRunCount,
   getMaxConcurrentDiscoveries,
+  getMaxSystemDiscoveries,
   tryBeginDiscoveryRun,
 } from './run-state.js';
 import { releaseListSitesForRun } from './list-site-coordinator.js';
@@ -54,8 +56,8 @@ function trySpawnWorkers(): void {
   if (!isContinuousDiscoveryEnabled()) return;
   if (clientDiscoveryActive()) return;
 
-  while (canStartDiscoveryRun()) {
-    const started = tryBeginDiscoveryRun();
+  while (canStartDiscoveryRun('system')) {
+    const started = tryBeginDiscoveryRun('system');
     if (!started) break;
     void runDeepCycle(started.runId);
   }
@@ -73,17 +75,21 @@ export function startContinuousDiscovery(): void {
   if (loopStarted) return;
   loopStarted = true;
 
-  const max = getMaxConcurrentDiscoveries();
-  console.log(`⏱️  24/7 discovery: up to ${max} parallel deep scans, rotating list sites`);
+  const max = getMaxSystemDiscoveries();
+  console.log(
+    `⏱️  24/7 discovery: up to ${getMaxSystemDiscoveries()} system worker(s), ${getMaxConcurrentDiscoveries()} total slots`,
+  );
 
   scheduleWorkerPump(bootDelayMs());
 }
 
 /** Exposed for health/debug. */
-export function getContinuousDiscoveryStatus(): { enabled: boolean; activeWorkers: number; maxWorkers: number } {
+export function getContinuousDiscoveryStatus(): { enabled: boolean; activeWorkers: number; maxWorkers: number; systemWorkers: number; maxSystemWorkers: number } {
   return {
     enabled: isContinuousDiscoveryEnabled(),
     activeWorkers: getActiveDiscoveryRunCount(),
     maxWorkers: getMaxConcurrentDiscoveries(),
+    systemWorkers: getActiveSystemRunCount(),
+    maxSystemWorkers: getMaxSystemDiscoveries(),
   };
 }

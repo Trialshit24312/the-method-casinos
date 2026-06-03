@@ -12,6 +12,7 @@ import {
   touchLastCheckedAt,
   banRejectedDiscovery,
   setCasinoHealth,
+  getDatabase,
 } from '../database/index.js';
 import { casinoHostKey, toCasinoRootUrl, isValidCasinoHost } from '../shared/utils.js';
 import { inferRating } from '../shared/rating.js';
@@ -32,6 +33,7 @@ import { claimListSitesForRun, markListSiteCrawled, releaseListSitesForRun } fro
 import {
   beginDiscoveryRun,
   endDiscoveryRun,
+  ensureUserDiscoverySlot,
   getMaxConcurrentDiscoveries,
   throwIfCancelled,
   tryBeginDiscoveryRun,
@@ -39,6 +41,21 @@ import {
 import { notifyDiscoveryComplete, notifyPendingDiscovery } from '../shared/notify.js';
 
 export type DiscoveryProgressCallback = (event: DiscoveryProgressEvent) => void;
+
+function getLastKnownCrawlAt(url: string): number {
+  try {
+    const key = casinoHostKey(toCasinoRootUrl(url));
+    const row = getDatabase().prepare(`
+      SELECT last_seen_at FROM discovery_seen
+      WHERE url_normalized = ? AND outcome = 'known_crawl'
+    `).get(key) as { last_seen_at: string } | undefined;
+    if (!row?.last_seen_at) return 0;
+    const t = Date.parse(row.last_seen_at);
+    return Number.isFinite(t) ? t : 0;
+  } catch {
+    return 0;
+  }
+}
 
 interface RawDiscovery {
   name: string;
@@ -309,7 +326,12 @@ async function crawlKnownCasinosForLinks(
   limit = 40,
 ): Promise<{ crawled: number; linksQueued: number }> {
   const casinos = getAllCasinos(true);
-  const shuffled = casinos.sort(() => Math.random() - 0.5).slice(0, limit);
+  const shuffled = [...casinos].sort((a, b) => {
+    const ta = getLastKnownCrawlAt(a.url);
+    const tb = getLastKnownCrawlAt(b.url);
+    if (ta !== tb) return ta - tb;
+    return Math.random() - 0.5;
+  }).slice(0, limit);
   let crawled = 0;
   let linksQueued = 0;
 
@@ -317,6 +339,7 @@ async function crawlKnownCasinosForLinks(
     const root = toCasinoRootUrl(casino.url);
     const html = await fetchPage(root);
     crawled++;
+    markDiscoverySeen(root, 'known_crawl', 'catalog link mine');
     if (html) {
       for (const link of extractCasinoUrlsFromHtml(html, root, 'page')) {
         if (enqueue(link)) linksQueued++;
@@ -342,7 +365,9 @@ export async function runDiscovery(
   const registerRun = options?.registerRun !== false;
   let runId = options?.runId;
   if (registerRun) {
-    const started = runId ? beginDiscoveryRun(runId) : tryBeginDiscoveryRun();
+    const started = runId
+      ? beginDiscoveryRun(runId, 'system')
+      : (ensureUserDiscoverySlot() ? tryBeginDiscoveryRun('user') : null);
     if (!started) {
       throw new Error(`Maximum concurrent discovery runs (${getMaxConcurrentDiscoveries()}) reached`);
     }

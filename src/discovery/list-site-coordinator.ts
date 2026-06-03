@@ -45,6 +45,18 @@ function getLastListCrawlAt(pageUrl: string): number {
 }
 
 /** Prefer list pages not crawled recently; shuffle ties for variety. */
+function listRecrawlMinMs(): number {
+  const hours = parseInt(process.env.DISCOVERY_LIST_RECRAWL_HOURS ?? '12', 10);
+  return (Number.isFinite(hours) && hours >= 0 ? hours : 12) * 3600_000;
+}
+
+function isListSiteEligible(pageUrl: string, forceAll = false): boolean {
+  if (forceAll) return true;
+  const last = getLastListCrawlAt(pageUrl);
+  if (last === 0) return true;
+  return Date.now() - last >= listRecrawlMinMs();
+}
+
 function sortListSitesByStaleness(urls: string[]): string[] {
   return [...urls].sort((a, b) => {
     const diff = getLastListCrawlAt(a) - getLastListCrawlAt(b);
@@ -68,8 +80,11 @@ function sitesPerRun(deep: boolean, poolSize: number): number {
 export function claimListSitesForRun(runId: string, deep: boolean): string[] {
   pruneExpiredClaims();
   const pool = getAllSweepstakesListSiteUrls();
-  const available = pool.filter((u) => !isClaimedByOther(u, runId));
-  const sorted = sortListSitesByStaleness(available);
+  let eligible = pool.filter((u) => !isClaimedByOther(u, runId) && isListSiteEligible(u));
+  if (eligible.length < sitesPerRun(deep, pool.length)) {
+    eligible = pool.filter((u) => !isClaimedByOther(u, runId));
+  }
+  const sorted = sortListSitesByStaleness(eligible);
   const count = Math.min(sitesPerRun(deep, pool.length), sorted.length);
   const picked = sorted.slice(0, count);
   const until = Date.now() + CLAIM_LEASE_MS;

@@ -95,6 +95,12 @@ export function initDatabase(): Database.Database {
 
     CREATE INDEX IF NOT EXISTS idx_discovery_seen_at ON discovery_seen(last_seen_at);
 
+    CREATE TABLE IF NOT EXISTS discovery_meta (
+      key TEXT PRIMARY KEY,
+      value TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+
     CREATE TABLE IF NOT EXISTS site_reports (
       id TEXT PRIMARY KEY,
       url TEXT NOT NULL,
@@ -941,10 +947,24 @@ export function getRecentlyApprovedCasinos(limit = 24): Casino[] {
   const rows = db.prepare(`
     SELECT * FROM casinos
     WHERE active = 1 AND review_status = 'approved' AND verified = 1
-    ORDER BY COALESCE(approved_at, created_at) DESC
+      AND approved_at IS NOT NULL
+    ORDER BY approved_at DESC
     LIMIT @limit
   `).all({ limit: Math.min(limit, 50) });
   return rows.map((r) => rowToCasino(r as Record<string, unknown>));
+}
+
+export function getDiscoveryMeta(key: string): string | null {
+  const row = db.prepare('SELECT value FROM discovery_meta WHERE key = ?').get(key) as { value: string } | undefined;
+  return row?.value ?? null;
+}
+
+export function setDiscoveryMeta(key: string, value: string): void {
+  const now = new Date().toISOString();
+  db.prepare(`
+    INSERT INTO discovery_meta (key, value, updated_at) VALUES (@key, @value, @now)
+    ON CONFLICT(key) DO UPDATE SET value = @value, updated_at = @now
+  `).run({ key, value, now });
 }
 
 export interface AdminInsights {

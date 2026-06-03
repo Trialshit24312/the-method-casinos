@@ -69,7 +69,7 @@ export default function NewArrivals() {
         <EmptyState
           icon={Sparkles}
           title="No new arrivals yet"
-          description="Recently approved operators will appear here after the next review cycle."
+          description="Recently approved operators appear here after admins clear the Review Queue — seed catalog entries are excluded."
           action={<Link to="/casinos" className="btn-glow text-sm">Browse catalog</Link>}
         />
       ) : (
