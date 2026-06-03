@@ -48,6 +48,7 @@ import { runRevalidationBatch, revalidateCasinoById } from '../discovery/revalid
 import { requireAuth, requireAdmin, exchangeCode, getDiscordAuthUrl, getAvatarUrl, createOAuthState, parseOAuthState } from './auth.js';
 import type { CasinoFeature, CasinoInput, BlockedSiteInput, DiscoveryResult } from '../shared/types.js';
 import { getAllowedCorsOrigins, getDiscordRedirectUri, getOAuthSetupInfo } from '../shared/site.js';
+import { getDbPath } from '../shared/data-path.js';
 import { applySecurityMiddleware } from './middleware.js';
 import rateLimit from 'express-rate-limit';
 import {
@@ -57,6 +58,12 @@ import {
   isDiscoveryLiveActive,
   pushDiscoveryLiveEvent,
 } from '../discovery/live-state.js';
+import {
+  startClientDiscovery,
+  runClientDiscoveryStep,
+  cancelClientDiscovery,
+} from '../discovery/step-engine.js';
+import { hasDiscoverySession } from '../database/index.js';
 import { SqliteSessionStore } from './session-store.js';
 import { getBotHealth } from '../bot/state.js';
 import { registerHttpServer } from '../shared/shutdown.js';
@@ -111,6 +118,7 @@ export function createServer(): express.Application {
       res.json({
         ok: true,
         db: true,
+        dbPath: getDbPath(),
         bot: bot.connected,
         botTag: bot.tag,
         discoveryRunning: isDiscoveryRunning(),
@@ -479,21 +487,56 @@ export function createServer(): express.Application {
     res.json({ ok: true });
   });
 
-  app.post('/api/discover/cancel', requireAuth, requireAdmin, (_req, res) => {
-    res.json({ cancelled: cancelDiscoveryRun() });
-  });
-
-  app.get('/api/discover/live', requireAuth, requireAdmin, (req, res) => {
-    const since = Math.max(0, parseInt(String(req.query.since ?? '0'), 10) || 0);
-    res.json(getDiscoveryLiveSnapshot(since));
-  });
-
   const discoverStartLimit = rateLimit({
     windowMs: 60 * 60 * 1000,
     max: 6,
     standardHeaders: true,
     legacyHeaders: false,
     message: { error: 'Discovery rate limit — wait before starting another scan' },
+  });
+
+  app.post('/api/discover/cancel', requireAuth, requireAdmin, (_req, res) => {
+    cancelClientDiscovery();
+    res.json({ cancelled: cancelDiscoveryRun() });
+  });
+
+  app.post('/api/discover/client/start', discoverStartLimit, requireAuth, requireAdmin, (req, res) => {
+    const deep = Boolean(req.body?.deep);
+    if (isDiscoveryRunning() || isDiscoveryLiveActive() || hasDiscoverySession()) {
+      res.status(409).json({ error: 'Discovery scan already running' });
+      return;
+    }
+    try {
+      startClientDiscovery(deep);
+      res.status(202).json({ started: true, mode: deep ? 'deep' : 'quick', client: true });
+    } catch (err) {
+      res.status(500).json({ error: err instanceof Error ? err.message : 'Failed to start scan' });
+    }
+  });
+
+  app.post('/api/discover/client/step', requireAuth, requireAdmin, async (req, res) => {
+    if (!hasDiscoverySession()) {
+      res.status(400).json({ error: 'No active discovery session — start a scan first' });
+      return;
+    }
+    const since = Math.max(0, parseInt(String(req.body?.since ?? '0'), 10) || 0);
+    try {
+      const step = await runClientDiscoveryStep(pushDiscoveryLiveEvent);
+      const live = getDiscoveryLiveSnapshot(since);
+      res.json({ ...step, live });
+    } catch (err) {
+      if (err instanceof Error && err.message === 'Discovery cancelled') {
+        cancelClientDiscovery();
+        res.json({ done: true, cancelled: true, live: getDiscoveryLiveSnapshot(0) });
+        return;
+      }
+      res.status(500).json({ error: err instanceof Error ? err.message : 'Step failed' });
+    }
+  });
+
+  app.get('/api/discover/live', requireAuth, requireAdmin, (req, res) => {
+    const since = Math.max(0, parseInt(String(req.query.since ?? '0'), 10) || 0);
+    res.json(getDiscoveryLiveSnapshot(since));
   });
 
   app.get('/api/discovery/history', requireAuth, requireAdmin, (req, res) => {
@@ -521,8 +564,8 @@ export function createServer(): express.Application {
 
     try {
       if (stream) {
-        if (isDiscoveryRunning() || isDiscoveryLiveActive()) {
-          res.status(409).json({ error: 'Discovery scan already running' });
+        if (isDiscoveryRunning() || isDiscoveryLiveActive() || hasDiscoverySession()) {
+          res.status(409).json({ error: 'Discovery scan already running — use client mode from the dashboard' });
           return;
         }
 
@@ -545,7 +588,7 @@ export function createServer(): express.Application {
         return;
       }
 
-      if (isDiscoveryRunning() || isDiscoveryLiveActive()) {
+      if (isDiscoveryRunning() || isDiscoveryLiveActive() || hasDiscoverySession()) {
         res.status(409).json({ error: 'Discovery scan already running' });
         return;
       }

@@ -1,12 +1,13 @@
 import fs from 'fs';
 import path from 'path';
 import { isDiscoveryRunning } from '../discovery/run-state.js';
+import { isDiscoveryLiveActive } from '../discovery/live-state.js';
 import { runDiscovery } from '../discovery/engine.js';
 import { runRevalidationBatch } from '../discovery/revalidate.js';
+import { getBackupDir, getDbPath } from '../shared/data-path.js';
 
-const DATA_DIR = path.join(process.cwd(), 'data');
-const BACKUP_DIR = path.join(DATA_DIR, 'backups');
-const DB_PATH = path.join(DATA_DIR, 'casinos.db');
+const DB_PATH = getDbPath();
+const BACKUP_DIR = getBackupDir();
 
 function runDbBackup(): void {
   try {
@@ -45,7 +46,7 @@ export function scheduleBackgroundJobs(): void {
     const ms = discoveryHours * 60 * 60 * 1000;
     const deep = process.env.DISCOVERY_SCHEDULE_DEEP === 'true';
     setInterval(() => {
-      if (isDiscoveryRunning()) return;
+      if (isDiscoveryRunning() || isDiscoveryLiveActive()) return;
       console.log(`🔍 Scheduled ${deep ? 'deep' : 'quick'} discovery starting…`);
       void runDiscovery(deep).then((r) => {
         console.log(`🔍 Scheduled discovery done: +${r.added} queued, ${r.rejected} rejected`);

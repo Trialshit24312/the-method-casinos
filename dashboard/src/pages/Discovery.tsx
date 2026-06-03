@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
 import {
-  Radar, Zap, CheckCircle, SkipForward, AlertTriangle, Clock, Search, Globe, Ban, XCircle, Terminal, StopCircle,
+  Radar, Zap, CheckCircle, SkipForward, AlertTriangle, Clock, Search, Globe, Ban, XCircle, Terminal, StopCircle, Monitor,
 } from 'lucide-react';
 import { api } from '../api';
 import type { DiscoveryResult, DiscoveryProgressEvent, DiscoveryLiveStats, Stats, DiscoveryHistoryEntry } from '../types';
@@ -117,19 +117,25 @@ export default function DiscoveryPage() {
   useEffect(() => {
     api.getStats().then(setDbStats).catch(() => {});
     api.getDiscoveryHistory(10).then(setHistory).catch(() => {});
-  }, [result]);
+    if (user?.isAdmin) {
+      api.getDiscoveryLive(0).then((snap) => {
+        if (snap.result && !snap.running) setResult(snap.result);
+      }).catch(() => {});
+    }
+  }, [result, user?.isAdmin]);
 
   useEffect(() => {
-    if (isScanning) {
-      setElapsed(0);
-      timerRef.current = setInterval(() => setElapsed((e) => e + 1), 1000);
-    } else if (timerRef.current) {
-      clearInterval(timerRef.current);
-      timerRef.current = null;
-    }
-    return () => {
-      if (timerRef.current) clearInterval(timerRef.current);
+    if (!isScanning) return;
+    const onClose = () => {
+      abortRef.current?.abort();
+      void fetch('/api/discover/cancel', {
+        method: 'POST',
+        credentials: 'include',
+        keepalive: true,
+      });
     };
+    window.addEventListener('beforeunload', onClose);
+    return () => window.removeEventListener('beforeunload', onClose);
   }, [isScanning]);
 
   useEffect(() => {
@@ -150,50 +156,17 @@ export default function DiscoveryPage() {
   };
 
   useEffect(() => {
-    if (!user?.isAdmin) return;
-
-    let cancelled = false;
-
-    void (async () => {
-      try {
-        const snap = await api.getDiscoveryLive(0);
-        if (cancelled || !snap.running) return;
-
-        const deep = snap.mode === 'deep';
-        if (deep) setDeepRunning(true);
-        else setRunning(true);
-        if (snap.stats) setLiveStats(snap.stats);
-        if (snap.phaseLabel) setPhaseLabel(snap.phaseLabel);
-
-        for (const raw of snap.events) {
-          const { seq: _seq, ...event } = raw;
-          pushLog(event as DiscoveryProgressEvent);
-        }
-
-        abortRef.current = new AbortController();
-        const res = await api.discoverStream(deep, pushLog, abortRef.current.signal, snap.lastSeq + 1);
-        if (!cancelled) setResult(res);
-      } catch (err) {
-        if (cancelled) return;
-        if (err instanceof Error && err.name === 'AbortError') {
-          setError('Scan cancelled.');
-        } else if (err instanceof Error) {
-          setError(err.message);
-        }
-      } finally {
-        if (!cancelled) {
-          setRunning(false);
-          setDeepRunning(false);
-          abortRef.current = null;
-        }
-      }
-    })();
-
+    if (isScanning) {
+      setElapsed(0);
+      timerRef.current = setInterval(() => setElapsed((e) => e + 1), 1000);
+    } else if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
     return () => {
-      cancelled = true;
+      if (timerRef.current) clearInterval(timerRef.current);
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- resume once on admin mount
-  }, [user?.isAdmin]);
+  }, [isScanning]);
 
   const cancelScan = () => {
     abortRef.current?.abort();
@@ -247,9 +220,15 @@ export default function DiscoveryPage() {
   return (
     <div className="p-8 max-w-5xl mx-auto">
       <PageHeader
-        icon={<Radar className="w-6 h-6 text-[#00aeef]" />}
+        icon={<Radar className="w-6 h-6 text-glow" />}
         title="Discovery Engine"
-        subtitle="Strict validation — only real sweepstakes casinos pass. News, adult, and listicle URLs are blocked."
+        subtitle="Runs from your browser while this tab is open — closes cleanly when you leave. Rejected URLs go to Ban review."
+        badge={(
+          <span className="pro-badge">
+            <Monitor className="w-3.5 h-3.5" />
+            Client-driven · Stops when tab closes
+          </span>
+        )}
       />
 
       {dbStats && (
@@ -280,9 +259,9 @@ export default function DiscoveryPage() {
             </div>
           </div>
           <ul className="text-xs text-gray-600 space-y-1 mb-4">
-            <li>• Skips already-scanned URLs (no repeat noise)</li>
+            <li>• Re-checks all non-catalog URLs every scan</li>
             <li>• Mines links from known casinos + search pages</li>
-            <li>• Rotating query list — different every scan</li>
+            <li>• Rotating query list — fresh sources each run</li>
           </ul>
           <button
             onClick={() => runScan(false)}
@@ -305,13 +284,13 @@ export default function DiscoveryPage() {
             </div>
             <div>
               <h3 className="font-display font-semibold text-lg">Deep Scan</h3>
-              <p className="text-sm text-gray-500">~30 min · 90 searches · 800 URL checks</p>
+              <p className="text-sm text-gray-500">~30 min · 100 searches · 800 URL checks</p>
             </div>
           </div>
           <ul className="text-xs text-gray-600 space-y-1 mb-4">
             <li>• 5 search pages per query (DDG Lite + Bing + Brave)</li>
             <li>• Crawls 80+ known casinos for new links</li>
-            <li>• Remembers rejected URLs — only new candidates</li>
+            <li>• Rejected URLs sent to Ban review for blocklist</li>
           </ul>
           <button
             onClick={() => runScan(true)}
@@ -505,7 +484,8 @@ export default function DiscoveryPage() {
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="glass-glow p-6 mt-8">
         <h3 className="font-display font-semibold mb-3">Admin tools</h3>
         <p className="text-xs text-gray-500 mb-4">
-          New discoveries go to the <a href="/review" className="text-glow hover:underline">review queue</a> before appearing in the public catalog.
+          Valid discoveries go to <a href="/review" className="text-glow hover:underline">Discoveries</a>.
+          Rejected URLs go to <a href="/review" className="text-glow hover:underline">Ban review</a> for blocklist triage.
         </p>
         <div className="flex flex-wrap gap-2">
           <button
@@ -524,12 +504,12 @@ export default function DiscoveryPage() {
             type="button"
             className="btn-secondary text-sm"
             onClick={async () => {
-              if (!confirm('Clear discovery memory? Next scan will re-check previously rejected hosts.')) return;
+              if (!confirm('Clear discovery audit log? Scans still re-check all non-catalog URLs every run.')) return;
               await api.clearDiscoverySeen();
               alert('Discovery memory cleared.');
             }}
           >
-            Clear discovery memory
+            Clear discovery audit log
           </button>
           <button
             type="button"

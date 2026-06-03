@@ -1,18 +1,29 @@
-import { describe, it, expect, beforeEach } from 'vitest';
-import {
-  beginDiscoveryLive,
-  pushDiscoveryLiveEvent,
-  finishDiscoveryLive,
-  getDiscoveryLiveSnapshot,
-  isDiscoveryLiveActive,
-} from '../src/discovery/live-state.js';
+import fs from 'fs';
+import os from 'os';
+import path from 'path';
+import { beforeAll, beforeEach, describe, it, expect } from 'vitest';
 
 describe('discovery live state', () => {
-  beforeEach(() => {
+  beforeAll(async () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'method-discovery-live-'));
+    process.env.DATA_DIR = dir;
+    const { initDatabase } = await import('../src/database/index.js');
+    initDatabase();
+  });
+
+  beforeEach(async () => {
+    const { beginDiscoveryLive } = await import('../src/discovery/live-state.js');
     beginDiscoveryLive('quick');
   });
 
-  it('tracks phase events and completion', () => {
+  it('tracks phase events and completion', async () => {
+    const {
+      pushDiscoveryLiveEvent,
+      finishDiscoveryLive,
+      getDiscoveryLiveSnapshot,
+      isDiscoveryLiveActive,
+    } = await import('../src/discovery/live-state.js');
+
     expect(isDiscoveryLiveActive()).toBe(true);
 
     pushDiscoveryLiveEvent({ type: 'phase', phase: 'search', label: 'Searching…' });
@@ -56,15 +67,40 @@ describe('discovery live state', () => {
     expect(getDiscoveryLiveSnapshot().result?.scanned).toBe(2);
   });
 
-  it('returns events since cursor', () => {
+  it('returns events since cursor', async () => {
+    const { pushDiscoveryLiveEvent, getDiscoveryLiveSnapshot } = await import('../src/discovery/live-state.js');
+
     pushDiscoveryLiveEvent({ type: 'search_query', query: 'sweepstakes casino' });
     pushDiscoveryLiveEvent({ type: 'url_scanning', url: 'example.com' });
 
     const all = getDiscoveryLiveSnapshot(0);
     expect(all.events).toHaveLength(2);
 
-    const since = getDiscoveryLiveSnapshot(1);
+    const since = getDiscoveryLiveSnapshot(all.events[0].seq + 1);
     expect(since.events).toHaveLength(1);
     expect(since.events[0].type).toBe('url_scanning');
+  });
+
+  it('persists completed result for reload', async () => {
+    const { finishDiscoveryLive, getDiscoveryLiveSnapshot } = await import('../src/discovery/live-state.js');
+
+    finishDiscoveryLive({
+      scanned: 5,
+      found: 2,
+      added: 1,
+      skipped: 0,
+      blocked: 0,
+      rejected: 1,
+      durationMs: 5000,
+      sourcesChecked: 10,
+      errors: [],
+      mode: 'deep',
+      addedCasinos: [{ name: 'Test Casino', url: 'https://example.com' }],
+    });
+
+    const snap = getDiscoveryLiveSnapshot(0);
+    expect(snap.running).toBe(false);
+    expect(snap.result?.added).toBe(1);
+    expect(snap.result?.mode).toBe('deep');
   });
 });

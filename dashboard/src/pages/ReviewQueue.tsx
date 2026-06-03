@@ -79,7 +79,7 @@ export default function ReviewQueue() {
 
   const tabs: { id: Tab; label: string; count?: number }[] = [
     { id: 'discoveries', label: 'Discoveries', count: pending.length },
-    { id: 'reports', label: 'User reports', count: reports.length },
+    { id: 'reports', label: 'Ban review', count: reports.length },
     { id: 'health', label: 'Catalog health', count: healthIssues.length },
     { id: 'history', label: 'Report history', count: reportHistory.length },
   ];
@@ -88,7 +88,7 @@ export default function ReviewQueue() {
     <div className="p-8 max-w-4xl mx-auto">
       <PageHeader
         title="Review Queue"
-        subtitle="Approve discoveries, triage reports, and maintain catalog health."
+        subtitle="Approve discoveries, ban rejected/scam URLs, and maintain catalog health."
         icon={<CheckCircle className="w-6 h-6 text-glow" />}
       />
 
@@ -122,7 +122,9 @@ export default function ReviewQueue() {
       )}
 
       {!loading && tab === 'reports' && !reports.length && (
-        <div className="glass-glow p-8 text-center text-gray-500">No open user reports.</div>
+        <div className="glass-glow p-8 text-center text-gray-500">
+          No URLs awaiting ban review. Rejected discovery hits and user reports appear here.
+        </div>
       )}
 
       {!loading && tab === 'health' && !healthIssues.length && (

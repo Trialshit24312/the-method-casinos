@@ -105,8 +105,21 @@ export function buildSearchQueries(deep: boolean): string[] {
   }
 
   const shuffled = shuffle(uniqueStrings(queries));
-  const limit = deep ? Math.min(90, shuffled.length) : Math.min(45, shuffled.length);
-  return shuffled.slice(0, limit);
+  const limit = deep ? Math.min(100, shuffled.length) : Math.min(50, shuffled.length);
+  const start = Math.floor(Math.random() * Math.max(1, shuffled.length));
+  const rotated = [...shuffled.slice(start), ...shuffled.slice(0, start)];
+
+  const monthYear = new Date().toLocaleString('en-US', { month: 'long', year: 'numeric' });
+  const year = String(new Date().getFullYear());
+  const fresh = shuffle([
+    `new sweepstakes casino ${monthYear}`,
+    `latest social casino launch ${year}`,
+    `sweepstakes casino news ${monthYear}`,
+    `brand new sweeps site ${year}`,
+    `undiscovered sweepstakes casino ${year}`,
+  ]);
+
+  return uniqueStrings([...fresh, ...rotated]).slice(0, limit);
 }
 
 export const SEARCH_PAGES_QUICK = 3;

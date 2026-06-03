@@ -1,9 +1,9 @@
 import fs from 'fs';
 import path from 'path';
+import { getBackupDir, getDbPath } from '../shared/data-path.js';
 
-const DATA_DIR = path.join(process.cwd(), 'data');
-const DB_PATH = path.join(DATA_DIR, 'casinos.db');
-const BACKUP_DIR = path.join(DATA_DIR, 'backups');
+const DB_PATH = getDbPath();
+const BACKUP_DIR = getBackupDir();
 
 function timestamp(): string {
   return new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);

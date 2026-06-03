@@ -9,20 +9,23 @@ import { normalizeTrackables } from '../shared/trackables.js';
 import { rankSimilarCasinos, type SimilarCasinoMatch } from '../shared/similarity.js';
 import { STALE_CATALOG_DAYS } from '../shared/freshness.js';
 import { VERIFIED_CASINO_SEEDS } from '../shared/verified-casinos.js';
-
-const DATA_DIR = path.join(process.cwd(), 'data');
-const DB_PATH = path.join(DATA_DIR, 'casinos.db');
+import { getDataDir, getDbPath } from '../shared/data-path.js';
+import type { DiscoveryLiveStats, DiscoveryProgressEvent, DiscoveryResult } from '../shared/types.js';
 
 let db: Database.Database;
 
 export function initDatabase(): Database.Database {
-  if (!fs.existsSync(DATA_DIR)) {
-    fs.mkdirSync(DATA_DIR, { recursive: true });
+  const dataDir = getDataDir();
+  const dbPath = getDbPath();
+
+  if (!fs.existsSync(dataDir)) {
+    fs.mkdirSync(dataDir, { recursive: true });
   }
 
-  db = new Database(DB_PATH);
+  db = new Database(dbPath);
   db.pragma('journal_mode = WAL');
   db.pragma('foreign_keys = ON');
+  console.log(`📁 Database: ${dbPath}`);
 
   db.exec(`
     CREATE TABLE IF NOT EXISTS casinos (
@@ -106,6 +109,7 @@ export function initDatabase(): Database.Database {
   seedBlockedSites();
   backfillMissingRatings();
   backfillVpnFeatures();
+  recoverDiscoveryLiveOnBoot();
   return db;
 }
 
@@ -177,6 +181,34 @@ function migrateSchema(): void {
   if (!logNames.has('duration_ms')) {
     db.exec('ALTER TABLE discovery_log ADD COLUMN duration_ms INTEGER NOT NULL DEFAULT 0');
   }
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS discovery_live (
+      id INTEGER PRIMARY KEY CHECK (id = 1),
+      running INTEGER NOT NULL DEFAULT 0,
+      mode TEXT,
+      started_at INTEGER,
+      phase_label TEXT NOT NULL DEFAULT '',
+      stats_json TEXT NOT NULL DEFAULT '{}',
+      result_json TEXT,
+      updated_at TEXT NOT NULL
+    );
+    INSERT OR IGNORE INTO discovery_live (id, running, phase_label, stats_json, updated_at)
+    VALUES (1, 0, '', '{}', datetime('now'));
+
+    CREATE TABLE IF NOT EXISTS discovery_live_events (
+      seq INTEGER PRIMARY KEY AUTOINCREMENT,
+      event_json TEXT NOT NULL,
+      created_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_discovery_live_events_seq ON discovery_live_events(seq);
+
+    CREATE TABLE IF NOT EXISTS discovery_session (
+      id INTEGER PRIMARY KEY CHECK (id = 1),
+      state_json TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+  `);
 
   // Normalize legacy url_normalized values to hostname keys
   const legacyRows = db.prepare('SELECT id, url, url_normalized FROM casinos').all() as {
@@ -388,6 +420,8 @@ export function addCasino(input: CasinoInput): Casino | null {
     reviewStatus: casino.reviewStatus,
     active: casino.active ? 1 : 0,
   });
+
+  db.pragma('wal_checkpoint(PASSIVE)');
 
   return casino;
 }
@@ -712,7 +746,7 @@ export function getKnownHosts(): Set<string> {
   return new Set(rows.map((r) => casinoHostKey(r.url)));
 }
 
-/** URLs already scanned and rejected/skipped — skip re-checking every run. */
+/** Audit log of past discovery outcomes — does not skip future scans. */
 export function getDiscoverySeenUrls(): Set<string> {
   const rows = db.prepare('SELECT url_normalized FROM discovery_seen').all() as { url_normalized: string }[];
   return new Set(rows.map((r) => r.url_normalized));
@@ -1054,6 +1088,25 @@ export function addSiteReport(input: SiteReportInput): SiteReport {
   return report;
 }
 
+/** Queue a discovery rejection for admin ban review (open site report). */
+export function queueDiscoveryBanReview(url: string, reason: string): SiteReport | null {
+  try {
+    const root = toCasinoRootUrl(ensureHttps(url));
+    if (isUrlBlocked(root)) return null;
+
+    const catalog = getCasinoByUrl(root);
+    if (catalog?.active && catalog.reviewStatus === 'approved') return null;
+
+    return addSiteReport({
+      url: root,
+      reason: `[Ban review] ${reason}`,
+      reportedBy: 'discovery',
+    });
+  } catch {
+    return null;
+  }
+}
+
 export function getOpenSiteReports(): SiteReport[] {
   const rows = db.prepare(`
     SELECT id, url, reason, reported_by, status, created_at, reviewed_at, reviewed_by
@@ -1103,4 +1156,238 @@ export function markSiteReportReviewed(id: string, reviewedBy?: string): boolean
     WHERE id = @id
   `).run({ id, now, reviewedBy: reviewedBy ?? null });
   return result.changes > 0;
+}
+
+const DISCOVERY_LIVE_EVENT_CAP = 400;
+
+const emptyDiscoveryLiveStats = (): DiscoveryLiveStats => ({
+  scanned: 0,
+  queued: 0,
+  added: 0,
+  rejected: 0,
+  skipped: 0,
+  blocked: 0,
+  sourcesChecked: 0,
+  phase: 'curated',
+  queryIndex: 0,
+  queryTotal: 0,
+});
+
+function readDiscoveryLiveRow(): {
+  running: boolean;
+  mode: 'quick' | 'deep' | null;
+  startedAt: number | null;
+  phaseLabel: string;
+  stats: DiscoveryLiveStats | null;
+  result: DiscoveryResult | null;
+} {
+  const row = db.prepare(`
+    SELECT running, mode, started_at, phase_label, stats_json, result_json
+    FROM discovery_live WHERE id = 1
+  `).get() as {
+    running: number;
+    mode: string | null;
+    started_at: number | null;
+    phase_label: string;
+    stats_json: string;
+    result_json: string | null;
+  } | undefined;
+
+  if (!row) {
+    return {
+      running: false,
+      mode: null,
+      startedAt: null,
+      phaseLabel: '',
+      stats: null,
+      result: null,
+    };
+  }
+
+  let stats: DiscoveryLiveStats | null = null;
+  try {
+    const parsed = JSON.parse(row.stats_json || '{}') as DiscoveryLiveStats;
+    if (parsed && typeof parsed === 'object') stats = parsed;
+  } catch {
+    stats = null;
+  }
+
+  let result: DiscoveryResult | null = null;
+  if (row.result_json) {
+    try {
+      result = JSON.parse(row.result_json) as DiscoveryResult;
+    } catch {
+      result = null;
+    }
+  }
+
+  return {
+    running: row.running === 1,
+    mode: row.mode === 'deep' || row.mode === 'quick' ? row.mode : null,
+    startedAt: row.started_at,
+    phaseLabel: row.phase_label || '',
+    stats,
+    result,
+  };
+}
+
+export function resetDiscoveryLiveStorage(mode: 'quick' | 'deep'): void {
+  const now = new Date().toISOString();
+  db.prepare('DELETE FROM discovery_live_events').run();
+  db.prepare(`
+    UPDATE discovery_live SET
+      running = 1,
+      mode = @mode,
+      started_at = @startedAt,
+      phase_label = 'Starting…',
+      stats_json = @statsJson,
+      result_json = NULL,
+      updated_at = @now
+    WHERE id = 1
+  `).run({
+    mode,
+    startedAt: Date.now(),
+    statsJson: JSON.stringify(emptyDiscoveryLiveStats()),
+    now,
+  });
+}
+
+export function updateDiscoveryLiveStorage(patch: {
+  phaseLabel?: string;
+  stats?: DiscoveryLiveStats;
+}): void {
+  const current = readDiscoveryLiveRow();
+  const now = new Date().toISOString();
+  db.prepare(`
+    UPDATE discovery_live SET
+      phase_label = @phaseLabel,
+      stats_json = @statsJson,
+      updated_at = @now
+    WHERE id = 1
+  `).run({
+    phaseLabel: patch.phaseLabel ?? current.phaseLabel,
+    statsJson: JSON.stringify(patch.stats ?? current.stats ?? emptyDiscoveryLiveStats()),
+    now,
+  });
+}
+
+export function appendDiscoveryLiveEventStorage(event: DiscoveryProgressEvent): number {
+  const now = new Date().toISOString();
+  const result = db.prepare(`
+    INSERT INTO discovery_live_events (event_json, created_at) VALUES (@eventJson, @now)
+  `).run({ eventJson: JSON.stringify(event), now });
+  const seq = Number(result.lastInsertRowid);
+
+  const count = db.prepare('SELECT COUNT(*) as c FROM discovery_live_events').get() as { c: number };
+  if (count.c > DISCOVERY_LIVE_EVENT_CAP) {
+    db.prepare(`
+      DELETE FROM discovery_live_events
+      WHERE seq NOT IN (
+        SELECT seq FROM discovery_live_events ORDER BY seq DESC LIMIT ?
+      )
+    `).run(DISCOVERY_LIVE_EVENT_CAP);
+  }
+
+  return seq;
+}
+
+export function finishDiscoveryLiveStorage(result: DiscoveryResult): void {
+  const now = new Date().toISOString();
+  db.prepare(`
+    UPDATE discovery_live SET
+      running = 0,
+      result_json = @resultJson,
+      updated_at = @now
+    WHERE id = 1
+  `).run({ resultJson: JSON.stringify(result), now });
+}
+
+export function isDiscoveryLiveRunningStorage(): boolean {
+  return readDiscoveryLiveRow().running;
+}
+
+export function getDiscoveryLiveStorage(sinceSeq = 0): {
+  running: boolean;
+  mode: 'quick' | 'deep' | null;
+  startedAt: number | null;
+  phaseLabel: string;
+  stats: DiscoveryLiveStats | null;
+  events: Array<DiscoveryProgressEvent & { seq: number }>;
+  lastSeq: number;
+  result: DiscoveryResult | null;
+} {
+  const row = readDiscoveryLiveRow();
+  const events = (db.prepare(`
+    SELECT seq, event_json FROM discovery_live_events
+    WHERE seq >= ? ORDER BY seq ASC
+  `).all(Math.max(0, sinceSeq)) as { seq: number; event_json: string }[])
+    .map(({ seq, event_json }) => {
+      try {
+        const event = JSON.parse(event_json) as DiscoveryProgressEvent;
+        return { seq, ...event };
+      } catch {
+        return null;
+      }
+    })
+    .filter((e): e is DiscoveryProgressEvent & { seq: number } => e !== null);
+
+  const lastSeqRow = db.prepare('SELECT MAX(seq) as maxSeq FROM discovery_live_events').get() as { maxSeq: number | null };
+
+  return {
+    running: row.running,
+    mode: row.mode,
+    startedAt: row.startedAt,
+    phaseLabel: row.phaseLabel,
+    stats: row.stats,
+    events,
+    lastSeq: lastSeqRow.maxSeq ?? -1,
+    result: row.result,
+  };
+}
+
+export function recoverDiscoveryLiveOnBoot(): void {
+  clearDiscoverySession();
+  const row = readDiscoveryLiveRow();
+  if (!row.running) return;
+
+  const stats = row.stats ?? emptyDiscoveryLiveStats();
+  finishDiscoveryLiveStorage({
+    scanned: stats.scanned,
+    found: stats.added + stats.rejected + stats.skipped,
+    added: stats.added,
+    skipped: stats.skipped,
+    blocked: stats.blocked,
+    rejected: stats.rejected,
+    durationMs: row.startedAt ? Math.max(0, Date.now() - row.startedAt) : 0,
+    sourcesChecked: stats.sourcesChecked,
+    errors: ['Scan interrupted by server restart — casinos saved during scan are in the review queue'],
+    mode: row.mode ?? 'quick',
+    addedCasinos: [],
+  });
+}
+
+export function saveDiscoverySession(state: unknown): void {
+  const now = new Date().toISOString();
+  db.prepare(`
+    INSERT INTO discovery_session (id, state_json, updated_at) VALUES (1, @stateJson, @now)
+    ON CONFLICT(id) DO UPDATE SET state_json = excluded.state_json, updated_at = excluded.updated_at
+  `).run({ stateJson: JSON.stringify(state), now });
+}
+
+export function loadDiscoverySession<T>(): T | null {
+  const row = db.prepare('SELECT state_json FROM discovery_session WHERE id = 1').get() as { state_json: string } | undefined;
+  if (!row?.state_json) return null;
+  try {
+    return JSON.parse(row.state_json) as T;
+  } catch {
+    return null;
+  }
+}
+
+export function hasDiscoverySession(): boolean {
+  return loadDiscoverySession() !== null;
+}
+
+export function clearDiscoverySession(): void {
+  db.prepare('DELETE FROM discovery_session WHERE id = 1').run();
 }

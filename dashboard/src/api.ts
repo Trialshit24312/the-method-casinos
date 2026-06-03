@@ -57,28 +57,14 @@ export const api = {
     deep: boolean,
     onEvent: (event: DiscoveryProgressEvent) => void,
     signal?: AbortSignal,
-    sinceSeq = 0,
   ): Promise<DiscoveryResult> => {
-    if (sinceSeq === 0) {
-      const res = await fetch(`${API}/api/discover?stream=1`, {
-        method: 'POST',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ deep, stream: true }),
-        signal,
-      });
+    await request<{ started: boolean }>('/api/discover/client/start', {
+      method: 'POST',
+      body: JSON.stringify({ deep }),
+      signal,
+    });
 
-      if (res.status !== 409 && !res.ok) {
-        const err = await res.json().catch(() => ({ error: res.statusText }));
-        throw new Error(err.error || 'Discovery failed');
-      }
-
-      if (res.status === 202) {
-        await res.json().catch(() => ({}));
-      }
-    }
-
-    let cursor = sinceSeq;
+    let cursor = 0;
 
     while (true) {
       if (signal?.aborted) {
@@ -86,29 +72,39 @@ export const api = {
           method: 'POST',
           credentials: 'include',
           headers: { 'Content-Type': 'application/json' },
+          keepalive: true,
         }).catch(() => {});
         throw new DOMException('Aborted', 'AbortError');
       }
 
-      const snap = await request<DiscoveryLiveSnapshot>(`/api/discover/live?since=${cursor}`);
+      const step = await request<{
+        done: boolean;
+        result?: DiscoveryResult;
+        cancelled?: boolean;
+        live: DiscoveryLiveSnapshot;
+      }>('/api/discover/client/step', {
+        method: 'POST',
+        body: JSON.stringify({ since: cursor }),
+        signal,
+      });
 
-      for (const raw of snap.events) {
+      for (const raw of step.live.events) {
         const { seq, ...event } = raw;
         onEvent(event as DiscoveryProgressEvent);
         cursor = seq + 1;
       }
 
-      if (snap.stats) {
-        onEvent({ type: 'progress', stats: snap.stats });
+      if (step.live.stats) {
+        onEvent({ type: 'progress', stats: step.live.stats });
       }
 
-      if (snap.result) return snap.result;
-
-      if (!snap.running) {
-        throw new Error('Discovery ended unexpectedly — try again');
+      if (step.cancelled) {
+        throw new DOMException('Aborted', 'AbortError');
       }
 
-      await new Promise((resolve) => setTimeout(resolve, 1500));
+      if (step.done && step.result) return step.result;
+
+      await new Promise((resolve) => setTimeout(resolve, 60));
     }
   },
   getDiscoveryLive: (since = 0) =>

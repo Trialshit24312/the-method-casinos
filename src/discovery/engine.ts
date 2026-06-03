@@ -1,7 +1,7 @@
 import * as cheerio from 'cheerio';
 import type { CasinoFeature, DiscoveryProgressEvent, DiscoveryResult, DiscoveryPhase, DiscoveryLiveStats } from '../shared/types.js';
 import { inferFeaturesFromText } from '../shared/feature-inference.js';
-import { addCasino, getKnownHosts, logDiscovery, getBlockedUrls, isUrlBlocked, getDiscoverySeenHosts, markDiscoverySeen, getAllCasinos, touchLastCheckedAt } from '../database/index.js';
+import { addCasino, getKnownHosts, logDiscovery, getBlockedUrls, isUrlBlocked, markDiscoverySeen, getAllCasinos, touchLastCheckedAt, queueDiscoveryBanReview } from '../database/index.js';
 import { casinoHostKey, toCasinoRootUrl, isValidCasinoHost } from '../shared/utils.js';
 import { inferRating } from '../shared/rating.js';
 import {
@@ -159,7 +159,6 @@ function ingestDiscovery(raw: RawDiscovery, knownHosts: Set<string>): boolean {
 async function collectFromSearch(
   query: string,
   knownHosts: Set<string>,
-  seenHosts: Set<string>,
   sessionHosts: Set<string>,
   urls: Set<string>,
   searchPages: number,
@@ -175,7 +174,7 @@ async function collectFromSearch(
 
   for (const link of links) {
     const host = casinoHostKey(link);
-    if (!knownHosts.has(host) && !seenHosts.has(host) && !sessionHosts.has(host)) {
+    if (!knownHosts.has(host) && !sessionHosts.has(host)) {
       urls.add(link);
     }
   }
@@ -228,7 +227,6 @@ export async function runDiscovery(deep = false, onProgress?: DiscoveryProgressC
 
   try {
   const knownHosts = getKnownHosts();
-  const seenHosts = getDiscoverySeenHosts();
   const blockedUrls = getBlockedUrls();
   const urlQueue: string[] = [];
   const queuedHosts = new Set<string>();
@@ -263,7 +261,15 @@ export async function runDiscovery(deep = false, onProgress?: DiscoveryProgressC
   };
 
   const shouldSkipHost = (host: string): boolean =>
-    knownHosts.has(host) || seenHosts.has(host) || sessionHosts.has(host);
+    knownHosts.has(host) || sessionHosts.has(host);
+
+  const recordRejection = (root: string, host: string, rejectReason: string) => {
+    rejected++;
+    sessionHosts.add(host);
+    markDiscoverySeen(root, 'rejected', rejectReason);
+    queueDiscoveryBanReview(root, rejectReason);
+    onProgress?.({ type: 'url_rejected', url: host, reason: rejectReason });
+  };
 
   const enqueue = (url: string): boolean => {
     let root: string;
@@ -280,15 +286,12 @@ export async function runDiscovery(deep = false, onProgress?: DiscoveryProgressC
     if (blockedUrls.has(host) || isUrlBlocked(root)) {
       blocked++;
       sessionHosts.add(host);
-      seenHosts.add(host);
       markDiscoverySeen(root, 'blocked', 'blocklist');
       return false;
     }
 
     if (!isDiscoveryCandidateUrl(root) || isBlockedDomain(root)) {
-      sessionHosts.add(host);
-      seenHosts.add(host);
-      markDiscoverySeen(root, 'rejected', 'URL pre-filter');
+      recordRejection(root, host, 'URL pre-filter');
       return false;
     }
 
@@ -339,7 +342,6 @@ export async function runDiscovery(deep = false, onProgress?: DiscoveryProgressC
       sourcesChecked += await collectFromSearch(
         query,
         knownHosts,
-        seenHosts,
         sessionHosts,
         pendingFromSearch,
         config.searchPages,
@@ -379,7 +381,6 @@ export async function runDiscovery(deep = false, onProgress?: DiscoveryProgressC
 
       if (blockedUrls.has(host) || isUrlBlocked(root)) {
         blocked++;
-        seenHosts.add(host);
         markDiscoverySeen(root, 'blocked', 'blocklist');
         continue;
       }
@@ -395,8 +396,6 @@ export async function runDiscovery(deep = false, onProgress?: DiscoveryProgressC
         continue;
       }
 
-      if (seenHosts.has(host)) continue;
-
       scanned++;
       webAnalyzes++;
       onProgress?.({ type: 'url_scanning', url: host });
@@ -405,10 +404,7 @@ export async function runDiscovery(deep = false, onProgress?: DiscoveryProgressC
       try {
         const { raw: analyzed, rejectReason } = await analyzeUrl(root, knownHosts);
         if (!analyzed) {
-          rejected++;
-          seenHosts.add(host);
-          markDiscoverySeen(root, 'rejected', rejectReason ?? 'validation failed');
-          onProgress?.({ type: 'url_rejected', url: host, reason: rejectReason ?? 'not a sweepstakes casino' });
+          recordRejection(root, host, rejectReason ?? 'validation failed');
           await sleep(config.delayMs / 3);
           processed++;
           continue;
@@ -418,7 +414,6 @@ export async function runDiscovery(deep = false, onProgress?: DiscoveryProgressC
         touchLastCheckedAt(root);
         if (ingestDiscovery(analyzed, knownHosts)) {
           added++;
-          seenHosts.add(host);
           markDiscoverySeen(root, 'added', 'verified sweeps');
           addedCasinos.push({ name: analyzed.name, url: analyzed.url });
           onProgress?.({ type: 'url_added', url: analyzed.url, name: analyzed.name });
@@ -431,15 +426,11 @@ export async function runDiscovery(deep = false, onProgress?: DiscoveryProgressC
           }
         } else {
           skipped++;
-          seenHosts.add(host);
           markDiscoverySeen(root, 'skipped', 'duplicate');
         }
       } catch (e) {
-        rejected++;
-        seenHosts.add(host);
-        markDiscoverySeen(root, 'rejected', 'scan error');
+        recordRejection(root, host, 'scan error');
         errors.push(`${host}: ${e instanceof Error ? e.message : 'fail'}`);
-        onProgress?.({ type: 'url_rejected', url: host, reason: 'scan error' });
       }
 
       emitProgress();

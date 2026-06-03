@@ -38,7 +38,8 @@ export default function ReportRow({ report, onDismiss, onBlock }: Props) {
       <div className="flex flex-col sm:flex-row gap-4 justify-between">
         <div className="min-w-0">
           <div className="flex items-center gap-2 text-amber-400 text-sm mb-1">
-            <Flag className="w-4 h-4" /> Reported by {report.reportedBy}
+            <Flag className="w-4 h-4" />
+            {report.reportedBy === 'discovery' ? 'Discovery rejection — review for blocklist' : `Reported by ${report.reportedBy}`}
           </div>
           <a href={report.url} target="_blank" rel="noreferrer" className="text-glow hover:underline break-all">
             {report.url}

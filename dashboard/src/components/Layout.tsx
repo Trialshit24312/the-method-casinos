@@ -1,6 +1,6 @@
-import { NavLink, Outlet, Link } from 'react-router-dom';
+import { NavLink, Outlet, Link, useLocation } from 'react-router-dom';
 import { useEffect, useState } from 'react';
-import { motion } from 'framer-motion';
+import { AnimatePresence } from 'framer-motion';
 import {
   LayoutDashboard,
   Dices,
@@ -25,6 +25,7 @@ import {
 import { useAuth } from '../context/AuthContext';
 import SiteFooter from './SiteFooter';
 import GlobalSearch from './GlobalSearch';
+import PageTransition from './PageTransition';
 import { discordInviteUrl } from '../lib/site';
 import { api } from '../api';
 
@@ -84,10 +85,10 @@ function NavSection({
               to={needsAdmin ? `/login?next=${encodeURIComponent(item.to)}` : item.to}
               end={item.to === '/dashboard' || item.to === '/tools'}
               className={({ isActive }) =>
-                `flex items-center gap-3 px-3 py-2 rounded-lg transition-all duration-200 ${
+                `flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-300 ${
                   isActive
-                    ? 'bg-gradient-to-r from-glow/15 to-brand/10 text-glow border border-glow/35 shadow-method-glow'
-                    : 'text-gray-400 hover:text-gray-200 hover:bg-surface-overlay border border-transparent hover:border-surface-border'
+                    ? 'nav-item-active text-glow'
+                    : 'text-gray-400 hover:text-gray-100 hover:bg-white/[0.04] border border-transparent'
                 }`
               }
             >
@@ -110,6 +111,7 @@ function NavSection({
 
 export default function Layout() {
   const { user, logout } = useAuth();
+  const location = useLocation();
   const discordInvite = discordInviteUrl();
   const [notifyTotal, setNotifyTotal] = useState(0);
 
@@ -126,26 +128,20 @@ export default function Layout() {
 
   return (
     <div className="min-h-screen flex app-background">
-      <aside className="w-64 border-r border-surface-border flex flex-col bg-surface-raised/50 backdrop-blur-sm">
-        <div className="p-5 border-b border-surface-border">
-          <motion.div
-            initial={{ opacity: 0, y: -10 }}
-            animate={{ opacity: 1, y: 0 }}
-          >
-            <Link to="/" className="flex flex-col items-center text-center hover:opacity-90 transition-opacity">
-              <div className="relative mb-3">
-                <div className="absolute inset-0 blur-xl bg-glow/20 rounded-full scale-110" />
-                <img
-                  src="/logo.png"
-                  alt="The Method"
-                  className="relative w-20 h-20 object-contain drop-shadow-method-glow"
-                />
-              </div>
-              <h1 className="font-display font-bold text-lg tracking-wide text-white">THE METHOD</h1>
-              <p className="tagline mt-1">Precision · Strategy · Execution</p>
-              <p className="text-[10px] text-gray-600 mt-2 uppercase tracking-wider">Casinos Hub</p>
-            </Link>
-          </motion.div>
+      <aside className="w-64 border-r border-white/[0.06] flex flex-col bg-surface-raised/80 backdrop-blur-xl">
+        <div className="p-5 border-b border-white/[0.06]">
+          <Link to="/" className="flex flex-col items-center text-center hover:opacity-90 transition-opacity group">
+            <div className="relative mb-3">
+              <div className="absolute inset-0 blur-2xl bg-glow/25 rounded-full scale-125 opacity-60 group-hover:opacity-100 transition-opacity duration-500" />
+              <img
+                src="/logo.png"
+                alt="The Method"
+                className="relative w-[4.5rem] h-[4.5rem] object-contain drop-shadow-method-glow"
+              />
+            </div>
+            <h1 className="font-display font-bold text-lg tracking-[0.12em] text-white">THE METHOD</h1>
+            <p className="tagline mt-1.5">Precision · Strategy · Execution</p>
+          </Link>
         </div>
 
         <nav className="flex-1 p-3 overflow-y-auto">
@@ -167,11 +163,7 @@ export default function Layout() {
         </nav>
 
         {user ? (
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="p-4 border-t border-surface-border"
-          >
+          <div className="p-4 border-t border-white/[0.06]">
             <div className="flex items-center gap-3 mb-3">
               <img
                 src={user.avatarUrl}
@@ -193,9 +185,9 @@ export default function Layout() {
               <LogOut className="w-4 h-4" />
               Sign out
             </button>
-          </motion.div>
+          </div>
         ) : (
-          <div className="p-4 border-t border-surface-border">
+          <div className="p-4 border-t border-white/[0.06]">
             <Link
               to="/login"
               className="flex items-center justify-center gap-2 w-full px-3 py-2 text-sm font-medium
@@ -209,11 +201,15 @@ export default function Layout() {
 
       <main className="flex-1 overflow-auto flex flex-col relative">
         <div className="absolute inset-0 app-background-grid pointer-events-none opacity-40" />
-        <header className="relative z-10 border-b border-surface-border/60 bg-surface-raised/30 backdrop-blur-md px-6 py-3 hidden lg:block">
+        <header className="relative z-10 border-b border-white/[0.06] bg-surface-raised/40 backdrop-blur-xl px-6 py-4 hidden lg:block">
           <GlobalSearch />
         </header>
-        <div className="flex-1 relative z-10">
-          <Outlet />
+        <div className="flex-1 relative z-10 p-1">
+          <AnimatePresence mode="wait">
+            <PageTransition key={location.pathname}>
+              <Outlet />
+            </PageTransition>
+          </AnimatePresence>
         </div>
         <SiteFooter />
       </main>
