@@ -25,7 +25,7 @@ export default function PendingCasinoRow({ casino, onApprove, onReject, busy }: 
   const featureChips = casino.features.slice(0, 6);
 
   return (
-    <motion.div layout className="glass-glow p-4 space-y-3">
+    <motion.div layout className="glass-glow p-4 space-y-3 border-gradient card-shine">
       <div className="flex flex-col sm:flex-row sm:items-start gap-4 justify-between">
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2 mb-1">

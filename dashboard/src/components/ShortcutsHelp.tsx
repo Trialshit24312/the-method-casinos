@@ -5,6 +5,7 @@ const SHORTCUTS = [
   { keys: 'Ctrl + K', desc: 'Focus global search' },
   { keys: '?', desc: 'Show this shortcuts panel' },
   { keys: 'Esc', desc: 'Close menus / dialogs' },
+  { keys: '/', desc: 'Jump to catalog search (from dashboard)' },
 ];
 
 export default function ShortcutsHelp() {
@@ -27,8 +28,8 @@ export default function ShortcutsHelp() {
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-[90] flex items-center justify-center p-4 bg-black/70" role="dialog" aria-modal>
-      <div className="glass-glow w-full max-w-sm p-6 relative">
+    <div className="fixed inset-0 z-[90] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm" role="dialog" aria-modal>
+      <div className="glass-glow w-full max-w-sm p-6 relative border-gradient">
         <button
           type="button"
           onClick={() => setOpen(false)}

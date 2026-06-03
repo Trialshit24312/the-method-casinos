@@ -26,7 +26,7 @@ import type { LucideIcon } from 'lucide-react';
 
 const CATEGORY_STYLES: Record<string, { icon: LucideIcon; color: string; border: string }> = {
   standards: { icon: Shield, color: 'text-glow', border: 'border-glow/30' },
-  admin: { icon: Lock, color: 'text-[#d4956a]', border: 'border-[#b87333]/30' },
+  admin: { icon: Lock, color: 'text-brand-light', border: 'border-brand/30' },
   tags: { icon: Database, color: 'text-emerald-400', border: 'border-emerald-500/30' },
   community: { icon: MessageSquare, color: 'text-violet-400', border: 'border-violet-500/30' },
 };
@@ -82,7 +82,7 @@ export default function RulesPage() {
               ].map(({ icon: Icon, label }) => (
                 <span key={label} className="inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full
                   bg-surface-muted border border-surface-border text-gray-400">
-                  <Icon className="w-3 h-3 text-[#b87333]" /> {label}
+                  <Icon className="w-3 h-3 text-brand" /> {label}
                 </span>
               ))}
             </div>
@@ -189,7 +189,7 @@ export default function RulesPage() {
       <motion.section
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
-        className="glass p-6 mb-8 border-[#b87333]/20"
+        className="glass p-6 mb-8 border-brand/20"
       >
         <h2 className="font-display font-semibold text-lg text-white mb-2">Feature Tag Reference</h2>
         <p className="text-sm text-gray-500 mb-6">
@@ -199,7 +199,7 @@ export default function RulesPage() {
         <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {FEATURE_CATEGORIES.map((cat) => (
             <div key={cat.label} className="p-4 rounded-xl bg-surface-muted border border-surface-border">
-              <p className="text-xs uppercase tracking-wide text-[#d4956a] mb-2">{cat.label}</p>
+              <p className="text-xs uppercase tracking-wide text-brand-light mb-2">{cat.label}</p>
               <div className="flex flex-wrap gap-1">
                 {cat.features.slice(0, 8).map((f) => (
                   <span key={f} className="text-[10px] px-1.5 py-0.5 rounded bg-[#121218] text-gray-500 border border-surface-border">

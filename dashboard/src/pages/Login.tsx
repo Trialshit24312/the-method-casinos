@@ -1,11 +1,13 @@
 import { motion } from 'framer-motion';
 import { useEffect, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { api } from '../api';
 import { discordInviteUrl } from '../lib/site';
 import BrandLogo from '../components/BrandLogo';
+import { usePageTitle } from '../hooks/usePageTitle';
 
 export default function Login() {
+  usePageTitle('Sign In — The Method Casinos');
   const [params] = useSearchParams();
   const error = params.get('error');
   const next = params.get('next') || '/dashboard';
@@ -26,12 +28,14 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center app-background p-4">
+    <div className="min-h-screen flex items-center justify-center app-background p-4 relative overflow-hidden">
+      <div className="hero-orb w-[320px] h-[320px] bg-glow/15 -top-20 -right-20 pointer-events-none" />
+      <div className="hero-orb w-[280px] h-[280px] bg-brand/10 bottom-0 -left-24 pointer-events-none" style={{ animationDelay: '-5s' }} />
       <motion.div
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
         transition={{ duration: 0.5 }}
-        className="glass-glow p-8 w-full max-w-md text-center"
+        className="glass-glow p-8 w-full max-w-md text-center border-gradient relative z-10"
       >
         <motion.div
           initial={{ scale: 0.8, opacity: 0 }}
@@ -90,13 +94,13 @@ export default function Login() {
           className="text-xs text-gray-600 mt-6"
         >
           Sign in with Discord for admin tools (discovery, review queue, edits). Browse casinos without an account.{' '}
-          <a href="/terms" className="text-glow hover:underline">
+          <Link to="/terms" className="text-glow hover:underline">
             Terms
-          </a>
+          </Link>
           {' · '}
-          <a href="/privacy" className="text-glow hover:underline">
+          <Link to="/privacy" className="text-glow hover:underline">
             Privacy
-          </a>
+          </Link>
         </motion.p>
         {discordInvite && (
           <motion.a

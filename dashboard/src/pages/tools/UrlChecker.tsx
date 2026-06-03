@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { ShieldCheck, ShieldAlert, Search, ExternalLink, AlertTriangle, Flag, Clock } from 'lucide-react';
@@ -11,6 +11,7 @@ import { SCAM_WARNING_SIGNS, SWEEPS_RESEARCH } from '../../lib/generators';
 
 import { usePageTitle } from '../../hooks/usePageTitle';
 import { useAuth } from '../../context/AuthContext';
+import { pushRecentUrlCheck, readRecentUrlChecks } from '../../lib/recent-url-checks';
 
 export default function UrlCheckerPage() {
   usePageTitle('URL Checker — The Method Casinos');
@@ -22,40 +23,34 @@ export default function UrlCheckerPage() {
   const [error, setError] = useState('');
   const [reportSent, setReportSent] = useState(false);
   const [reporting, setReporting] = useState(false);
+  const [recentChecks, setRecentChecks] = useState<string[]>(() => readRecentUrlChecks());
 
-  useEffect(() => {
-    const prefill = searchParams.get('url');
-    if (!prefill?.trim()) return;
-    setUrl(prefill);
-    void (async () => {
-      setLoading(true);
-      setError('');
-      setResult(null);
-      setReportSent(false);
-      try {
-        setResult(await api.checkUrl(prefill.trim()));
-      } catch (e) {
-        setError(e instanceof Error ? e.message : 'Check failed');
-      } finally {
-        setLoading(false);
-      }
-    })();
-  }, [searchParams]);
-
-  const check = async () => {
-    if (!url.trim()) return;
+  const runCheck = useCallback(async (target: string) => {
+    const trimmed = target.trim();
+    if (!trimmed) return;
     setLoading(true);
     setError('');
     setResult(null);
     setReportSent(false);
     try {
-      setResult(await api.checkUrl(url.trim()));
+      const res = await api.checkUrl(trimmed);
+      setResult(res);
+      setRecentChecks(pushRecentUrlCheck(trimmed));
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Check failed');
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    const prefill = searchParams.get('url');
+    if (!prefill?.trim()) return;
+    setUrl(prefill);
+    void runCheck(prefill);
+  }, [searchParams, runCheck]);
+
+  const check = () => void runCheck(url);
 
   const report = async () => {
     if (!url.trim()) return;
@@ -96,6 +91,28 @@ export default function UrlCheckerPage() {
         </div>
 
         {error && <p className="text-red-400 text-sm">{error}</p>}
+
+        {recentChecks.length > 0 && !loading && (
+          <div className="mt-4 pt-4 border-t border-surface-border">
+            <p className="text-[10px] uppercase tracking-wide text-gray-600 mb-2">Recent checks</p>
+            <div className="flex flex-wrap gap-2">
+              {recentChecks.map((u) => (
+                <button
+                  key={u}
+                  type="button"
+                  onClick={() => {
+                    setUrl(u);
+                    void runCheck(u);
+                  }}
+                  className="text-xs px-2.5 py-1 rounded-full border border-surface-border bg-surface-muted text-gray-400 hover:text-glow hover:border-glow/30 transition-colors truncate max-w-full"
+                  title={u}
+                >
+                  {u.replace(/^https?:\/\//, '').slice(0, 48)}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
 
         {result && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mt-4">

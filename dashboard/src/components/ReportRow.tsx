@@ -35,7 +35,7 @@ export default function ReportRow({ report, onDismiss, onBlock, onPromote }: Pro
           : 'Unknown URL';
 
   return (
-    <motion.div layout className="glass-glow p-4 space-y-3">
+    <motion.div layout className="glass-glow p-4 space-y-3 border-gradient">
       <div className="flex flex-col sm:flex-row gap-4 justify-between">
         <div className="min-w-0">
           <div className="flex items-center gap-2 text-amber-400 text-sm mb-1">

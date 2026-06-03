@@ -389,11 +389,11 @@ export default function DiscoveryPage() {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.1 }}
-          className="glass-glow p-6 border-[#b87333]/20"
+          className="glass-glow p-6 border-brand/20"
         >
           <div className="flex items-center gap-3 mb-4">
-            <div className="p-3 rounded-xl bg-[#b87333]/10 border border-[#b87333]/30">
-              <Zap className="w-6 h-6 text-[#d4956a]" />
+            <div className="p-3 rounded-xl bg-brand/10 border border-brand/30">
+              <Zap className="w-6 h-6 text-brand-light" />
             </div>
             <div>
               <h3 className="font-display font-semibold text-lg">Deep Scan</h3>
@@ -508,7 +508,7 @@ export default function DiscoveryPage() {
               { label: 'Rejected', value: liveStats.rejected, color: 'text-amber-400' },
               { label: 'Blocked', value: liveStats.blocked, color: 'text-red-400' },
               { label: 'In queue', value: liveStats.queued, color: liveStats.queued > 0 ? 'text-glow' : 'text-gray-400' },
-              { label: 'Sources', value: liveStats.sourcesChecked, color: 'text-[#d4956a]' },
+              { label: 'Sources', value: liveStats.sourcesChecked, color: 'text-brand-light' },
               { label: 'Queries', value: `${liveStats.queryIndex}/${liveStats.queryTotal}`, color: 'text-gray-300' },
             ].map(({ label, value, color }) => (
               <div key={label} className="text-center p-2 rounded-lg bg-surface-muted border border-surface-border">
@@ -567,7 +567,7 @@ export default function DiscoveryPage() {
           </div>
           <div className="grid grid-cols-2 md:grid-cols-7 gap-3 mb-4">
             {[
-              { icon: Globe, label: 'Sources', value: result.sourcesChecked, color: 'text-[#d4956a]' },
+              { icon: Globe, label: 'Sources', value: result.sourcesChecked, color: 'text-brand-light' },
               { icon: Search, label: 'Scanned', value: result.scanned, color: 'text-glow' },
               { icon: Radar, label: 'Found', value: result.found, color: 'text-glow' },
               { icon: CheckCircle, label: 'Added', value: result.added, color: 'text-emerald-400' },

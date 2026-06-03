@@ -556,7 +556,7 @@ export default function CasinosPage() {
                   <div className="space-y-4 max-h-64 overflow-y-auto pr-1">
                     {FEATURE_CATEGORIES.map((cat) => (
                       <div key={cat.label}>
-                        <p className="text-[10px] uppercase tracking-wide text-[#d4956a]/80 mb-2">{cat.label}</p>
+                        <p className="text-[10px] uppercase tracking-wide text-brand-light/80 mb-2">{cat.label}</p>
                         <div className="flex flex-wrap gap-2">
                           {cat.features.map((f) => (
                             <button

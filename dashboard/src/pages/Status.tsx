@@ -4,6 +4,7 @@ import { motion } from 'framer-motion';
 import { Activity, Bot, Radar, Shield, Sparkles, RefreshCw } from 'lucide-react';
 import { api } from '../api';
 import type { Stats } from '../types';
+import StatsSkeleton from '../components/StatsSkeleton';
 import PageHeader from '../components/PageHeader';
 import { usePageTitle } from '../hooks/usePageTitle';
 import { useAuth } from '../context/AuthContext';
@@ -74,6 +75,8 @@ export default function StatusPage() {
       />
 
       {error && <p className="text-red-400 mb-4">{error}</p>}
+
+      {!status && !error && refreshing && <StatsSkeleton count={4} />}
 
       {status && (
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-4">

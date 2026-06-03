@@ -26,13 +26,13 @@ const SECTION_STYLES: Record<
   string,
   { icon: LucideIcon; accent: string }
 > = {
-  acceptance: { icon: ScrollText, accent: 'from-brand to-[#d4956a]' },
-  service: { icon: Database, accent: 'from-[#00aeef] to-glow' },
+  acceptance: { icon: ScrollText, accent: 'from-brand to-brand-light' },
+  service: { icon: Database, accent: 'from-glow to-glow' },
   disclaimer: { icon: AlertTriangle, accent: 'from-amber-500 to-orange-600' },
   responsibilities: { icon: Scale, accent: 'from-violet-500 to-purple-600' },
   data: { icon: Database, accent: 'from-emerald-500 to-teal-600' },
   privacy: { icon: Lock, accent: 'from-sky-500 to-blue-600' },
-  tools: { icon: Mail, accent: 'from-[#00aeef] to-cyan-500' },
+  tools: { icon: Mail, accent: 'from-glow to-cyan-500' },
   blocked: { icon: Ban, accent: 'from-red-500 to-rose-600' },
   ip: { icon: Shield, accent: 'from-brand to-[#8b5a2b]' },
   liability: { icon: AlertTriangle, accent: 'from-gray-500 to-slate-600' },
@@ -41,7 +41,7 @@ const SECTION_STYLES: Record<
 const SECTIONS = TERMS_SECTIONS.map((s) => ({
   ...s,
   icon: SECTION_STYLES[s.id]?.icon ?? ScrollText,
-  accent: SECTION_STYLES[s.id]?.accent ?? 'from-brand to-[#d4956a]',
+  accent: SECTION_STYLES[s.id]?.accent ?? 'from-brand to-brand-light',
 }));
 
 const TOC = TERMS_TOC;
@@ -52,7 +52,7 @@ export default function TermsPage() {
   return (
     <div className="p-8 max-w-6xl mx-auto">
       <PageHeader
-        icon={<ScrollText className="w-6 h-6 text-[#d4956a]" />}
+        icon={<ScrollText className="w-6 h-6 text-brand-light" />}
         title="Terms of Service"
         subtitle="Legal terms governing The Method Casinos platform, tools, and community"
       />
@@ -69,7 +69,7 @@ export default function TermsPage() {
           <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-6">
             <div>
               <span className="inline-block text-[10px] uppercase tracking-widest px-3 py-1 rounded-full
-                bg-[#b87333]/20 text-[#d4956a] border border-[#b87333]/30 mb-4">
+                bg-brand/20 text-brand-light border border-brand/30 mb-4">
                 Legal Document
               </span>
               <h2 className="font-display text-2xl md:text-3xl font-bold text-white mb-3">
@@ -100,7 +100,7 @@ export default function TermsPage() {
           className="hidden lg:block"
         >
           <div className="sticky top-8 glass p-4 rounded-xl">
-            <p className="text-xs uppercase tracking-widest text-[#d4956a]/80 mb-3 px-2">On this page</p>
+            <p className="text-xs uppercase tracking-widest text-brand-light/80 mb-3 px-2">On this page</p>
             <ul className="space-y-1">
               {TOC.map((item) => (
                 <li key={item.id}>
