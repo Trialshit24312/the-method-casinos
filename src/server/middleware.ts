@@ -2,9 +2,24 @@ import rateLimit from 'express-rate-limit';
 import helmet from 'helmet';
 import type { Express } from 'express';
 
+const DISCORD_IMG_ORIGINS = [
+  'https://cdn.discordapp.com',
+  'https://cdn.discord.com',
+  'https://media.discordapp.net',
+];
+
 export function applySecurityMiddleware(app: Express): void {
+  const defaultDirectives = helmet.contentSecurityPolicy.getDefaultDirectives();
   app.use(helmet({
-    contentSecurityPolicy: process.env.NODE_ENV === 'production' ? undefined : false,
+    contentSecurityPolicy: {
+      directives: {
+        ...defaultDirectives,
+        'img-src': ["'self'", 'data:', 'blob:', ...DISCORD_IMG_ORIGINS],
+        'font-src': ["'self'", 'https://fonts.gstatic.com', 'data:'],
+        'style-src': ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
+        'connect-src': ["'self'"],
+      },
+    },
     crossOriginEmbedderPolicy: false,
   }));
 

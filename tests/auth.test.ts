@@ -25,3 +25,36 @@ describe('OAuth state', () => {
     expect(parseOAuthState(tampered).valid).toBe(false);
   });
 });
+
+describe('Discord avatar URLs', () => {
+  it('builds png and gif avatar URLs with size param', async () => {
+    const { getAvatarUrl } = await import('../src/server/auth.js');
+    expect(getAvatarUrl({
+      id: '123456789012345678',
+      username: 'test',
+      discriminator: '0',
+      avatar: 'abc123hash',
+      isAdmin: false,
+    })).toBe('https://cdn.discordapp.com/avatars/123456789012345678/abc123hash.png?size=128');
+
+    expect(getAvatarUrl({
+      id: '123456789012345678',
+      username: 'test',
+      discriminator: '0',
+      avatar: 'a_animatedhash',
+      isAdmin: false,
+    })).toContain('.gif?size=128');
+  });
+
+  it('falls back to default embed avatar when no hash', async () => {
+    const { getAvatarUrl } = await import('../src/server/auth.js');
+    const url = getAvatarUrl({
+      id: '123456789012345678',
+      username: 'test',
+      discriminator: '0',
+      avatar: null,
+      isAdmin: false,
+    });
+    expect(url).toContain('/embed/avatars/');
+  });
+});

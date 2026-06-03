@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { Sparkles, ShieldCheck, Dices, Wrench, Scale } from 'lucide-react';
+import { Sparkles, ShieldCheck, Dices, Wrench, Scale, Crown } from 'lucide-react';
 import { discordInviteUrl, publicSiteUrl } from '../lib/site';
 
 export default function SiteFooter() {
@@ -28,6 +28,9 @@ export default function SiteFooter() {
               </Link>
               <Link to="/tools" className="text-gray-500 hover:text-glow transition-colors flex items-center gap-1.5">
                 <Wrench className="w-3.5 h-3.5" /> Tools
+              </Link>
+              <Link to="/pricing" className="text-gray-500 hover:text-brand-light transition-colors flex items-center gap-1.5">
+                <Crown className="w-3.5 h-3.5" /> Membership
               </Link>
             </div>
           </div>

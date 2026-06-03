@@ -156,10 +156,15 @@ export function getDiscordAuthUrl(state: string): string {
   return `https://discord.com/api/oauth2/authorize?${params.toString()}`;
 }
 
-export function getAvatarUrl(user: DashboardUser): string {
+export function getAvatarUrl(user: DashboardUser, size = 128): string {
   if (user.avatar) {
-    return `https://cdn.discordapp.com/avatars/${user.id}/${user.avatar}.png`;
+    const hash = user.avatar.trim();
+    if (hash.startsWith('http://') || hash.startsWith('https://')) {
+      return hash;
+    }
+    const ext = hash.startsWith('a_') ? 'gif' : 'png';
+    return `https://cdn.discordapp.com/avatars/${user.id}/${hash}.${ext}?size=${size}`;
   }
   const index = Number(BigInt(user.id) >> 22n) % 6;
-  return `https://cdn.discordapp.com/embed/avatars/${index}.png`;
+  return `https://cdn.discordapp.com/embed/avatars/${index}.png?size=${size}`;
 }

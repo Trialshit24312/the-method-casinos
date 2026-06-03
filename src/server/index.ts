@@ -73,6 +73,12 @@ import { redirectToDashboardPath } from './request-origin.js';
 import { discoverSimilarOnWeb } from '../discovery/similar-search.js';
 import { compareCasinos } from '../shared/compare.js';
 
+const SESSION_MAX_AGE_MS = (() => {
+  const days = parseInt(process.env.SESSION_MAX_AGE_DAYS ?? '30', 10);
+  const safeDays = Number.isFinite(days) && days > 0 ? Math.min(days, 365) : 30;
+  return safeDays * 24 * 60 * 60 * 1000;
+})();
+
 export function createServer(): express.Application {
   const app = express();
 
@@ -99,12 +105,13 @@ export function createServer(): express.Application {
     store: new SqliteSessionStore(),
     resave: false,
     saveUninitialized: false,
+    rolling: true,
     name: 'method.sid',
     proxy: process.env.NODE_ENV === 'production' || Boolean(process.env.RENDER),
     cookie: {
       secure: process.env.NODE_ENV === 'production' || Boolean(process.env.RENDER),
       httpOnly: true,
-      maxAge: 7 * 24 * 60 * 60 * 1000,
+      maxAge: SESSION_MAX_AGE_MS,
       sameSite: 'lax',
       path: '/',
     },
@@ -203,11 +210,18 @@ export function createServer(): express.Application {
       res.json({ user: null });
       return;
     }
-    res.json({
-      user: {
-        ...req.session.user,
-        avatarUrl: getAvatarUrl(req.session.user),
-      },
+    req.session.cookie.maxAge = SESSION_MAX_AGE_MS;
+    req.session.save((err) => {
+      if (err) {
+        res.status(500).json({ error: 'Session refresh failed' });
+        return;
+      }
+      res.json({
+        user: {
+          ...req.session.user!,
+          avatarUrl: getAvatarUrl(req.session.user!),
+        },
+      });
     });
   });
 

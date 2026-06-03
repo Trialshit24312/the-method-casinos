@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Dices, Shield, Radar, Wrench, ArrowRight, Sparkles, ShieldCheck, Globe, Zap, Star } from 'lucide-react';
+import { Dices, Shield, Radar, Wrench, ArrowRight, Sparkles, ShieldCheck, Globe, Zap, Star, Crown } from 'lucide-react';
 import { api } from '../api';
 import type { Stats, Casino } from '../types';
 import { discordInviteUrl } from '../lib/site';
@@ -9,6 +9,7 @@ import SiteFooter from '../components/SiteFooter';
 import FeatureStrip from '../components/FeatureStrip';
 import CasinoCarousel from '../components/CasinoCarousel';
 import CarouselSkeleton from '../components/CarouselSkeleton';
+import PricingTiers from '../components/PricingTiers';
 import { usePageTitle } from '../hooks/usePageTitle';
 
 const fadeUp = {
@@ -57,6 +58,9 @@ export default function Landing() {
             <Link to="/similar" className="text-sm text-gray-400 hover:text-glow transition-colors hidden sm:inline">
               Similar
             </Link>
+            <Link to="/pricing" className="text-sm text-gray-400 hover:text-brand-light transition-colors hidden sm:inline">
+              Membership
+            </Link>
             <Link to="/tools/checker" className="text-sm text-gray-400 hover:text-white transition-colors hidden md:inline">
               URL Check
             </Link>
@@ -97,6 +101,9 @@ export default function Landing() {
             </Link>
             <Link to="/tools/checker" className="btn-secondary inline-flex items-center gap-2 px-7 py-3 text-base">
               <ShieldCheck className="w-4 h-4" /> Check URL
+            </Link>
+            <Link to="/pricing" className="inline-flex items-center gap-2 px-7 py-3 rounded-lg border border-brand/40 bg-brand/10 text-brand-light hover:bg-brand/20 transition-all font-medium">
+              <Crown className="w-4 h-4" /> Membership
             </Link>
             {discordInvite && (
               <a
@@ -167,6 +174,20 @@ export default function Landing() {
         )}
 
         <motion.section
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.34 }}
+          className="mb-16 relative z-10"
+        >
+          <PricingTiers compact />
+          <div className="text-center mt-6">
+            <Link to="/pricing" className="text-sm text-glow hover:underline inline-flex items-center gap-1">
+              Full tier breakdown <ArrowRight className="w-3.5 h-3.5" />
+            </Link>
+          </div>
+        </motion.section>
+
+        <motion.section
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ delay: 0.35 }}
@@ -181,6 +202,7 @@ export default function Landing() {
               { to: '/tools/checker', title: 'URL safety', desc: 'Instant blocklist + catalog lookup before you click.', icon: ShieldCheck, color: 'from-emerald-500/15 to-transparent' },
               { to: '/blocked', title: 'Blocklist', desc: 'Known scam and phishing URLs — never sign up here.', icon: Globe, color: 'from-red-500/15 to-transparent' },
               { to: '/legal', title: 'Legal Hub', desc: 'Terms, rules, privacy — same as Discord /legal.', icon: Shield, color: 'from-amber-500/10 to-transparent' },
+              { to: '/pricing', title: 'Membership', desc: 'Four monthly tiers — Scout to Architect. Preview pricing, no checkout yet.', icon: Crown, color: 'from-brand/20 to-transparent' },
             ].map(({ to, title, desc, icon: Icon, color }, i) => (
               <motion.div key={to} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 + i * 0.04 }}>
                 <Link

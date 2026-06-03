@@ -23,6 +23,7 @@ import MyList from './pages/MyList';
 import LegalHub from './pages/LegalHub';
 import Compare from './pages/Compare';
 import Status from './pages/Status';
+import Pricing from './pages/Pricing';
 import PublicLayout from './components/PublicLayout';
 
 function AdminRoute({ children }: { children: React.ReactNode }) {
@@ -79,6 +80,7 @@ export default function App() {
           <Route path="/assistant" element={<Navigate to="/similar" replace />} />
           <Route path="/blocked" element={<BlockedSites />} />
           <Route path="/guides" element={<Guides />} />
+          <Route path="/pricing" element={<Pricing />} />
           <Route path="/tools" element={<ToolsHub />} />
           <Route path="/tools/email" element={<EmailGenerator />} />
           <Route path="/tools/phone" element={<PhoneGenerator />} />

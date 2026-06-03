@@ -4,6 +4,12 @@ import { getDatabase } from '../database/index.js';
 
 type SessionRecord = SessionData & { cookie?: Session['cookie'] };
 
+const DEFAULT_SESSION_MS = (() => {
+  const days = parseInt(process.env.SESSION_MAX_AGE_DAYS ?? '30', 10);
+  const safeDays = Number.isFinite(days) && days > 0 ? Math.min(days, 365) : 30;
+  return safeDays * 24 * 60 * 60 * 1000;
+})();
+
 export class SqliteSessionStore extends Store {
   constructor() {
     super();
@@ -42,7 +48,7 @@ export class SqliteSessionStore extends Store {
     try {
       const expired = session.cookie?.expires
         ? new Date(session.cookie.expires).getTime()
-        : Date.now() + 7 * 24 * 60 * 60 * 1000;
+        : Date.now() + (session.cookie?.maxAge ?? DEFAULT_SESSION_MS);
       getDatabase().prepare(`
         INSERT INTO sessions (sid, sess, expired) VALUES (?, ?, ?)
         ON CONFLICT(sid) DO UPDATE SET sess = excluded.sess, expired = excluded.expired

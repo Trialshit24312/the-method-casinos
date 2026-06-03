@@ -21,12 +21,14 @@ import {
   Bell,
   Scale,
   Activity,
+  Crown,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import SiteFooter from './SiteFooter';
 import GlobalSearch from './GlobalSearch';
 import PageTransition from './PageTransition';
 import MobileNav from './MobileNav';
+import UserAvatar from './UserAvatar';
 import { discordInviteUrl } from '../lib/site';
 import { api } from '../api';
 
@@ -36,6 +38,7 @@ const mainNav = [
   { to: '/mylist', icon: Heart, label: 'My List' },
   { to: '/similar', icon: Sparkles, label: 'Similar Casinos' },
   { to: '/compare', icon: Scale, label: 'Compare' },
+  { to: '/pricing', icon: Crown, label: 'Membership' },
   { to: '/blocked', icon: Ban, label: 'Blocked Sites' },
 ];
 
@@ -173,9 +176,8 @@ export default function Layout() {
         {user ? (
           <div className="p-4 border-t border-white/[0.06]">
             <div className="flex items-center gap-3 mb-3">
-              <img
-                src={user.avatarUrl}
-                alt={user.username}
+              <UserAvatar
+                user={user}
                 className="w-9 h-9 rounded-full ring-2 ring-glow/40"
               />
               <div className="flex-1 min-w-0">
