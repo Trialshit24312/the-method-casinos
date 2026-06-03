@@ -33,27 +33,63 @@ function oauthSecret(): string {
   return process.env.SESSION_SECRET || 'dev-secret-change-me';
 }
 
-/** Signed state — survives OAuth without relying on session cookie round-trip. */
-export function createOAuthState(): string {
+/** Signed state — carries optional post-login path without relying on session cookies. */
+export function createOAuthState(nextPath?: string): string {
   const nonce = randomBytes(16).toString('hex');
-  const sig = createHmac('sha256', oauthSecret()).update(nonce).digest('hex');
-  return `${nonce}.${sig}`;
+  const safeNext =
+    nextPath && nextPath.startsWith('/') && !nextPath.startsWith('//') ? nextPath : '';
+  const payload = safeNext ? `${nonce}|${safeNext}` : nonce;
+  const sig = createHmac('sha256', oauthSecret()).update(payload).digest('hex');
+  if (!safeNext) return `${nonce}.${sig}`;
+  const nextEnc = Buffer.from(safeNext, 'utf8').toString('base64url');
+  return `${nonce}.${nextEnc}.${sig}`;
 }
 
 export function verifyOAuthState(state: string): boolean {
-  const dot = state.lastIndexOf('.');
-  if (dot <= 0) return false;
+  return parseOAuthState(state).valid;
+}
 
-  const nonce = state.slice(0, dot);
-  const sig = state.slice(dot + 1);
-  if (!/^[a-f0-9]{32}$/.test(nonce) || !/^[a-f0-9]{64}$/.test(sig)) return false;
-
-  const expected = createHmac('sha256', oauthSecret()).update(nonce).digest('hex');
-  try {
-    return timingSafeEqual(Buffer.from(sig, 'hex'), Buffer.from(expected, 'hex'));
-  } catch {
-    return false;
+export function parseOAuthState(state: string): { valid: boolean; next?: string } {
+  const parts = state.split('.');
+  if (parts.length === 2) {
+    const [nonce, sig] = parts;
+    if (!nonce || !sig || !/^[a-f0-9]{32}$/.test(nonce) || !/^[a-f0-9]{64}$/.test(sig)) {
+      return { valid: false };
+    }
+    const expected = createHmac('sha256', oauthSecret()).update(nonce).digest('hex');
+    try {
+      const valid = timingSafeEqual(Buffer.from(sig, 'hex'), Buffer.from(expected, 'hex'));
+      return { valid };
+    } catch {
+      return { valid: false };
+    }
   }
+
+  if (parts.length === 3) {
+    const [nonce, nextEnc, sig] = parts;
+    if (!nonce || !nextEnc || !sig || !/^[a-f0-9]{32}$/.test(nonce) || !/^[a-f0-9]{64}$/.test(sig)) {
+      return { valid: false };
+    }
+    let nextPath = '';
+    try {
+      nextPath = Buffer.from(nextEnc, 'base64url').toString('utf8');
+    } catch {
+      return { valid: false };
+    }
+    if (!nextPath.startsWith('/') || nextPath.startsWith('//')) {
+      return { valid: false };
+    }
+    const payload = `${nonce}|${nextPath}`;
+    const expected = createHmac('sha256', oauthSecret()).update(payload).digest('hex');
+    try {
+      const valid = timingSafeEqual(Buffer.from(sig, 'hex'), Buffer.from(expected, 'hex'));
+      return valid ? { valid: true, next: nextPath } : { valid: false };
+    } catch {
+      return { valid: false };
+    }
+  }
+
+  return { valid: false };
 }
 
 export async function exchangeCode(code: string): Promise<DashboardUser> {

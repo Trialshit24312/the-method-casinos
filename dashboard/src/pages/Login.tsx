@@ -12,7 +12,8 @@ export default function Login() {
   const errorMessages: Record<string, string> = {
     no_code: 'Discord did not return an authorization code.',
     invalid_state: 'Invalid OAuth state. Please try again.',
-    auth_failed: 'Authentication failed. Check your Discord app settings.',
+    auth_failed: 'Authentication failed. Check DISCORD_REDIRECT_URI matches Discord Developer Portal exactly (see /auth/setup on the server).',
+    session_failed: 'Signed in with Discord but the session could not be saved. Try again or clear cookies for this site.',
   };
 
   return (

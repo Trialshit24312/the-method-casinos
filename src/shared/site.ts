@@ -58,15 +58,24 @@ export function getDiscordOAuthLoginUrl(): string {
 
 /** Exact URI sent to Discord — must match Developer Portal OAuth2 redirects. */
 export function getDiscordRedirectUri(): string {
-  const explicit = process.env.DISCORD_REDIRECT_URI?.trim();
   const hosted = getHostedPublicUrl();
+  const explicit = process.env.DISCORD_REDIRECT_URI?.trim();
 
-  // On Render, ignore a leftover localhost redirect from local .env copy-paste
-  if (explicit && !(hosted && isLocalhostUrl(explicit))) {
+  // Render/production: always callback on the live host (ignores stale localhost in env)
+  if (hosted) {
+    if (explicit && !isLocalhostUrl(explicit) && explicit.startsWith(hosted)) {
+      return trimTrailingSlash(explicit);
+    }
+    return `${hosted}/auth/discord/callback`;
+  }
+
+  if (explicit && !isLocalhostUrl(explicit)) {
     return trimTrailingSlash(explicit);
   }
 
-  return `${getApiUrl()}/auth/discord/callback`;
+  // Local dev: use dashboard origin so Vite proxy keeps cookies on one port
+  const dashboard = getDashboardUrl();
+  return `${dashboard}/auth/discord/callback`;
 }
 
 export function sitePage(path: string): string {

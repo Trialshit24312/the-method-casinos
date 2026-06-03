@@ -1,4 +1,5 @@
-import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
+import { createContext, useContext, useEffect, useState, useCallback, type ReactNode } from 'react';
+import { useLocation } from 'react-router-dom';
 import { api } from '../api';
 import type { User } from '../types';
 
@@ -19,8 +20,9 @@ const AuthContext = createContext<AuthContextType>({
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const location = useLocation();
 
-  const refresh = async () => {
+  const refresh = useCallback(async () => {
     try {
       const { user: u } = await api.getMe();
       setUser(u);
@@ -29,11 +31,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
-    refresh();
-  }, []);
+    void refresh();
+  }, [refresh, location.pathname]);
 
   const logout = async () => {
     await api.logout();

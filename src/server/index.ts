@@ -43,15 +43,16 @@ import {
 import { runDiscovery } from '../discovery/engine.js';
 import { cancelDiscoveryRun, isDiscoveryRunning } from '../discovery/run-state.js';
 import { runRevalidationBatch, revalidateCasinoById } from '../discovery/revalidate.js';
-import { requireAuth, requireAdmin, exchangeCode, getDiscordAuthUrl, getAvatarUrl, createOAuthState, verifyOAuthState } from './auth.js';
+import { requireAuth, requireAdmin, exchangeCode, getDiscordAuthUrl, getAvatarUrl, createOAuthState, parseOAuthState } from './auth.js';
 import type { CasinoFeature, CasinoInput, BlockedSiteInput, DiscoveryResult } from '../shared/types.js';
-import { getAllowedCorsOrigins, getDashboardUrl, getDiscordRedirectUri, getOAuthSetupInfo } from '../shared/site.js';
+import { getAllowedCorsOrigins, getDiscordRedirectUri, getOAuthSetupInfo } from '../shared/site.js';
 import { applySecurityMiddleware } from './middleware.js';
 import { SqliteSessionStore } from './session-store.js';
 import { getBotHealth } from '../bot/state.js';
 import { registerHttpServer } from '../shared/shutdown.js';
 import { notifySiteReport, notifyCasinoApproved } from '../shared/notify.js';
 import { checkCasinoUrl } from '../shared/url-check.js';
+import { redirectToDashboardPath } from './request-origin.js';
 import { discoverSimilarOnWeb } from '../discovery/similar-search.js';
 
 export function createServer(): express.Application {
@@ -80,11 +81,14 @@ export function createServer(): express.Application {
     store: new SqliteSessionStore(),
     resave: false,
     saveUninitialized: false,
+    name: 'method.sid',
+    proxy: process.env.NODE_ENV === 'production' || Boolean(process.env.RENDER),
     cookie: {
-      secure: process.env.NODE_ENV === 'production',
+      secure: process.env.NODE_ENV === 'production' || Boolean(process.env.RENDER),
       httpOnly: true,
       maxAge: 7 * 24 * 60 * 60 * 1000,
       sameSite: 'lax',
+      path: '/',
     },
   }));
 
@@ -123,10 +127,11 @@ export function createServer(): express.Application {
 
   app.get('/auth/discord', (req, res) => {
     const next = typeof req.query.next === 'string' ? req.query.next : '';
-    if (next.startsWith('/') && !next.startsWith('//')) {
-      req.session.loginRedirect = next;
+    const safeNext = next.startsWith('/') && !next.startsWith('//') ? next : undefined;
+    if (safeNext) {
+      req.session.loginRedirect = safeNext;
     }
-    const state = createOAuthState();
+    const state = createOAuthState(safeNext);
     req.session.save(() => {
       res.redirect(getDiscordAuthUrl(state));
     });
@@ -136,12 +141,18 @@ export function createServer(): express.Application {
     const { code, state } = req.query;
 
     if (!code || typeof code !== 'string') {
-      res.redirect(`${getDashboardUrl()}/login?error=no_code`);
+      res.redirect(`${redirectToDashboardPath(req, '/login')}?error=no_code`);
       return;
     }
 
-    if (!state || typeof state !== 'string' || !verifyOAuthState(state)) {
-      res.redirect(`${getDashboardUrl()}/login?error=invalid_state`);
+    if (!state || typeof state !== 'string') {
+      res.redirect(`${redirectToDashboardPath(req, '/login')}?error=invalid_state`);
+      return;
+    }
+
+    const parsed = parseOAuthState(state);
+    if (!parsed.valid) {
+      res.redirect(`${redirectToDashboardPath(req, '/login')}?error=invalid_state`);
       return;
     }
 
@@ -150,16 +161,21 @@ export function createServer(): express.Application {
       req.session.user = user;
       req.session.save((err) => {
         if (err) {
-          res.redirect(`${getDashboardUrl()}/login?error=auth_failed`);
+          res.redirect(`${redirectToDashboardPath(req, '/login')}?error=session_failed`);
           return;
         }
-        const next = req.session.loginRedirect;
+        const fromState = parsed.next;
+        const fromSession = req.session.loginRedirect;
         delete req.session.loginRedirect;
-        const dest = next?.startsWith('/') && !next.startsWith('//') ? next : '/dashboard';
-        res.redirect(`${getDashboardUrl()}${dest}`);
+        const dest =
+          (fromState?.startsWith('/') && !fromState.startsWith('//') ? fromState : null) ||
+          (fromSession?.startsWith('/') && !fromSession.startsWith('//') ? fromSession : null) ||
+          '/dashboard';
+        res.redirect(redirectToDashboardPath(req, dest));
       });
-    } catch {
-      res.redirect(`${getDashboardUrl()}/login?error=auth_failed`);
+    } catch (err) {
+      console.error('Discord OAuth callback failed:', err instanceof Error ? err.message : err);
+      res.redirect(`${redirectToDashboardPath(req, '/login')}?error=auth_failed`);
     }
   });
 

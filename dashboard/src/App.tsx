@@ -1,4 +1,4 @@
-import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { Routes, Route, Navigate, useLocation, Link } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import Layout from './components/Layout';
 import Login from './pages/Login';
@@ -33,8 +33,24 @@ function AdminRoute({ children }: { children: React.ReactNode }) {
       </div>
     );
   }
-  if (!user?.isAdmin) {
+  if (!user) {
     return <Navigate to={`/login?next=${encodeURIComponent(location.pathname)}`} replace />;
+  }
+  if (!user.isAdmin) {
+    return (
+      <div className="p-8 max-w-lg mx-auto">
+        <div className="glass-glow p-8 text-center border-amber-500/30">
+          <h1 className="font-display text-xl font-bold text-white mb-2">Admin access required</h1>
+          <p className="text-gray-400 text-sm mb-4">
+            You&apos;re signed in as <span className="text-white">{user.username}</span>, but this page is for catalog admins only.
+            Ask the server owner to add your Discord ID to <code className="text-glow">ADMIN_DISCORD_IDS</code> on Render.
+          </p>
+          <Link to="/dashboard" className="btn-primary inline-block text-sm">
+            Back to dashboard
+          </Link>
+        </div>
+      </div>
+    );
   }
   return <>{children}</>;
 }

@@ -138,7 +138,8 @@ export const api = {
     request<{ ok: boolean }>(`/api/blocked/${id}`, { method: 'DELETE' }),
   loginUrl: (next?: string) => {
     const q = next?.startsWith('/') ? `?next=${encodeURIComponent(next)}` : '';
-    return `${API}/auth/discord${q}`;
+    // Same-origin relative URL — works with Vite proxy locally and unified Render host in prod
+    return `/auth/discord${q}`;
   },
   cancelDiscovery: () =>
     request<{ cancelled: boolean }>('/api/discover/cancel', { method: 'POST' }),
