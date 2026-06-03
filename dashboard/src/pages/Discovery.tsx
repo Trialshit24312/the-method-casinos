@@ -294,7 +294,7 @@ export default function DiscoveryPage() {
   };
 
   return (
-    <div className="p-6 md:p-8 max-w-5xl mx-auto">
+    <div className="page-container-admin">
       <Breadcrumb items={[{ label: 'Admin', to: '/dashboard' }, { label: 'Discovery' }]} />
       <PageHeader
         icon={<Radar className="w-6 h-6 text-glow" />}

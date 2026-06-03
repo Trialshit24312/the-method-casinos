@@ -30,7 +30,7 @@ export default function PasswordGeneratorPage() {
   };
 
   return (
-    <div className="p-6 md:p-8 max-w-3xl mx-auto">
+    <div className="page-container-legal">
       <ToolsBreadcrumb page="Password generator" />
       <PageHeader
         icon={<KeyRound className="w-6 h-6 text-brand-light" />}

@@ -225,6 +225,10 @@
     @apply p-6 md:p-8 max-w-3xl mx-auto;
   }
 
+  .page-container-admin {
+    @apply p-6 md:p-8 max-w-5xl mx-auto;
+  }
+
   .chip {
     @apply px-3 py-1.5 rounded-full text-sm border border-white/10 text-gray-400 transition-colors hover:text-white;
   }

@@ -75,7 +75,7 @@ export default function AdminInsights() {
   };
 
   return (
-    <div className="p-6 md:p-8 max-w-5xl mx-auto">
+    <div className="page-container-admin">
       <Breadcrumb items={[{ label: 'Admin', to: '/dashboard' }, { label: 'Insights' }]} />
       <PageHeader
         icon={<BarChart3 className="w-6 h-6 text-glow" />}

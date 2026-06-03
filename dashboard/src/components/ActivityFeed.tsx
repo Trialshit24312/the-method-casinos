@@ -35,9 +35,14 @@ export default function ActivityFeed() {
     <motion.div
       initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
-      className="glass-glow p-5 mb-8"
+      className="glass-glow p-5 mb-8 border-glow/10"
     >
-      <h2 className="font-display font-semibold text-sm mb-4 text-white">Recent activity</h2>
+      <div className="flex items-center justify-between gap-3 mb-4">
+        <h2 className="font-display font-semibold text-sm text-white">Recent activity</h2>
+        <Link to="/status" className="text-[10px] text-gray-500 hover:text-glow transition-colors">
+          Status →
+        </Link>
+      </div>
       <ul className="space-y-3">
         {items.map((item, i) => (
           <li key={`${item.type}-${item.at}-${i}`} className="flex items-start gap-3 text-sm">

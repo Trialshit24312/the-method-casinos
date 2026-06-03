@@ -15,6 +15,7 @@ import { pushRecentlyViewed } from '../lib/recently-viewed';
 import Breadcrumb from '../components/Breadcrumb';
 import EmptyState from '../components/EmptyState';
 import NoticeBanner from '../components/NoticeBanner';
+import { useTimedNotice } from '../hooks/useTimedNotice';
 import ErrorBanner from '../components/ErrorBanner';
 import { FEATURE_LABELS, FEATURE_COLORS, vpnLabel, formatTrackableValue } from '../types';
 import { formatLastChecked, isCatalogStale } from '../lib/freshness';
@@ -28,7 +29,8 @@ export default function CasinoDetail() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [reportOpen, setReportOpen] = useState(false);
-  const [copyMsg, setCopyMsg] = useState('');
+  const { message: copyMsg, show: showCopyMsg } = useTimedNotice();
+  const { message: favMsg, show: showFavMsg } = useTimedNotice();
 
   usePageTitle(casino ? `${casino.name} — The Method Casinos` : 'Casino — The Method Casinos');
 
@@ -56,9 +58,11 @@ export default function CasinoDetail() {
     if (favorited) {
       await api.removeFavorite(casino.id);
       setFavorited(false);
+      showFavMsg('Removed from My List');
     } else {
       await api.addFavorite(casino.id);
       setFavorited(true);
+      showFavMsg('Added to My List');
     }
   };
 
@@ -76,15 +80,13 @@ export default function CasinoDetail() {
       }
     }
     await navigator.clipboard.writeText(url);
-    setCopyMsg('Profile link copied');
-    setTimeout(() => setCopyMsg(''), 2500);
+    showCopyMsg('Profile link copied');
   };
 
   const copySiteUrl = async () => {
     if (!casino) return;
     await navigator.clipboard.writeText(casino.url);
-    setCopyMsg('Casino URL copied');
-    setTimeout(() => setCopyMsg(''), 2500);
+    showCopyMsg('Casino URL copied');
   };
 
   const copySignupKit = async () => {
@@ -103,8 +105,7 @@ export default function CasinoDetail() {
       `Temp email tools: ${emailTools}`,
     ].filter((line) => line !== '').join('\n');
     await navigator.clipboard.writeText(lines);
-    setCopyMsg('Signup kit copied to clipboard');
-    setTimeout(() => setCopyMsg(''), 2500);
+    showCopyMsg('Signup kit copied to clipboard');
   };
 
   if (loading) {
@@ -245,7 +246,9 @@ export default function CasinoDetail() {
           </div>
         </div>
 
-        {copyMsg && <NoticeBanner message={copyMsg} variant="success" />}
+      {(copyMsg || favMsg) && (
+        <NoticeBanner message={copyMsg || favMsg} variant="success" />
+      )}
 
         <p className="text-gray-300 mb-4">{casino.description || 'No description available.'}</p>
 

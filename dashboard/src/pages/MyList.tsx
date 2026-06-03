@@ -10,6 +10,7 @@ import StatsSkeleton from '../components/StatsSkeleton';
 import ErrorBanner from '../components/ErrorBanner';
 import Breadcrumb from '../components/Breadcrumb';
 import NoticeBanner from '../components/NoticeBanner';
+import { useTimedNotice } from '../hooks/useTimedNotice';
 import { useAuth } from '../context/AuthContext';
 import { usePageTitle } from '../hooks/usePageTitle';
 
@@ -58,7 +59,7 @@ export default function MyList() {
   const [favorites, setFavorites] = useState<FavoriteRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [copyMsg, setCopyMsg] = useState('');
+  const { message: copyMsg, show: showCopyMsg } = useTimedNotice();
 
   const load = () => {
     setLoading(true);
@@ -98,8 +99,7 @@ export default function MyList() {
                     })
                     .join('\n');
                   void navigator.clipboard.writeText(text);
-                  setCopyMsg('List copied to clipboard');
-                  setTimeout(() => setCopyMsg(''), 2500);
+                  showCopyMsg('List copied to clipboard');
                 }}
               >
                 <Copy className="w-4 h-4" /> Copy

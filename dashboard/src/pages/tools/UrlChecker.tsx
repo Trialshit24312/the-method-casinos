@@ -68,7 +68,7 @@ export default function UrlCheckerPage() {
   };
 
   return (
-    <div className="p-6 md:p-8 max-w-4xl mx-auto">
+    <div className="page-container-narrow">
       <ToolsBreadcrumb page="URL checker" />
       <PageHeader
         icon={<ShieldCheck className="w-6 h-6 text-glow" />}

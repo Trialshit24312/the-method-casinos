@@ -39,6 +39,7 @@ export default function Landing() {
   const [statsError, setStatsError] = useState(false);
   const [featured, setFeatured] = useState<Casino[]>([]);
   const [featuredLoading, setFeaturedLoading] = useState(true);
+  const [featuredError, setFeaturedError] = useState(false);
   const [newArrivals, setNewArrivals] = useState<Casino[]>([]);
   const [heroQuery, setHeroQuery] = useState('');
   const navigate = useNavigate();
@@ -52,7 +53,7 @@ export default function Landing() {
     setFeaturedLoading(true);
     api.getFeaturedCasinos(6)
       .then(setFeatured)
-      .catch(() => {})
+      .catch(() => setFeaturedError(true))
       .finally(() => setFeaturedLoading(false));
     api.getNewArrivals(6).then(setNewArrivals).catch(() => {});
   }, []);
@@ -133,6 +134,20 @@ export default function Landing() {
             </button>
           </form>
 
+          <div className="flex flex-wrap gap-2 justify-center mb-10">
+            {[
+              { label: 'No phone', to: '/casinos?no_phone=1' },
+              { label: 'Slots', to: '/casinos?feature=slots' },
+              { label: 'Live games', to: '/casinos?feature=live_games' },
+              { label: 'VPN OK', to: '/casinos?feature=vpn_allowed' },
+              { label: 'Email only', to: '/casinos?feature=email_only' },
+            ].map(({ label, to }) => (
+              <Link key={to} to={to} className="chip text-xs hover:border-glow/30">
+                {label}
+              </Link>
+            ))}
+          </div>
+
           <div className="flex flex-wrap gap-3 justify-center mb-12">
             <Link to="/casinos" className="btn-primary inline-flex items-center gap-2 px-7 py-3 text-base">
               Browse casinos <ArrowRight className="w-4 h-4" />
@@ -172,32 +187,20 @@ export default function Landing() {
             {' '}or browse the catalog.
           </p>
         ) : stats ? (
-          <motion.div
-            initial={{ opacity: 0, y: 16 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.25 }}
-            className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-16"
-          >
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-16 animate-stagger">
             {[
               { label: 'Verified casinos', value: stats.verifiedCasinos, icon: Shield, accent: 'text-emerald-400', to: '/casinos' },
               { label: 'No phone signup', value: stats.noPhoneCasinos, icon: Dices, accent: 'text-glow', to: '/casinos?no_phone=1' },
               { label: 'Blocked scams', value: stats.blockedSites, icon: ShieldCheck, accent: 'text-red-400', to: '/blocked' },
               { label: 'Email only', value: stats.emailOnlyCasinos, icon: Wrench, accent: 'text-brand-light', to: '/casinos?feature=email_only' },
-            ].map(({ label, value, icon: Icon, accent, to }, i) => (
-              <motion.div
-                key={label}
-                initial={{ opacity: 0, y: 12 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.3 + i * 0.05 }}
-              >
-                <Link to={to} className="stat-card text-center card-shine block hover:border-glow/30 transition-colors">
-                  <Icon className={`w-5 h-5 ${accent} mx-auto mb-2`} />
-                  <p className="text-3xl font-display font-bold text-white">{value}</p>
-                  <p className="text-xs text-gray-500 mt-1">{label}</p>
-                </Link>
-              </motion.div>
+            ].map(({ label, value, icon: Icon, accent, to }) => (
+              <Link key={label} to={to} className="stat-card text-center card-shine block hover:border-glow/30 transition-colors">
+                <Icon className={`w-5 h-5 ${accent} mx-auto mb-2`} />
+                <p className="text-3xl font-display font-bold text-white">{value}</p>
+                <p className="text-xs text-gray-500 mt-1">{label}</p>
+              </Link>
             ))}
-          </motion.div>
+          </div>
         ) : null}
 
         <div className="mb-16 px-2">
@@ -229,6 +232,11 @@ export default function Landing() {
           <div className="mb-16 px-2">
             <CarouselSkeleton title="Featured casinos" cards={3} />
           </div>
+        ) : featuredError ? (
+          <p className="text-center text-gray-500 text-sm mb-16 px-2">
+            Featured picks unavailable —{' '}
+            <Link to="/casinos" className="text-glow hover:underline">browse the full catalog</Link>.
+          </p>
         ) : featured.length > 0 && (
           <motion.div
             initial={{ opacity: 0, y: 16 }}

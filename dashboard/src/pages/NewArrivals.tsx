@@ -8,7 +8,7 @@ import EmptyState from '../components/EmptyState';
 import Breadcrumb from '../components/Breadcrumb';
 import ErrorBanner from '../components/ErrorBanner';
 import CasinoCard from '../components/CasinoCard';
-import CarouselSkeleton from '../components/CarouselSkeleton';
+import CatalogGridSkeleton from '../components/CatalogGridSkeleton';
 import { usePageTitle } from '../hooks/usePageTitle';
 
 export default function NewArrivals() {
@@ -34,7 +34,7 @@ export default function NewArrivals() {
   }, []);
 
   return (
-    <div className="p-6 md:p-8 max-w-7xl mx-auto">
+    <div className="page-container">
       <Breadcrumb items={[{ label: 'Catalog', to: '/casinos' }, { label: 'New arrivals' }]} />
       <PageHeader
         icon={<Sparkles className="w-6 h-6 text-glow" />}
@@ -45,7 +45,7 @@ export default function NewArrivals() {
       {error && <ErrorBanner message={error} onRetry={load} />}
 
       {loading ? (
-        <CarouselSkeleton title="Loading" />
+        <CatalogGridSkeleton count={6} />
       ) : casinos.length === 0 ? (
         <EmptyState
           icon={Sparkles}

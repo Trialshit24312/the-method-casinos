@@ -11,6 +11,8 @@ import EmptyState from '../components/EmptyState';
 import Breadcrumb from '../components/Breadcrumb';
 import ErrorBanner from '../components/ErrorBanner';
 import NoticeBanner from '../components/NoticeBanner';
+import CompareSkeleton from '../components/CompareSkeleton';
+import { useTimedNotice } from '../hooks/useTimedNotice';
 import { usePageTitle } from '../hooks/usePageTitle';
 
 export default function ComparePage() {
@@ -23,7 +25,7 @@ export default function ComparePage() {
   const [result, setResult] = useState<CasinoCompareResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [shareMsg, setShareMsg] = useState('');
+  const { message: shareMsg, show: showShareMsg } = useTimedNotice(3000);
 
   const loadCatalog = () => {
     setCatalogError('');
@@ -73,8 +75,7 @@ export default function ComparePage() {
     if (!a || !b) return;
     const url = `${window.location.origin}${window.location.pathname}?a=${encodeURIComponent(a)}&b=${encodeURIComponent(b)}`;
     void navigator.clipboard.writeText(url);
-    setShareMsg('Link copied — share this comparison');
-    setTimeout(() => setShareMsg(''), 3000);
+    showShareMsg('Link copied — share this comparison');
   };
 
   const swap = () => {
@@ -116,11 +117,7 @@ export default function ComparePage() {
         <p className="text-amber-400 text-sm mb-4">Pick two different casinos.</p>
       )}
 
-      {loading && (
-        <div className="flex justify-center py-16">
-          <div className="w-8 h-8 border-2 border-glow border-t-transparent rounded-full animate-spin" />
-        </div>
-      )}
+      {loading && <CompareSkeleton />}
       {error && <ErrorBanner message={error} variant="warning" />}
 
       {!loading && !result && !a && !b && (

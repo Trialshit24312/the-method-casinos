@@ -282,9 +282,7 @@ export default function BlockedSitesPage() {
                 </button>
               </div>
 
-              {error && (
-                <div className="mb-4 p-3 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400 text-sm">{error}</div>
-              )}
+              {error && <ErrorBanner message={error} variant="warning" />}
 
               <div className="space-y-4">
                 <div>

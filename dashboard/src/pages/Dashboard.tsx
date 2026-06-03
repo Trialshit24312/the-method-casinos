@@ -19,6 +19,7 @@ import {
   Scale,
   Clock,
   BarChart3,
+  Bot,
 } from 'lucide-react';
 import { api } from '../api';
 import type { Stats, Casino } from '../types';
@@ -197,6 +198,7 @@ export default function DashboardPage() {
             { title: 'Browse Casinos', desc: 'Verified catalog — filter by VPN, slots, email-only.', path: '/casinos', icon: Dices },
             { title: 'URL Safety Checker', desc: 'Check if a link is safe before visiting.', path: '/tools/checker', icon: ShieldCheck },
             { title: 'The Method Guides', desc: 'Step-by-step signup & safety workflows.', path: '/guides', icon: BookOpen },
+            { title: 'Catalog Help', desc: 'Ask questions about filters, signup, and workflows.', path: '/assistant', icon: Bot },
             { title: 'Blocked Sites', desc: 'Scam, phishing, and dangerous URLs.', path: '/blocked', icon: Ban },
             { title: 'Tools Hub', desc: 'Temp mail, SMS, passwords, and more.', path: '/tools', icon: Wrench },
             { title: 'Discovery Scan', desc: user?.isAdmin ? 'Client-driven scan from your browser.' : 'Admin sign-in required.', path: user?.isAdmin ? '/discovery' : '/login?next=/discovery', icon: Radar },
@@ -204,13 +206,8 @@ export default function DashboardPage() {
             ...(user?.isAdmin
               ? [{ title: 'Admin Insights', desc: 'Backlog, discovery stats, export pending CSV.', path: '/insights', icon: BarChart3 }]
               : []),
-          ].map((item, i) => (
-            <motion.div
-              key={item.title}
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.25 + i * 0.04 }}
-            >
+          ].map((item) => (
+            <div key={item.title}>
               <Link
                 to={item.path}
                 className="block p-4 rounded-2xl bg-white/[0.03] border border-white/[0.08] hover:border-glow/30 hover:bg-glow/5 transition-all h-full group card-shine"
@@ -219,7 +216,7 @@ export default function DashboardPage() {
                 <h3 className="font-medium mb-1 text-white">{item.title}</h3>
                 <p className="text-sm text-gray-500 leading-relaxed">{item.desc}</p>
               </Link>
-            </motion.div>
+            </div>
           ))}
         </div>
 

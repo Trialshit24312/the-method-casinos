@@ -89,8 +89,19 @@ export default function Login() {
         <motion.p
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
+          transition={{ delay: 0.65 }}
+          className="mt-6"
+        >
+          <Link to="/casinos" className="text-sm text-glow hover:underline">
+            Browse as guest →
+          </Link>
+        </motion.p>
+
+        <motion.p
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
           transition={{ delay: 0.7 }}
-          className="text-xs text-gray-600 mt-6"
+          className="text-xs text-gray-600 mt-4"
         >
           Sign in with Discord for admin tools (discovery, review queue, edits). Browse casinos without an account.{' '}
           <Link to="/terms" className="text-glow hover:underline">

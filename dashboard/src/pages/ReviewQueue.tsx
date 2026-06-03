@@ -140,7 +140,7 @@ export default function ReviewQueue() {
   ];
 
   return (
-    <div className="p-6 md:p-8 max-w-4xl mx-auto">
+    <div className="page-container-narrow">
       <Breadcrumb items={[{ label: 'Admin', to: '/dashboard' }, { label: 'Review queue' }]} />
       <PageHeader
         title="Review Queue"

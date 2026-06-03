@@ -11,6 +11,7 @@ import EmptyState from '../components/EmptyState';
 import ErrorBanner from '../components/ErrorBanner';
 import NoticeBanner from '../components/NoticeBanner';
 import RecentlyViewed from '../components/RecentlyViewed';
+import CatalogGridSkeleton from '../components/CatalogGridSkeleton';
 import Breadcrumb from '../components/Breadcrumb';
 import { useAuth } from '../context/AuthContext';
 import { usePageTitle } from '../hooks/usePageTitle';
@@ -393,11 +394,7 @@ export default function CasinosPage() {
                   setNoPhoneOnly(false);
                 }
               }}
-              className={`text-xs px-2.5 py-1 rounded-full border transition-colors ${
-                active
-                  ? 'border-glow/40 bg-glow/10 text-glow'
-                  : 'border-white/10 text-gray-500 hover:text-gray-300'
-              }`}
+              className={`chip text-xs ${active ? 'chip-active' : ''}`}
             >
               {p.label}
             </button>
@@ -415,11 +412,7 @@ export default function CasinosPage() {
               setFilter((f) => (f === p.feature ? '' : p.feature));
               setNoPhoneOnly(false);
             }}
-            className={`text-xs px-2.5 py-1 rounded-full border transition-colors ${
-              filter === p.feature
-                ? 'border-glow/40 bg-glow/10 text-glow'
-                : 'border-white/10 text-gray-500 hover:text-gray-300'
-            }`}
+            className={`chip text-xs ${filter === p.feature ? 'chip-active' : ''}`}
           >
             {p.label}
           </button>
@@ -431,9 +424,7 @@ export default function CasinosPage() {
       {loadError && <ErrorBanner message={loadError} onRetry={load} />}
 
       {loading ? (
-        <div className="flex justify-center py-20">
-          <div className="w-8 h-8 border-2 border-brand border-t-transparent rounded-full animate-spin" />
-        </div>
+        <CatalogGridSkeleton count={6} />
       ) : filtered.length > 0 ? (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 animate-stagger">
           {filtered.map((casino, i) => (
