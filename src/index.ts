@@ -4,10 +4,12 @@ import { startBot } from './bot/index.js';
 import { startServer } from './server/index.js';
 import { setupGracefulShutdown } from './shared/shutdown.js';
 import { scheduleBackgroundJobs } from './shared/scheduler.js';
+import { restoreRemoteDatabaseIfConfigured } from './shared/remote-db-sync.js';
 
 async function main(): Promise<void> {
   console.log('🎰 Starting The Method Casinos...\n');
 
+  await restoreRemoteDatabaseIfConfigured();
   initDatabase();
   console.log('✅ Database initialized');
 

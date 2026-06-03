@@ -6,6 +6,7 @@ import {
   PREFERRED_RENDER_DATA_DIR,
   LEGACY_RENDER_DATA_DIRS,
 } from './data-path.js';
+import { isRemoteDbSyncEnabled } from './remote-db-sync.js';
 
 const BOOT_MARKER = '.persistence-boot';
 
@@ -53,17 +54,21 @@ export function assessPersistence(): PersistenceStatus {
     return resolved === path.resolve(root) || resolved.startsWith(path.resolve(root) + path.sep);
   });
 
-  let diskLikelyPersistent = !onRender || onPersistentRoot;
-  if (onRender && isEphemeralCwdDataDir(dataDir)) {
+  const remoteSync = isRemoteDbSyncEnabled();
+  let diskLikelyPersistent = !onRender || onPersistentRoot || remoteSync;
+  if (onRender && isEphemeralCwdDataDir(dataDir) && !remoteSync) {
     diskLikelyPersistent = false;
     warnings.push(
-      'DATA_DIR is unset and the database is under ./data (ephemeral on Render). Attach a persistent disk and set DATA_DIR to its mount path (e.g. /var/data).',
+      'Render free tier has no persistent disk. Set REMOTE_DB_SYNC=1 and S3_* vars (Cloudflare R2 recommended) so casinos.db uploads to object storage.',
     );
   }
-  if (onRender && !onPersistentRoot && !process.env.DATA_DIR?.trim()) {
+  if (onRender && !onPersistentRoot && !remoteSync && !process.env.DATA_DIR?.trim()) {
     warnings.push(
-      `DATA_DIR not set; using ${dataDir}. Confirm this path is your Render disk mount.`,
+      `DATA_DIR not set; using ${dataDir}. Ephemeral on Render unless REMOTE_DB_SYNC is configured.`,
     );
+  }
+  if (remoteSync) {
+    /* ok — cloud backup */
   }
 
   const markerPath = path.join(dataDir, BOOT_MARKER);
@@ -94,7 +99,9 @@ export function logPersistenceStatus(): PersistenceStatus {
   } else if (marker.boots > 1) {
     console.log(`💾 Disk boot #${marker.boots} (data surviving restarts)`);
   }
-  if (status.diskLikelyPersistent) {
+  if (isRemoteDbSyncEnabled()) {
+    console.log(`☁️  Database persistence: S3-compatible remote sync (bucket ${process.env.S3_BUCKET})`);
+  } else if (status.diskLikelyPersistent) {
     console.log(`💾 Persistent data directory: ${status.dataDir}`);
   } else {
     console.warn(`⚠️  Data may NOT survive Render restarts (directory: ${status.dataDir})`);

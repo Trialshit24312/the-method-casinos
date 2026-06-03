@@ -41,16 +41,16 @@ Set `DISCORD_REDIRECT_URI` to the **exact** callback URL above (no trailing slas
 1. Push this repo to GitHub.
 2. In Render → **New** → **Blueprint** → connect repo (or **Sync** on an existing Blueprint).
 3. Set secret env vars in the dashboard (never commit `.env`).
-4. **Persistent disk (required):** Blueprint attaches a 1GB disk at `/var/data` with `DATA_DIR=/var/data`. If your service was created before this, open the service → **Disks** → add disk → mount path **`/var/data`** → set env **`DATA_DIR=/var/data`** → redeploy.
-5. Set **`SESSION_SECRET`** manually to a long random string (do not let Blueprint auto-generate — rotating it logs everyone out).
+4. **Database persistence (Render free — no disk):** Use **Cloudflare R2** (free S3-compatible storage). See [§2b Cloudflare R2 setup](#2b-cloudflare-r2-setup-render-free-tier) below.
+5. Set **`SESSION_SECRET`** manually to a long random string (keep it stable across deploys).
 
-**Verify persistence after deploy:** open `https://YOUR-SERVICE.onrender.com/health` and check:
+**Verify persistence after deploy:** open `https://YOUR-SERVICE.onrender.com/health`:
 
 ```json
-"persistence": { "diskLikelyPersistent": true, "dataDir": "/var/data", "warnings": [] }
+"persistence": { "diskLikelyPersistent": true, "remoteDbSync": true, "warnings": [] }
 ```
 
-If `diskLikelyPersistent` is `false`, catalog/review-queue changes will be lost on every Render restart.
+If both are false, catalog data resets on every Render restart/deploy.
 
 ### Option B: Manual Web Service
 
@@ -59,7 +59,7 @@ If `diskLikelyPersistent` is `false`, catalog/review-queue changes will be lost 
 3. **Start command:** `npm run start:prod`
 4. **Environment:**
    - `NODE_ENV=production`
-   - `DATA_DIR=/var/data` (must match disk mount)
+   - `REMOTE_DB_SYNC=true` + R2/S3 vars (see §2b)
    - `DISCORD_BOT_TOKEN`, `DISCORD_CLIENT_ID`, `DISCORD_CLIENT_SECRET`
    - `DISCORD_REDIRECT_URI=https://YOUR-SERVICE.onrender.com/auth/discord/callback`
    - `PUBLIC_SITE_URL=https://your-app.pages.dev`
@@ -68,7 +68,7 @@ If `diskLikelyPersistent` is `false`, catalog/review-queue changes will be lost 
    - `SESSION_SECRET` (long random string — keep stable across deploys)
    - `ADMIN_DISCORD_IDS` (comma-separated Discord user IDs)
    - `DISCORD_INVITE_URL=https://discord.gg/your-invite`
-5. Add a **persistent disk** mounted at **`/var/data`** (not optional for SQLite).
+5. Configure **R2 remote sync** (§2b) — required on free tier.
 
 Register slash commands after deploy:
 
@@ -77,6 +77,39 @@ npm run register-commands
 ```
 
 (or rely on bot auto-register if `DISCORD_CLIENT_ID` is set).
+
+---
+
+## 2b. Cloudflare R2 setup (Render free tier)
+
+Render **free web services cannot attach persistent disks**. The app stores `casinos.db` in object storage and restores it on every boot.
+
+### Create R2 bucket (one-time, free)
+
+1. [Cloudflare Dashboard](https://dash.cloudflare.com) → **R2** → **Create bucket** (e.g. `method-casinos-db`).
+2. **Manage R2 API tokens** → **Create API token** → Object Read & Write → scope to that bucket.
+3. Copy **Access Key ID**, **Secret Access Key**, and note your **Account ID** (dashboard URL or R2 overview).
+
+### Render environment variables
+
+| Variable | Example |
+|----------|---------|
+| `REMOTE_DB_SYNC` | `true` |
+| `S3_ENDPOINT` | `https://YOUR_ACCOUNT_ID.r2.cloudflarestorage.com` |
+| `S3_BUCKET` | `method-casinos-db` |
+| `S3_ACCESS_KEY_ID` | *(from R2 token)* |
+| `S3_SECRET_ACCESS_KEY` | *(from R2 token)* |
+| `S3_REGION` | `auto` |
+| `S3_OBJECT_KEY` | `casinos.db` |
+| `REMOTE_DB_SYNC_INTERVAL_MINUTES` | `15` |
+
+Redeploy. Logs should show:
+
+- `☁️  Restored database from s3://...` (after first upload), or `starting fresh` on first run
+- `⏱️  Remote DB sync every 15m`
+- On shutdown: `☁️  Uploaded database to s3://...`
+
+**Paid Render with disk:** you can still use R2 as off-site backup, or set `DATA_DIR=/var/data` and omit `REMOTE_DB_SYNC`.
 
 ---
 
@@ -136,7 +169,9 @@ If the dashboard is on `pages.dev` and API on `onrender.com`, cross-site cookies
 | `VITE_API_URL` | Dashboard build | API base URL |
 | `VITE_PUBLIC_SITE_URL` | Dashboard build | Footer / absolute links |
 | `VITE_DISCORD_INVITE` | Dashboard build | Footer Discord link |
-| `DATA_DIR` | Server | SQLite path; on Render must match disk mount (`/var/data`) |
+| `REMOTE_DB_SYNC` | Server | `true` = upload/download SQLite via S3 API (R2 on free Render) |
+| `S3_ENDPOINT` / `S3_BUCKET` / keys | Server | Cloudflare R2 or any S3-compatible store |
+| `DATA_DIR` | Server | Optional; paid Render disk path (`/var/data`) |
 | `DISCOVERY_CONTINUOUS` | Server | `true` = 24/7 deep discovery loop |
 | `DISCORD_LIVE_FEED` | Server | Mirror discovery log to Discord |
 | `DISCORD_FEED_CHANNEL_ID` | Server | Channel for live feed posts |
@@ -145,11 +180,13 @@ If the dashboard is on `pages.dev` and API on `onrender.com`, cross-site cookies
 
 ## 6b. Data not saving after Render restart?
 
-1. **Disk attached?** Render Dashboard → your web service → **Disks** → must show a disk at `/var/data`.
-2. **`DATA_DIR` env** must be exactly `/var/data` (same as mount path).
-3. **Logs on boot** should show `💾 Persistent data directory: /var/data` — not `⚠️ Data may NOT survive Render restarts`.
-4. **`/health`** → `persistence.diskLikelyPersistent` should be `true`.
-5. If you previously used `/opt/render/project/src/data`, the app auto-migrates `casinos.db` to `/var/data` on first boot with the new mount.
+**Free plan:** use R2 (§2b), not a Render disk.
+
+1. **`REMOTE_DB_SYNC=true`** and all **`S3_*`** vars set on the web service.
+2. **Logs on boot:** `☁️  Restored database from s3://...` or upload messages every 15m.
+3. **`/health`** → `persistence.remoteDbSync: true` and `diskLikelyPersistent: true`.
+4. After approving casinos, wait for the next sync (or redeploy once to force upload on shutdown).
+5. **Paid plan with disk:** set `DATA_DIR=/var/data` and attach a disk; R2 is optional backup.
 
 ---
 

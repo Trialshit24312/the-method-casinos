@@ -1,7 +1,5 @@
-# Render Blueprint — https://github.com/Trialshit24312/the-method-casinos
-# Apply via Dashboard → Blueprint → sync repo. Existing services may need the disk added manually once.
-#
-# CRITICAL: SQLite + sessions live on the persistent disk. Without it, all data resets on deploy/restart.
+# Render Blueprint — free tier (no persistent disk)
+# SQLite survives restarts via Cloudflare R2 (or any S3-compatible bucket) — see DEPLOYMENT.md
 
 services:
   - type: web
@@ -14,23 +12,13 @@ services:
     startCommand: npm run start:prod
     healthCheckPath: /health
 
-    # Persistent disk — only files under mountPath survive restarts/deploys
-    disk:
-      name: casino-data
-      mountPath: /var/data
-      sizeGB: 1
-
     envVars:
       - key: NODE_ENV
         value: production
       - key: RENDER
         value: "true"
 
-      # Must match disk.mountPath exactly
-      - key: DATA_DIR
-        value: /var/data
-
-      # Set once in dashboard — do NOT use generateValue (rotates on blueprint sync → mass logout)
+      # Set once in dashboard — keep stable across deploys
       - key: SESSION_SECRET
         sync: false
 
@@ -47,7 +35,6 @@ services:
       - key: ADMIN_DISCORD_IDS
         sync: false
 
-      # After first deploy, set all three to https://YOUR-SERVICE.onrender.com (all-in-one)
       - key: PUBLIC_SITE_URL
         sync: false
       - key: DASHBOARD_URL
@@ -61,18 +48,32 @@ services:
         sync: false
       - key: DISCORD_LIVE_FEED_WEBHOOK_URL
         sync: false
-      - key: DISCORD_FEED_CHANNEL_ID
-        sync: false
 
       - key: DISCORD_LIVE_FEED
-        value: "true"
-      - key: DISCORD_LIVE_FEED_PIN
         value: "true"
       - key: DISCORD_NOTIFY_PENDING
         value: "false"
 
       - key: SESSION_MAX_AGE_DAYS
         value: "30"
+
+      # Cloudflare R2 (free) — required for data to survive Render restarts
+      - key: REMOTE_DB_SYNC
+        value: "true"
+      - key: REMOTE_DB_SYNC_INTERVAL_MINUTES
+        value: "15"
+      - key: S3_ENDPOINT
+        sync: false
+      - key: S3_BUCKET
+        sync: false
+      - key: S3_ACCESS_KEY_ID
+        sync: false
+      - key: S3_SECRET_ACCESS_KEY
+        sync: false
+      - key: S3_REGION
+        value: auto
+      - key: S3_OBJECT_KEY
+        value: casinos.db
 
       - key: REVALIDATE_INTERVAL_HOURS
         value: "168"
@@ -85,6 +86,3 @@ services:
         value: "90"
       - key: DISCOVERY_CONTINUOUS_BOOT_DELAY_SEC
         value: "45"
-
-      - key: DB_BACKUP_INTERVAL_HOURS
-        value: "24"

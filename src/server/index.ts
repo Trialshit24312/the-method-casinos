@@ -59,6 +59,7 @@ import type { CasinoFeature, CasinoInput, BlockedSiteInput, DiscoveryResult } fr
 import { getAllowedCorsOrigins, getDiscordRedirectUri, getOAuthSetupInfo } from '../shared/site.js';
 import { getDbPath } from '../shared/data-path.js';
 import { assessPersistence } from '../shared/persistence.js';
+import { isRemoteDbSyncEnabled } from '../shared/remote-db-sync.js';
 import { applySecurityMiddleware } from './middleware.js';
 import rateLimit from 'express-rate-limit';
 import {
@@ -171,6 +172,7 @@ export function createServer(): express.Application {
         persistence: {
           dataDir: persistence.dataDir,
           diskLikelyPersistent: persistence.diskLikelyPersistent,
+          remoteDbSync: isRemoteDbSyncEnabled(),
           dbExists: persistence.dbExists,
           warnings: persistence.warnings,
         },

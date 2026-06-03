@@ -7,6 +7,7 @@ import { startContinuousDiscovery, isContinuousDiscoveryEnabled } from '../disco
 import { runRevalidationBatch } from '../discovery/revalidate.js';
 import { getBackupDir, getDbPath } from '../shared/data-path.js';
 import { initDiscordLiveFeed } from './discord-live-feed.js';
+import { isRemoteDbSyncEnabled, scheduleRemoteDbSync } from './remote-db-sync.js';
 
 const DB_PATH = getDbPath();
 const BACKUP_DIR = getBackupDir();
@@ -61,8 +62,10 @@ export function scheduleBackgroundJobs(): void {
     console.log(`⏱️  Discovery scheduled every ${discoveryHours}h (${deep ? 'deep' : 'quick'})`);
   }
 
+  scheduleRemoteDbSync();
+
   const backupHours = parseFloat(process.env.DB_BACKUP_INTERVAL_HOURS ?? '24');
-  if (Number.isFinite(backupHours) && backupHours > 0) {
+  if (!isRemoteDbSyncEnabled() && Number.isFinite(backupHours) && backupHours > 0) {
     runDbBackup();
     setInterval(runDbBackup, backupHours * 60 * 60 * 1000);
     console.log(`⏱️  DB backup every ${backupHours}h`);
