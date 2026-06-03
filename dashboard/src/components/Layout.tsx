@@ -26,6 +26,7 @@ import { useAuth } from '../context/AuthContext';
 import SiteFooter from './SiteFooter';
 import GlobalSearch from './GlobalSearch';
 import PageTransition from './PageTransition';
+import MobileNav from './MobileNav';
 import { discordInviteUrl } from '../lib/site';
 import { api } from '../api';
 
@@ -126,9 +127,15 @@ export default function Layout() {
     });
   }, [user?.isAdmin]);
 
+  const mobileNavItems = [
+    ...mainNav,
+    ...(user?.isAdmin ? adminNav : []),
+    ...toolsNav.slice(0, 4),
+  ];
+
   return (
     <div className="min-h-screen flex app-background">
-      <aside className="w-64 border-r border-white/[0.06] flex flex-col bg-surface-raised/80 backdrop-blur-xl">
+      <aside className="hidden lg:flex w-64 border-r border-white/[0.06] flex-col bg-surface-raised/80 backdrop-blur-xl">
         <div className="p-5 border-b border-white/[0.06]">
           <Link to="/" className="flex flex-col items-center text-center hover:opacity-90 transition-opacity group">
             <div className="relative mb-3">
@@ -201,8 +208,24 @@ export default function Layout() {
 
       <main className="flex-1 overflow-auto flex flex-col relative">
         <div className="absolute inset-0 app-background-grid pointer-events-none opacity-40" />
-        <header className="relative z-10 border-b border-white/[0.06] bg-surface-raised/40 backdrop-blur-xl px-6 py-4 hidden lg:block">
-          <GlobalSearch />
+        <header className="relative z-10 border-b border-white/[0.06] bg-surface-raised/40 backdrop-blur-xl px-4 lg:px-6 py-3 flex items-center gap-3">
+          <MobileNav
+            items={mobileNavItems}
+            footer={user ? (
+              <button
+                type="button"
+                onClick={logout}
+                className="flex items-center gap-2 w-full px-3 py-2 text-sm text-gray-400 hover:text-accent-red rounded-lg"
+              >
+                <LogOut className="w-4 h-4" /> Sign out
+              </button>
+            ) : (
+              <Link to="/login" className="btn-glow w-full text-center text-sm block">Sign in</Link>
+            )}
+          />
+          <div className="flex-1 min-w-0">
+            <GlobalSearch />
+          </div>
         </header>
         <div className="flex-1 relative z-10 p-1">
           <AnimatePresence mode="wait">

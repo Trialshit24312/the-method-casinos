@@ -7,13 +7,19 @@ import PendingCasinoRow from '../components/PendingCasinoRow';
 import ReportRow from '../components/ReportRow';
 import CatalogHealthRow from '../components/CatalogHealthRow';
 import { useAuth } from '../context/AuthContext';
-import { Navigate } from 'react-router-dom';
+import { Navigate, useSearchParams } from 'react-router-dom';
 
 type Tab = 'discoveries' | 'reports' | 'health' | 'history';
 
 export default function ReviewQueue() {
   const { user } = useAuth();
-  const [tab, setTab] = useState<Tab>('discoveries');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const tabParam = searchParams.get('tab');
+  const initialTab: Tab =
+    tabParam === 'reports' || tabParam === 'health' || tabParam === 'history' || tabParam === 'discoveries'
+      ? tabParam
+      : 'discoveries';
+  const [tab, setTab] = useState<Tab>(initialTab);
   const [pending, setPending] = useState<Casino[]>([]);
   const [reports, setReports] = useState<SiteReport[]>([]);
   const [healthIssues, setHealthIssues] = useState<Casino[]>([]);
@@ -97,7 +103,10 @@ export default function ReviewQueue() {
           <button
             key={t.id}
             type="button"
-            onClick={() => setTab(t.id)}
+            onClick={() => {
+              setTab(t.id);
+              setSearchParams(t.id === 'discoveries' ? {} : { tab: t.id }, { replace: true });
+            }}
             className={`px-4 py-2 rounded-lg text-sm border transition-colors ${
               tab === t.id
                 ? 'border-glow/40 bg-glow/10 text-glow'

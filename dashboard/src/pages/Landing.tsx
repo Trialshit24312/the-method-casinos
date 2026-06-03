@@ -1,12 +1,13 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Dices, Shield, Radar, Wrench, ArrowRight, Sparkles, ShieldCheck, Globe, Zap } from 'lucide-react';
+import { Dices, Shield, Radar, Wrench, ArrowRight, Sparkles, ShieldCheck, Globe, Zap, Star } from 'lucide-react';
 import { api } from '../api';
-import type { Stats } from '../types';
+import type { Stats, Casino } from '../types';
 import { discordInviteUrl } from '../lib/site';
 import SiteFooter from '../components/SiteFooter';
 import FeatureStrip from '../components/FeatureStrip';
+import CasinoCarousel from '../components/CasinoCarousel';
 import { usePageTitle } from '../hooks/usePageTitle';
 
 const fadeUp = {
@@ -17,10 +18,12 @@ const fadeUp = {
 export default function Landing() {
   usePageTitle('The Method Casinos — Verified US Sweepstakes Catalog');
   const [stats, setStats] = useState<Stats | null>(null);
+  const [featured, setFeatured] = useState<Casino[]>([]);
   const discordInvite = discordInviteUrl();
 
   useEffect(() => {
     api.getStats().then(setStats).catch(() => {});
+    api.getFeaturedCasinos(6).then(setFeatured).catch(() => {});
   }, []);
 
   return (
@@ -129,6 +132,27 @@ export default function Landing() {
                 <p className="text-xs text-gray-500 mt-1">{label}</p>
               </motion.div>
             ))}
+          </motion.div>
+        )}
+
+        {featured.length > 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.32 }}
+            className="mb-16 px-2"
+          >
+            <CasinoCarousel
+              title="Featured casinos"
+              subtitle="Hand-picked verified operators"
+              casinos={featured}
+              icon={<Star className="w-5 h-5 text-brand-light" />}
+              action={
+                <Link to="/casinos" className="text-sm text-glow hover:underline flex items-center gap-1">
+                  Browse all <ArrowRight className="w-3.5 h-3.5" />
+                </Link>
+              }
+            />
           </motion.div>
         )}
 

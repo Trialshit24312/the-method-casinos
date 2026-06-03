@@ -5,10 +5,10 @@ export default {
     extend: {
       colors: {
         surface: {
-          DEFAULT: '#0a0a0c',
-          raised: '#121218',
-          overlay: '#1a1a22',
-          border: '#2a2a35',
+          DEFAULT: '#060608',
+          raised: '#0e0e12',
+          overlay: '#16161e',
+          border: 'rgba(255,255,255,0.08)',
         },
         brand: {
           DEFAULT: '#b87333',
@@ -32,9 +32,9 @@ export default {
       },
       animation: {
         'fade-in': 'fadeIn 0.5s ease-out',
-        'slide-up': 'slideUp 0.5s ease-out',
-        'pulse-glow': 'pulseGlow 2.5s ease-in-out infinite',
-        shimmer: 'shimmer 2s linear infinite',
+        'slide-up': 'slideUp 0.55s cubic-bezier(0.22, 1, 0.36, 1)',
+        'pulse-glow': 'pulseGlow 3s ease-in-out infinite',
+        float: 'float 6s ease-in-out infinite',
       },
       keyframes: {
         fadeIn: {
@@ -42,26 +42,17 @@ export default {
           '100%': { opacity: '1' },
         },
         slideUp: {
-          '0%': { opacity: '0', transform: 'translateY(20px)' },
+          '0%': { opacity: '0', transform: 'translateY(24px)' },
           '100%': { opacity: '1', transform: 'translateY(0)' },
         },
         pulseGlow: {
-          '0%, 100%': { boxShadow: '0 0 20px rgba(0, 174, 239, 0.2)' },
-          '50%': { boxShadow: '0 0 40px rgba(0, 174, 239, 0.45)' },
+          '0%, 100%': { opacity: '0.6' },
+          '50%': { opacity: '1' },
         },
-        shimmer: {
-          '0%': { backgroundPosition: '-200% 0' },
-          '100%': { backgroundPosition: '200% 0' },
+        float: {
+          '0%, 100%': { transform: 'translateY(0)' },
+          '50%': { transform: 'translateY(-8px)' },
         },
-      },
-      backgroundImage: {
-        'grid-pattern':
-          'linear-gradient(rgba(0,174,239,0.04) 1px, transparent 1px), linear-gradient(90deg, rgba(0,174,239,0.04) 1px, transparent 1px)',
-        'mesh-pattern':
-          'radial-gradient(circle at 20% 20%, rgba(184,115,51,0.08) 0%, transparent 40%), radial-gradient(circle at 80% 0%, rgba(0,174,239,0.06) 0%, transparent 35%)',
-      },
-      backgroundSize: {
-        grid: '48px 48px',
       },
     },
   },
