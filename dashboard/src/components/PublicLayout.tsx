@@ -22,31 +22,36 @@ export default function PublicLayout() {
 
   return (
     <div className="min-h-screen flex flex-col app-background">
-      <header className="sticky top-0 z-20 border-b border-surface-border px-4 sm:px-6 py-3 flex items-center gap-3 bg-surface-raised/80 backdrop-blur-xl">
-        <MobileNav items={publicNavItems} />
-        <Link to="/" className="hover:opacity-90 transition-opacity shrink-0">
-          <BrandLogo size="md" />
-        </Link>
-        <div className="flex-1 min-w-0 max-w-md hidden sm:block">
+      <header className="sticky top-0 z-20 border-b border-surface-border px-4 sm:px-6 py-3 bg-surface-raised/80 backdrop-blur-xl">
+        <div className="flex items-center gap-3">
+          <MobileNav items={publicNavItems} />
+          <Link to="/" className="hover:opacity-90 transition-opacity shrink-0">
+            <BrandLogo size="md" />
+          </Link>
+          <div className="hidden sm:block flex-1 min-w-0 max-w-md">
+            <GlobalSearch />
+          </div>
+          <nav className="hidden md:flex flex-wrap gap-4 text-sm shrink-0 ml-auto">
+            <Link to="/legal" className="text-gray-400 hover:text-glow">
+              Legal
+            </Link>
+            <Link to="/terms" className="text-gray-400 hover:text-glow">
+              Terms
+            </Link>
+            <Link to="/rules" className="text-gray-400 hover:text-glow">
+              Rules
+            </Link>
+            <Link to="/privacy" className="text-gray-400 hover:text-glow">
+              Privacy
+            </Link>
+            <Link to="/login" className="text-glow hover:underline font-medium">
+              Sign in
+            </Link>
+          </nav>
+        </div>
+        <div className="sm:hidden mt-3">
           <GlobalSearch />
         </div>
-        <nav className="hidden md:flex flex-wrap gap-4 text-sm shrink-0">
-          <Link to="/legal" className="text-gray-400 hover:text-glow">
-            Legal
-          </Link>
-          <Link to="/terms" className="text-gray-400 hover:text-glow">
-            Terms
-          </Link>
-          <Link to="/rules" className="text-gray-400 hover:text-glow">
-            Rules
-          </Link>
-          <Link to="/privacy" className="text-gray-400 hover:text-glow">
-            Privacy
-          </Link>
-          <Link to="/login" className="text-glow hover:underline font-medium">
-            Sign in
-          </Link>
-        </nav>
       </header>
       <main className="flex-1 overflow-auto">
         <AnimatePresence mode="wait">

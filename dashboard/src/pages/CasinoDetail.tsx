@@ -14,6 +14,8 @@ import { usePageTitle } from '../hooks/usePageTitle';
 import { pushRecentlyViewed } from '../lib/recently-viewed';
 import Breadcrumb from '../components/Breadcrumb';
 import EmptyState from '../components/EmptyState';
+import NoticeBanner from '../components/NoticeBanner';
+import ErrorBanner from '../components/ErrorBanner';
 import { FEATURE_LABELS, FEATURE_COLORS, vpnLabel, formatTrackableValue } from '../types';
 import { formatLastChecked, isCatalogStale } from '../lib/freshness';
 
@@ -107,7 +109,7 @@ export default function CasinoDetail() {
 
   if (loading) {
     return (
-      <div className="p-6 md:p-8 max-w-5xl mx-auto">
+      <div className="page-container-catalog">
         <div className="h-4 w-48 bg-white/5 rounded animate-pulse mb-6" />
         <div className="glass-glow p-8 animate-pulse space-y-4">
           <div className="h-8 w-2/3 bg-white/10 rounded" />
@@ -125,33 +127,24 @@ export default function CasinoDetail() {
 
   if (error || !casino) {
     return (
-      <div className="p-6 md:p-8 max-w-2xl mx-auto">
+      <div className="page-container-narrow">
         <Breadcrumb items={[{ label: 'Catalog', to: '/casinos' }, { label: 'Not found' }]} />
+        <ErrorBanner
+          message={error || 'Casino not found'}
+          onRetry={slug ? () => {
+            setError('');
+            setLoading(true);
+            api.getCasino(slug)
+              .then(setCasino)
+              .catch((e) => setError(e instanceof Error ? e.message : 'Failed to load'))
+              .finally(() => setLoading(false));
+          } : undefined}
+        />
         <EmptyState
           icon={ShieldCheck}
-          title={error || 'Casino not found'}
+          title="Operator unavailable"
           description="This operator may have been removed or the link is incorrect."
-          action={
-            <div className="flex flex-wrap justify-center gap-3">
-              <Link to="/casinos" className="btn-secondary text-sm">Back to catalog</Link>
-              {slug && (
-                <button
-                  type="button"
-                  className="btn-glow text-sm"
-                  onClick={() => {
-                    setError('');
-                    setLoading(true);
-                    api.getCasino(slug)
-                      .then(setCasino)
-                      .catch((e) => setError(e instanceof Error ? e.message : 'Failed to load'))
-                      .finally(() => setLoading(false));
-                  }}
-                >
-                  Retry
-                </button>
-              )}
-            </div>
-          }
+          action={<Link to="/casinos" className="btn-secondary text-sm">Back to catalog</Link>}
         />
       </div>
     );
@@ -162,7 +155,7 @@ export default function CasinoDetail() {
   }
 
   return (
-    <div className="p-6 md:p-8 max-w-5xl mx-auto">
+    <div className="page-container-catalog">
       <Breadcrumb
         items={[
           { label: 'Catalog', to: '/casinos' },
@@ -252,7 +245,7 @@ export default function CasinoDetail() {
           </div>
         </div>
 
-        {copyMsg && <p className="text-emerald-400 text-sm mb-2">{copyMsg}</p>}
+        {copyMsg && <NoticeBanner message={copyMsg} variant="success" />}
 
         <p className="text-gray-300 mb-4">{casino.description || 'No description available.'}</p>
 

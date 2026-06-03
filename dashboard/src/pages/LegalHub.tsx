@@ -1,7 +1,7 @@
 import { Link } from 'react-router-dom';
-import { motion } from 'framer-motion';
 import { ScrollText, Shield, ShieldCheck, ExternalLink } from 'lucide-react';
 import PageHeader from '../components/PageHeader';
+import Breadcrumb from '../components/Breadcrumb';
 import { usePageTitle } from '../hooks/usePageTitle';
 
 const docs = [
@@ -29,21 +29,17 @@ export default function LegalHub() {
   usePageTitle('Legal — The Method Casinos');
 
   return (
-    <div className="p-8 max-w-3xl mx-auto">
+    <div className="page-container-legal">
+      <Breadcrumb items={[{ label: 'Legal Hub' }]} />
       <PageHeader
         icon={<ScrollText className="w-6 h-6 text-glow" />}
         title="Legal Hub"
         subtitle="Terms, community rules, and privacy — same documents linked from Discord /legal."
       />
 
-      <div className="space-y-4">
-        {docs.map((doc, i) => (
-          <motion.div
-            key={doc.to}
-            initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: i * 0.05 }}
-          >
+      <div className="space-y-4 animate-stagger">
+        {docs.map((doc) => (
+          <div key={doc.to}>
             <Link
               to={doc.to}
               className="glass-glow p-5 flex items-start gap-4 hover:border-glow/30 transition-colors group border-gradient card-shine"
@@ -57,7 +53,7 @@ export default function LegalHub() {
                 <p className="text-sm text-gray-500 mt-1">{doc.desc}</p>
               </div>
             </Link>
-          </motion.div>
+          </div>
         ))}
       </div>
 

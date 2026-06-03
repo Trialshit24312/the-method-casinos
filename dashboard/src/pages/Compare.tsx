@@ -84,7 +84,7 @@ export default function ComparePage() {
   };
 
   return (
-    <div className="p-6 md:p-8 max-w-5xl mx-auto">
+    <div className="page-container-catalog">
       <Breadcrumb items={[{ label: 'Catalog', to: '/casinos' }, { label: 'Compare' }]} />
       <PageHeader
         icon={<Scale className="w-6 h-6 text-glow" />}

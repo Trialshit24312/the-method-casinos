@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Lock, ChevronRight } from 'lucide-react';
 import PageHeader from '../components/PageHeader';
+import Breadcrumb from '../components/Breadcrumb';
 import {
   PRIVACY_SECTIONS,
   LEGAL_LAST_UPDATED,
@@ -13,20 +14,13 @@ import { usePageTitle } from '../hooks/usePageTitle';
 export default function PrivacyPage() {
   usePageTitle('Privacy Policy — The Method Casinos');
   return (
-    <div className="p-6 md:p-8 max-w-4xl mx-auto">
+    <div className="page-container-legal">
+      <Breadcrumb items={[{ label: 'Legal', to: '/legal' }, { label: 'Privacy' }]} />
       <PageHeader
         icon={<Lock className="w-6 h-6 text-glow" />}
         title="Privacy Policy"
         subtitle="How The Method Casinos handles your data"
       />
-
-      <motion.div
-        initial={{ opacity: 0, y: 12 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="glass-glow p-4 mb-8 border-glow/15 text-sm"
-      >
-        <Link to="/legal" className="text-glow hover:underline">← Back to Legal Hub</Link>
-      </motion.div>
 
       <motion.div
         initial={{ opacity: 0, y: 12 }}

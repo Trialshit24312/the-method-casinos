@@ -32,6 +32,7 @@ import { useAuth } from '../context/AuthContext';
 import ActivityFeed from '../components/ActivityFeed';
 import RecentlyViewed from '../components/RecentlyViewed';
 import { usePageTitle } from '../hooks/usePageTitle';
+import ErrorBanner from '../components/ErrorBanner';
 
 export default function DashboardPage() {
   usePageTitle('Dashboard — The Method Casinos');
@@ -44,12 +45,18 @@ export default function DashboardPage() {
   const [carouselsLoading, setCarouselsLoading] = useState(true);
   const [carouselError, setCarouselError] = useState(false);
 
-  useEffect(() => {
+  const loadStats = () => {
+    setStatsLoading(true);
+    setStatsError(false);
     api.getStats()
       .then(setStats)
       .catch(() => setStatsError(true))
       .finally(() => setStatsLoading(false));
+  };
+
+  const loadCarousels = () => {
     setCarouselsLoading(true);
+    setCarouselError(false);
     Promise.all([
       api.getFeaturedCasinos(8),
       api.getRecentCasinos(8),
@@ -60,12 +67,17 @@ export default function DashboardPage() {
       })
       .catch(() => setCarouselError(true))
       .finally(() => setCarouselsLoading(false));
+  };
+
+  useEffect(() => {
+    loadStats();
+    loadCarousels();
   }, []);
 
   const greeting = user ? `Welcome, ${user.username}` : 'The Method Casinos';
 
   return (
-    <div className="p-6 md:p-8 max-w-7xl mx-auto">
+    <div className="page-container">
       <PageHeader
         title={greeting}
         subtitle="Verified US sweepstakes casinos — browse, compare, check URLs, and find similar sites"
@@ -109,9 +121,11 @@ export default function DashboardPage() {
       )}
 
       {!statsLoading && statsError && (
-        <p className="text-amber-400/90 text-sm mb-6 p-3 rounded-xl border border-amber-500/25 bg-amber-500/10">
-          Could not load live stats — catalog and tools are still available.
-        </p>
+        <ErrorBanner
+          message="Could not load live stats — catalog and tools are still available."
+          onRetry={loadStats}
+          variant="warning"
+        />
       )}
 
       {!statsLoading && stats ? (
@@ -132,9 +146,11 @@ export default function DashboardPage() {
       ) : null}
 
       {carouselError && (
-        <p className="text-amber-400/90 text-sm mb-6 p-3 rounded-xl border border-amber-500/25 bg-amber-500/10">
-          Could not load featured carousels — <Link to="/casinos" className="text-glow hover:underline">browse the catalog</Link> directly.
-        </p>
+        <ErrorBanner
+          message="Could not load featured carousels."
+          onRetry={loadCarousels}
+          variant="warning"
+        />
       )}
 
       {carouselsLoading ? (
@@ -171,7 +187,7 @@ export default function DashboardPage() {
         className="glass-glow p-6 md:p-8"
       >
         <h2 className="font-display font-semibold text-lg mb-5 text-white">Quick Start</h2>
-        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-4">
+        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-4 animate-stagger">
           {[
             { title: 'New Arrivals', desc: 'Recently approved operators added to the catalog.', path: '/new', icon: Clock },
             { title: 'Random Casino', desc: 'Roll a verified operator with optional filters — like /random.', path: '/random', icon: Dices },

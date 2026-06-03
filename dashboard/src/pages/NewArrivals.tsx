@@ -60,7 +60,7 @@ export default function NewArrivals() {
             {' '}
             <Link to="/casinos" className="text-glow hover:underline">Browse full catalog →</Link>
           </p>
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 animate-stagger">
             {casinos.map((casino, i) => (
               <CasinoCard key={casino.id} casino={casino} index={i} />
             ))}

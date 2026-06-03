@@ -10,14 +10,12 @@ const QUICK_LINKS = [
   { label: 'Similar casinos', path: '/similar' },
   { label: 'Compare', path: '/compare' },
   { label: 'Random pick', path: '/random' },
-  { label: 'Compare', path: '/compare' },
   { label: 'Catalog help', path: '/assistant' },
   { label: 'Guides', path: '/guides' },
   { label: 'URL checker', path: '/tools/checker' },
   { label: 'My list', path: '/mylist' },
   { label: 'Status', path: '/status' },
   { label: 'Blocklist', path: '/blocked' },
-  { label: 'Catalog help', path: '/assistant' },
 ];
 
 const ADMIN_LINKS = [

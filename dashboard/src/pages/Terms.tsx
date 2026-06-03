@@ -13,6 +13,7 @@ import {
   ChevronRight,
 } from 'lucide-react';
 import PageHeader from '../components/PageHeader';
+import Breadcrumb from '../components/Breadcrumb';
 import { usePageTitle } from '../hooks/usePageTitle';
 import {
   TERMS_SECTIONS,
@@ -52,20 +53,13 @@ const LAST_UPDATED = LEGAL_LAST_UPDATED;
 export default function TermsPage() {
   usePageTitle('Terms of Service — The Method Casinos');
   return (
-    <div className="p-6 md:p-8 max-w-6xl mx-auto">
+    <div className="page-container-legal max-w-6xl">
+      <Breadcrumb items={[{ label: 'Legal', to: '/legal' }, { label: 'Terms' }]} />
       <PageHeader
         icon={<ScrollText className="w-6 h-6 text-brand-light" />}
         title="Terms of Service"
         subtitle="Legal terms governing The Method Casinos platform, tools, and community"
       />
-
-      <motion.div
-        initial={{ opacity: 0, y: 12 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="glass-glow p-4 mb-8 border-glow/15 text-sm"
-      >
-        <Link to="/legal" className="text-glow hover:underline">← Back to Legal Hub</Link>
-      </motion.div>
 
       {/* Hero */}
       <motion.div

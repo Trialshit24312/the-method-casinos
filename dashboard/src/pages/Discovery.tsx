@@ -9,6 +9,7 @@ import type { DiscoveryResult, DiscoveryProgressEvent, DiscoveryLiveStats, Stats
 import PageHeader from '../components/PageHeader';
 import Breadcrumb from '../components/Breadcrumb';
 import ErrorBanner from '../components/ErrorBanner';
+import NoticeBanner from '../components/NoticeBanner';
 import { useAuth } from '../context/AuthContext';
 import { usePageTitle } from '../hooks/usePageTitle';
 
@@ -140,6 +141,7 @@ export default function DiscoveryPage() {
   const [manualUrls, setManualUrls] = useState('');
   const [manualMsg, setManualMsg] = useState('');
   const [adminToolsMsg, setAdminToolsMsg] = useState('');
+  const [copyNotice, setCopyNotice] = useState('');
   const [queueCounts, setQueueCounts] = useState({ pending: 0, reports: 0 });
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const logRef = useRef<HTMLDivElement>(null);
@@ -536,6 +538,8 @@ export default function DiscoveryPage() {
                   onClick={() => {
                     const text = activityLog.map((e) => e.message).join('\n');
                     void navigator.clipboard.writeText(text);
+                    setCopyNotice('Activity log copied to clipboard');
+                    setTimeout(() => setCopyNotice(''), 4000);
                   }}
                 >
                   <Copy className="w-3 h-3" /> Copy log
@@ -556,6 +560,8 @@ export default function DiscoveryPage() {
           </div>
         </motion.div>
       )}
+
+      {copyNotice && <NoticeBanner message={copyNotice} variant="success" />}
 
       {error && <ErrorBanner message={error} />}
 

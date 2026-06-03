@@ -15,6 +15,7 @@ import {
   ChevronRight,
 } from 'lucide-react';
 import PageHeader from '../components/PageHeader';
+import Breadcrumb from '../components/Breadcrumb';
 import { usePageTitle } from '../hooks/usePageTitle';
 import { FEATURE_LABELS, FEATURE_CATEGORIES } from '../types';
 import {
@@ -51,20 +52,13 @@ const CONSEQUENCES = RULES_CONSEQUENCES.map((c) => ({
 export default function RulesPage() {
   usePageTitle('Community Rules — The Method Casinos');
   return (
-    <div className="p-6 md:p-8 max-w-6xl mx-auto">
+    <div className="page-container-legal max-w-6xl">
+      <Breadcrumb items={[{ label: 'Legal', to: '/legal' }, { label: 'Rules' }]} />
       <PageHeader
         icon={<Shield className="w-6 h-6 text-glow" />}
         title="Community Rules"
         subtitle="Precision · Strategy · Execution — standards that keep The Method clean and useful"
       />
-
-      <motion.div
-        initial={{ opacity: 0, y: 12 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="glass-glow p-4 mb-8 border-glow/15 text-sm"
-      >
-        <Link to="/legal" className="text-glow hover:underline">← Back to Legal Hub</Link>
-      </motion.div>
 
       {/* Hero */}
       <motion.div

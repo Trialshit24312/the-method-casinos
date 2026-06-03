@@ -9,6 +9,7 @@ import EmptyState from '../components/EmptyState';
 import StatsSkeleton from '../components/StatsSkeleton';
 import ErrorBanner from '../components/ErrorBanner';
 import Breadcrumb from '../components/Breadcrumb';
+import NoticeBanner from '../components/NoticeBanner';
 import { useAuth } from '../context/AuthContext';
 import { usePageTitle } from '../hooks/usePageTitle';
 
@@ -125,7 +126,7 @@ export default function MyList() {
         }
       />
 
-      {copyMsg && <p className="text-emerald-400 text-sm mb-4">{copyMsg}</p>}
+      {copyMsg && <NoticeBanner message={copyMsg} variant="success" />}
       {error && <ErrorBanner message={error} onRetry={load} />}
 
       {loading && <StatsSkeleton count={3} />}

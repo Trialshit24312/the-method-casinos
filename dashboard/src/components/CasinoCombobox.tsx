@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { ChevronRight, Search, Star } from 'lucide-react';
 import type { Casino } from '../types';
 
@@ -20,6 +20,12 @@ export default function CasinoCombobox({
   const selected = casinos.find((c) => c.id === value);
   const [query, setQuery] = useState(selected?.name ?? '');
   const [open, setOpen] = useState(false);
+
+  useEffect(() => {
+    const c = casinos.find((x) => x.id === value);
+    setQuery(c?.name ?? '');
+    if (!value) setOpen(false);
+  }, [value, casinos]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();

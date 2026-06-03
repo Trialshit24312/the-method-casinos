@@ -117,14 +117,13 @@ export default function SimilarCasinosPage() {
       setSelectedId(result.source.id);
       setMatches(result.matches);
       setWebResult(null);
-      setSearchParams({ casino: casinoId });
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to find similar casinos');
       setMatches([]);
     } finally {
       setLoading(false);
     }
-  }, [setSearchParams]);
+  }, []);
 
   const loadCatalog = () => {
     setCatalogError('');
@@ -138,16 +137,19 @@ export default function SimilarCasinosPage() {
   }, []);
 
   useEffect(() => {
-    const id = searchParams.get('casino');
-    if (id) {
-      setSelectedId(id);
-      runSimilar(id);
+    const id = searchParams.get('casino') ?? '';
+    setSelectedId(id);
+    if (!id) {
+      setSelected(null);
+      setMatches([]);
+      setWebResult(null);
+      return;
     }
+    void runSimilar(id);
   }, [searchParams, runSimilar]);
 
   const pickCasino = (casino: Casino) => {
-    setSelectedId(casino.id);
-    runSimilar(casino.id);
+    setSearchParams({ casino: casino.id });
   };
 
   const searchWeb = async () => {
@@ -171,7 +173,7 @@ export default function SimilarCasinosPage() {
   };
 
   return (
-    <div className="p-6 md:p-8 max-w-6xl mx-auto">
+    <div className="page-container-catalog">
       <Breadcrumb items={[{ label: 'Catalog', to: '/casinos' }, { label: 'Similar' }]} />
       <PageHeader
         icon={<Sparkles className="w-6 h-6 text-glow" />}
@@ -185,8 +187,8 @@ export default function SimilarCasinosPage() {
           casinos={allCasinos}
           value={selectedId}
           onChange={(id) => {
-            setSelectedId(id);
-            if (id) void runSimilar(id);
+            if (id) setSearchParams({ casino: id });
+            else setSearchParams({});
           }}
           placeholder="Search by name — e.g. Chumba, Pulsz, McLuck..."
         />

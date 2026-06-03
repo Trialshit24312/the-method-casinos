@@ -9,6 +9,7 @@ import PageHeader from '../components/PageHeader';
 import CasinoCard from '../components/CasinoCard';
 import EmptyState from '../components/EmptyState';
 import ErrorBanner from '../components/ErrorBanner';
+import NoticeBanner from '../components/NoticeBanner';
 import RecentlyViewed from '../components/RecentlyViewed';
 import Breadcrumb from '../components/Breadcrumb';
 import { useAuth } from '../context/AuthContext';
@@ -80,6 +81,15 @@ export default function CasinosPage() {
   const [staleOnly, setStaleOnly] = useState(false);
   const [sort, setSort] = useState<'name' | 'rating' | 'checked'>('rating');
   const [favoriteIds, setFavoriteIds] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    if (!modalOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setModalOpen(false);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [modalOpen]);
 
   useEffect(() => {
     const q = searchParams.get('q');
@@ -282,7 +292,7 @@ export default function CasinosPage() {
   const hasActiveFilters = Boolean(search.trim() || filter || noPhoneOnly || staleOnly);
 
   return (
-    <div className="p-6 md:p-8 max-w-7xl mx-auto">
+    <div className="page-container">
       {hasActiveFilters && (
         <Breadcrumb
           items={[
@@ -416,9 +426,7 @@ export default function CasinosPage() {
         ))}
       </div>
 
-      {blockNotice && (
-        <p className="text-amber-300 text-sm mb-4 p-3 rounded-xl border border-amber-500/30 bg-amber-500/10">{blockNotice}</p>
-      )}
+      {blockNotice && <NoticeBanner message={blockNotice} variant="warning" />}
 
       {loadError && <ErrorBanner message={loadError} onRetry={load} />}
 
@@ -427,7 +435,7 @@ export default function CasinosPage() {
           <div className="w-8 h-8 border-2 border-brand border-t-transparent rounded-full animate-spin" />
         </div>
       ) : filtered.length > 0 ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 animate-stagger">
           {filtered.map((casino, i) => (
             <CasinoCard
               key={casino.id}
@@ -470,18 +478,21 @@ export default function CasinosPage() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+            className="modal-overlay"
             onClick={() => setModalOpen(false)}
           >
             <motion.div
               initial={{ opacity: 0, scale: 0.95, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              className="glass p-6 w-full max-w-lg max-h-[90vh] overflow-y-auto"
+              className="modal-panel max-w-lg max-h-[90vh] overflow-y-auto p-6"
               onClick={(e) => e.stopPropagation()}
+              role="dialog"
+              aria-modal
+              aria-labelledby="casino-form-title"
             >
               <div className="flex items-center justify-between mb-6">
-                <h2 className="font-display text-xl font-bold">
+                <h2 id="casino-form-title" className="font-display text-xl font-bold">
                   {editing ? 'Edit Casino' : 'Add Casino'}
                 </h2>
                 <button onClick={() => setModalOpen(false)} className="text-gray-500 hover:text-gray-300">
