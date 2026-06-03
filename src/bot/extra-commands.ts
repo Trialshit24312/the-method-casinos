@@ -104,8 +104,8 @@ export const extraCommands: Command[] = [
       const feedHint = isDiscordLiveFeedEnabled()
         ? (process.env.DISCORD_FEED_CHANNEL_ID
           ? '\n\nLive discovery stream is posting in your configured **feed channel**.'
-          : '\n\nLive discovery stream is posting via **DISCORD_WEBHOOK_URL**.')
-        : '\n\nSet **DISCORD_FEED_CHANNEL_ID** + **DISCORD_LIVE_FEED=1** on Render to mirror the dashboard live log.';
+          : '\n\nLive discovery stream is posting via **DISCORD_LIVE_FEED_WEBHOOK_URL**.')
+        : '\n\nSet **DISCORD_LIVE_FEED=1** and **DISCORD_LIVE_FEED_WEBHOOK_URL** on Render to mirror the dashboard live log.';
       await interaction.reply({
         content: `**Recent activity**\n${lines.join('\n')}\n\nDashboard feed → ${sitePage('/dashboard')}${feedHint}`,
       });

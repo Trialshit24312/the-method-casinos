@@ -14,11 +14,21 @@ function shortUrl(url: string): string {
   }
 }
 
+export function getLiveFeedWebhookUrl(): string | undefined {
+  return (
+    process.env.DISCORD_LIVE_FEED_WEBHOOK_URL?.trim()
+    || process.env.DISCORD_WEBHOOK_URL?.trim()
+    || undefined
+  );
+}
+
 export function isDiscordLiveFeedEnabled(): boolean {
   if (process.env.VITEST === 'true') return false;
   const flag = process.env.DISCORD_LIVE_FEED?.trim().toLowerCase();
   if (flag === '1' || flag === 'true') return true;
-  return Boolean(process.env.DISCORD_FEED_CHANNEL_ID?.trim() || process.env.DISCORD_WEBHOOK_URL?.trim());
+  return Boolean(
+    process.env.DISCORD_FEED_CHANNEL_ID?.trim() || getLiveFeedWebhookUrl(),
+  );
 }
 
 function verboseScanLogs(): boolean {
@@ -118,7 +128,7 @@ async function sendFeedContent(content: string): Promise<void> {
     }
   }
 
-  const webhook = process.env.DISCORD_WEBHOOK_URL?.trim();
+  const webhook = getLiveFeedWebhookUrl();
   if (!webhook) return;
 
   await fetch(webhook, {
@@ -223,7 +233,11 @@ export function initDiscordLiveFeed(): void {
   feedInitialized = true;
 
   const channel = process.env.DISCORD_FEED_CHANNEL_ID?.trim();
-  const via = channel ? `channel ${channel}` : 'webhook';
+  const via = channel
+    ? `channel ${channel}`
+    : process.env.DISCORD_LIVE_FEED_WEBHOOK_URL?.trim()
+      ? 'live-feed webhook'
+      : 'webhook (DISCORD_WEBHOOK_URL)';
   console.log(`📡 Discord live feed enabled (${via})`);
 
   if (statusEditTimer) clearInterval(statusEditTimer);

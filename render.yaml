@@ -59,6 +59,8 @@ services:
         sync: false
       - key: DISCORD_WEBHOOK_URL
         sync: false
+      - key: DISCORD_LIVE_FEED_WEBHOOK_URL
+        sync: false
       - key: DISCORD_FEED_CHANNEL_ID
         sync: false
 
