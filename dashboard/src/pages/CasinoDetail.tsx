@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link, useParams, Navigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
-  ExternalLink, Star, ShieldCheck, Sparkles, Heart, Share2, AlertTriangle, Clock, Flag, Link2, ClipboardList,
+  ExternalLink, Star, ShieldCheck, Sparkles, Heart, Share2, AlertTriangle, Clock, Flag, Link2, ClipboardList, Scale, Shuffle, Dices,
 } from 'lucide-react';
 import ReportSiteModal from '../components/ReportSiteModal';
 import { api } from '../api';
@@ -17,6 +17,8 @@ import EmptyState from '../components/EmptyState';
 import NoticeBanner from '../components/NoticeBanner';
 import { useTimedNotice } from '../hooks/useTimedNotice';
 import ErrorBanner from '../components/ErrorBanner';
+import CasinoDetailSkeleton from '../components/CasinoDetailSkeleton';
+import QuickLinkRow from '../components/QuickLinkRow';
 import { FEATURE_LABELS, FEATURE_COLORS, vpnLabel, formatTrackableValue } from '../types';
 import { formatLastChecked, isCatalogStale } from '../lib/freshness';
 
@@ -109,21 +111,7 @@ export default function CasinoDetail() {
   };
 
   if (loading) {
-    return (
-      <div className="page-container-catalog">
-        <div className="h-4 w-48 bg-white/5 rounded animate-pulse mb-6" />
-        <div className="glass-glow p-8 animate-pulse space-y-4">
-          <div className="h-8 w-2/3 bg-white/10 rounded" />
-          <div className="h-4 w-full bg-white/5 rounded" />
-          <div className="h-4 w-5/6 bg-white/5 rounded" />
-          <div className="flex gap-2 pt-4">
-            {Array.from({ length: 4 }).map((_, i) => (
-              <div key={i} className="h-9 w-24 bg-white/5 rounded-lg" />
-            ))}
-          </div>
-        </div>
-      </div>
-    );
+    return <CasinoDetailSkeleton />;
   }
 
   if (error || !casino) {
@@ -167,6 +155,17 @@ export default function CasinoDetail() {
         title={casino.name}
         subtitle={casino.url.replace(/^https?:\/\//, '')}
         icon={<ShieldCheck className="w-6 h-6 text-emerald-400" />}
+      />
+
+      <QuickLinkRow
+        className="mb-6 animate-stagger"
+        links={[
+          { to: `/similar?casino=${casino.id}`, label: 'Find similar', icon: Sparkles },
+          { to: `/compare?a=${encodeURIComponent(casino.id)}`, label: 'Compare', icon: Scale },
+          { to: `/tools/checker?url=${encodeURIComponent(casino.url)}`, label: 'Check URL', icon: ShieldCheck },
+          { to: '/random', label: 'Random pick', icon: Shuffle },
+          { to: '/casinos', label: 'Browse catalog', icon: Dices },
+        ]}
       />
 
       {casino.healthStatus === 'failed' && (
@@ -296,9 +295,14 @@ export default function CasinoDetail() {
 
         <div className="flex flex-wrap gap-1.5">
           {casino.features.map((f) => (
-            <span key={f} className={`text-xs px-2 py-0.5 rounded-full ${FEATURE_COLORS[f]}`}>
+            <Link
+              key={f}
+              to={`/casinos?feature=${f}`}
+              className={`text-xs px-2 py-0.5 rounded-full transition-opacity hover:opacity-80 ${FEATURE_COLORS[f]}`}
+              title={`Browse casinos with ${FEATURE_LABELS[f]}`}
+            >
               {FEATURE_LABELS[f]}
-            </span>
+            </Link>
           ))}
         </div>
       </motion.div>
@@ -317,11 +321,15 @@ export default function CasinoDetail() {
         />
       )}
 
-      <div className="flex flex-wrap gap-4 mt-8 text-sm">
-        <Link to="/casinos" className="text-gray-500 hover:text-white">← Back to catalog</Link>
-        <Link to={`/compare?a=${casino.id}`} className="text-glow hover:underline">Compare this casino →</Link>
-        <Link to={`/tools/checker?url=${encodeURIComponent(casino.url)}`} className="text-glow hover:underline">Check URL safety →</Link>
-      </div>
+      <QuickLinkRow
+        className="mt-8 pt-6 border-t border-surface-border"
+        links={[
+          { to: '/casinos', label: '← Back to catalog' },
+          { to: `/compare?a=${encodeURIComponent(casino.id)}`, label: 'Compare this casino', icon: Scale },
+          { to: `/tools/checker?url=${encodeURIComponent(casino.url)}`, label: 'URL safety check', icon: ShieldCheck },
+          { to: `/similar?casino=${casino.id}`, label: 'Similar casinos', icon: Sparkles },
+        ]}
+      />
 
       <ReportSiteModal
         open={reportOpen}

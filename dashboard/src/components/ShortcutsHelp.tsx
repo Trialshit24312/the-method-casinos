@@ -4,6 +4,7 @@ import { X, Keyboard } from 'lucide-react';
 const SHORTCUTS = [
   { keys: 'Ctrl + K', desc: 'Focus global search' },
   { keys: '?', desc: 'Show this shortcuts panel' },
+  { keys: '↑ ↓', desc: 'Navigate search dropdown' },
   { keys: 'Esc', desc: 'Close menus / dialogs' },
   { keys: '/', desc: 'Focus search (catalog filter on Browse page)' },
   { keys: 'Enter', desc: 'Submit report modal / URL check' },
@@ -22,8 +23,13 @@ export default function ShortcutsHelp() {
       }
       if (e.key === 'Escape') setOpen(false);
     };
+    const onOpen = () => setOpen(true);
     window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
+    window.addEventListener('method-open-shortcuts', onOpen);
+    return () => {
+      window.removeEventListener('keydown', onKey);
+      window.removeEventListener('method-open-shortcuts', onOpen);
+    };
   }, []);
 
   if (!open) return null;
@@ -47,13 +53,11 @@ export default function ShortcutsHelp() {
           {SHORTCUTS.map((s) => (
             <li key={s.keys} className="flex items-center justify-between gap-4 text-sm">
               <span className="text-gray-400">{s.desc}</span>
-              <kbd className="px-2 py-0.5 rounded bg-white/10 border border-white/15 text-gray-300 text-xs font-mono">
-                {s.keys}
-              </kbd>
+              <kbd className="kbd">{s.keys}</kbd>
             </li>
           ))}
         </ul>
-        <p className="text-xs text-gray-600 mt-4">Press <kbd className="text-gray-500">?</kbd> again to close.</p>
+        <p className="text-xs text-gray-600 mt-4">Press <kbd className="kbd">?</kbd> again to close.</p>
       </div>
     </div>
   );

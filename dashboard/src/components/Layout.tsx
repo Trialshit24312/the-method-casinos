@@ -25,6 +25,7 @@ import {
   Crown,
   BarChart3,
   Flag,
+  Keyboard,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import SiteFooter from './SiteFooter';
@@ -233,6 +234,15 @@ export default function Layout() {
           <div className="flex-1 min-w-0">
             <GlobalSearch />
           </div>
+          <button
+            type="button"
+            onClick={() => window.dispatchEvent(new Event('method-open-shortcuts'))}
+            className="shrink-0 p-2 rounded-xl border border-white/10 text-gray-400 hover:text-glow hover:border-glow/30 transition-colors hidden sm:flex items-center gap-1.5"
+            title="Keyboard shortcuts (?)"
+          >
+            <Keyboard className="w-4 h-4" />
+            <kbd className="kbd hidden md:inline">?</kbd>
+          </button>
           <button
             type="button"
             onClick={() => setReportOpen(true)}

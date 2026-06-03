@@ -3,6 +3,8 @@ import { motion } from 'framer-motion';
 import { Mail, Copy, Check, RefreshCw, KeyRound, User, ExternalLink, Sparkles, AlertCircle } from 'lucide-react';
 import PageHeader from '../../components/PageHeader';
 import ToolsBreadcrumb from '../../components/ToolsBreadcrumb';
+import NoticeBanner from '../../components/NoticeBanner';
+import { useTimedNotice } from '../../hooks/useTimedNotice';
 import { usePageTitle } from '../../hooks/usePageTitle';
 import { ServiceGrid } from '../../components/ServiceCard';
 import {
@@ -26,6 +28,7 @@ export default function EmailGeneratorPage() {
   const [password, setPassword] = useState('');
   const [username, setUsername] = useState('');
   const [copied, setCopied] = useState<string | null>(null);
+  const { message: copyMsg, show: showCopyMsg } = useTimedNotice();
 
   const regenerate = () => {
     setEmails(generateEmails(batch, domain || undefined));
@@ -36,6 +39,7 @@ export default function EmailGeneratorPage() {
   const copy = async (text: string) => {
     await navigator.clipboard.writeText(text);
     setCopied(text);
+    showCopyMsg('Copied to clipboard');
     setTimeout(() => setCopied(null), 2000);
   };
 
@@ -57,6 +61,8 @@ export default function EmailGeneratorPage() {
           </button>
         }
       />
+
+      {copyMsg && <NoticeBanner message={copyMsg} variant="success" />}
 
       <motion.div
         initial={{ opacity: 0 }}

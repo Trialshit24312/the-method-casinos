@@ -1,4 +1,5 @@
 import { motion } from 'framer-motion';
+import { Link } from 'react-router-dom';
 import type { LucideIcon } from 'lucide-react';
 
 interface StatCardProps {
@@ -7,17 +8,12 @@ interface StatCardProps {
   icon: LucideIcon;
   color: string;
   delay?: number;
+  to?: string;
 }
 
-export default function StatCard({ label, value, icon: Icon, color, delay = 0 }: StatCardProps) {
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ delay }}
-      whileHover={{ y: -2, transition: { duration: 0.2 } }}
-      className="stat-card group"
-    >
+export default function StatCard({ label, value, icon: Icon, color, delay = 0, to }: StatCardProps) {
+  const inner = (
+    <>
       <div className="flex items-start justify-between">
         <div>
           <p className="text-sm text-gray-500 mb-1">{label}</p>
@@ -29,6 +25,28 @@ export default function StatCard({ label, value, icon: Icon, color, delay = 0 }:
           <Icon className="w-5 h-5" />
         </div>
       </div>
+    </>
+  );
+
+  const card = (
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay }}
+      whileHover={{ y: -2, transition: { duration: 0.2 } }}
+      className={`stat-card group ${to ? 'hover:border-glow/30 cursor-pointer' : ''}`}
+    >
+      {inner}
     </motion.div>
   );
+
+  if (to) {
+    return (
+      <Link to={to} className="block focus:outline-none focus-visible:ring-2 focus-visible:ring-glow/40 rounded-2xl">
+        {card}
+      </Link>
+    );
+  }
+
+  return card;
 }

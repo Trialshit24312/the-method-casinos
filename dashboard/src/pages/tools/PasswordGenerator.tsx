@@ -3,7 +3,8 @@ import { motion } from 'framer-motion';
 import { KeyRound, Copy, Check, RefreshCw } from 'lucide-react';
 import PageHeader from '../../components/PageHeader';
 import ToolsBreadcrumb from '../../components/ToolsBreadcrumb';
-import { usePageTitle } from '../../hooks/usePageTitle';
+import NoticeBanner from '../../components/NoticeBanner';
+import { useTimedNotice } from '../../hooks/useTimedNotice';import { usePageTitle } from '../../hooks/usePageTitle';
 import { generateSecurePassword, passwordStrength } from '../../lib/generators';
 
 export default function PasswordGeneratorPage() {
@@ -14,19 +15,18 @@ export default function PasswordGeneratorPage() {
   const [numbers, setNumbers] = useState(true);
   const [symbols, setSymbols] = useState(true);
   const [password, setPassword] = useState(() => generateSecurePassword());
-  const [copied, setCopied] = useState(false);
+  const { message: copyMsg, show: showCopyMsg } = useTimedNotice();
+  const copied = copyMsg === 'Password copied';
 
   const regenerate = () => {
     setPassword(generateSecurePassword({ length, uppercase, lowercase, numbers, symbols }));
-    setCopied(false);
   };
 
   const strength = passwordStrength(password);
 
   const copy = async () => {
     await navigator.clipboard.writeText(password);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    showCopyMsg('Password copied');
   };
 
   return (
@@ -37,6 +37,8 @@ export default function PasswordGeneratorPage() {
         title="Password Generator"
         subtitle="Create strong unique passwords for every casino account — never reuse passwords"
       />
+
+      {copyMsg && <NoticeBanner message={copyMsg} variant="success" />}
 
       <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} className="glass-glow p-6 border-brand/20">
         <div className="flex items-center gap-2 p-4 rounded-xl bg-surface-muted border border-surface-border mb-6">

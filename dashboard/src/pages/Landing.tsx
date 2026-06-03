@@ -279,7 +279,7 @@ export default function Landing() {
           className="mb-12"
         >
           <h2 className="font-display text-lg text-center text-gray-400 mb-6">Explore the platform</h2>
-          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4 animate-stagger">
             {[
               { to: '/casinos', title: 'Casino catalog', desc: 'Filter by features — slots, VPN, email-only, redeem options.', icon: Dices, color: 'from-brand/20 to-transparent' },
               { to: '/similar', title: 'Similar Casinos', desc: 'Match from catalog or search DuckDuckGo, Bing & Brave for alike sites.', icon: Sparkles, color: 'from-glow/20 to-transparent' },
@@ -292,19 +292,18 @@ export default function Landing() {
               { to: '/blocked', title: 'Blocklist', desc: 'Known scam and phishing URLs — never sign up here.', icon: Globe, color: 'from-red-500/15 to-transparent' },
               { to: '/legal', title: 'Legal Hub', desc: 'Terms, rules, privacy — same as Discord /legal.', icon: Shield, color: 'from-amber-500/10 to-transparent' },
               { to: '/pricing', title: 'Membership', desc: 'Four monthly tiers — Scout to Architect. Preview pricing, no checkout yet.', icon: Crown, color: 'from-brand/20 to-transparent' },
-            ].map(({ to, title, desc, icon: Icon, color }, i) => (
-              <motion.div key={to} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 + i * 0.04 }}>
-                <Link
-                  to={to}
-                  className={`glass-glow p-5 h-full block card-shine bg-gradient-to-br ${color} hover:border-glow/35 transition-all group`}
-                >
-                  <div className="p-2.5 rounded-lg bg-surface-overlay/80 border border-surface-border w-fit mb-3 group-hover:border-glow/30 transition-colors">
-                    <Icon className="w-5 h-5 text-glow" />
-                  </div>
-                  <h3 className="font-display font-semibold mb-1.5 group-hover:text-glow transition-colors">{title}</h3>
-                  <p className="text-sm text-gray-500 leading-relaxed">{desc}</p>
-                </Link>
-              </motion.div>
+            ].map(({ to, title, desc, icon: Icon, color }) => (
+              <Link
+                key={to}
+                to={to}
+                className={`glass-glow p-5 h-full block card-shine bg-gradient-to-br ${color} hover:border-glow/35 transition-all group`}
+              >
+                <div className="p-2.5 rounded-lg bg-surface-overlay/80 border border-surface-border w-fit mb-3 group-hover:border-glow/30 transition-colors">
+                  <Icon className="w-5 h-5 text-glow" />
+                </div>
+                <h3 className="font-display font-semibold mb-1.5 group-hover:text-glow transition-colors">{title}</h3>
+                <p className="text-sm text-gray-500 leading-relaxed">{desc}</p>
+              </Link>
             ))}
           </div>
         </motion.section>

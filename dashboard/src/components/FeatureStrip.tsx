@@ -1,19 +1,21 @@
 import { Link } from 'react-router-dom';
-import { Dices, Sparkles, ShieldCheck, Wrench, Scale, Activity, HelpCircle } from 'lucide-react';
+import { Dices, Sparkles, ShieldCheck, Wrench, Scale, Activity, HelpCircle, Shuffle, Heart } from 'lucide-react';
 
 const features = [
   { to: '/casinos', icon: Dices, label: 'Verified catalog', desc: 'Filter by VPN, slots & more' },
   { to: '/similar', icon: Sparkles, label: 'Similar casinos', desc: 'Match + free web search' },
   { to: '/compare', icon: Scale, label: 'Compare', desc: 'Side-by-side operators' },
+  { to: '/random', icon: Shuffle, label: 'Random pick', desc: 'Roll the catalog' },
   { to: '/tools/checker', icon: ShieldCheck, label: 'URL checker', desc: 'Scam & blocklist scan' },
   { to: '/tools', icon: Wrench, label: 'Signup tools', desc: 'Email, SMS, passwords' },
+  { to: '/mylist', icon: Heart, label: 'My list', desc: 'Saved favorites' },
   { to: '/assistant', icon: HelpCircle, label: 'Catalog help', desc: 'Signup workflows' },
   { to: '/status', icon: Activity, label: 'Live status', desc: 'Bot & search engines' },
 ];
 
 export default function FeatureStrip({ compact = false }: { compact?: boolean }) {
   return (
-    <div className={`grid ${compact ? 'grid-cols-2 md:grid-cols-4' : 'grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7'} gap-3`}>
+    <div className={`grid ${compact ? 'grid-cols-2 md:grid-cols-4' : 'grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5'} gap-3 animate-stagger`}>
       {features.map(({ to, icon: Icon, label, desc }) => (
         <Link key={to} to={to} className="feature-pill group">
           <Icon className="w-4 h-4 text-glow shrink-0 group-hover:scale-110 transition-transform" />

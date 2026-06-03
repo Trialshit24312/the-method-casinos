@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react';
 import { Flag, X } from 'lucide-react';
 import { api } from '../api';
-
+import NoticeBanner from './NoticeBanner';
+import ErrorBanner from './ErrorBanner';
+import { useTimedNotice } from '../hooks/useTimedNotice';
 interface Props {
   open: boolean;
   onClose: () => void;
@@ -12,15 +14,15 @@ export default function ReportSiteModal({ open, onClose, initialUrl = '' }: Prop
   const [url, setUrl] = useState(initialUrl);
   const [reason, setReason] = useState('');
   const [status, setStatus] = useState<'idle' | 'sending' | 'done' | 'error'>('idle');
-  const [message, setMessage] = useState('');
+  const { message: noticeMsg, show: showNotice, clear: clearNotice } = useTimedNotice(4000);
 
   useEffect(() => {
     if (open) {
       setUrl(initialUrl);
       setStatus('idle');
-      setMessage('');
+      clearNotice();
     }
-  }, [open, initialUrl]);
+  }, [open, initialUrl, clearNotice]);
 
   useEffect(() => {
     if (!open) return;
@@ -37,16 +39,16 @@ export default function ReportSiteModal({ open, onClose, initialUrl = '' }: Prop
     const trimmed = url.trim();
     if (!trimmed) return;
     setStatus('sending');
-    setMessage('');
+    clearNotice();
     try {
       await api.reportUrl(trimmed, reason.trim() || undefined);
       setStatus('done');
-      setMessage('Report submitted — admins will review it.');
+      showNotice('Report submitted — admins will review it.');
       setUrl('');
       setReason('');
     } catch (e) {
       setStatus('error');
-      setMessage(e instanceof Error ? e.message : 'Failed to submit');
+      showNotice(e instanceof Error ? e.message : 'Failed to submit');
     }
   };
 
@@ -81,9 +83,8 @@ export default function ReportSiteModal({ open, onClose, initialUrl = '' }: Prop
           value={reason}
           onChange={(e) => setReason(e.target.value)}
         />
-        {message && (
-          <p className={`text-sm mb-3 ${status === 'error' ? 'text-red-400' : 'text-emerald-400'}`}>{message}</p>
-        )}
+        {noticeMsg && status === 'error' && <ErrorBanner message={noticeMsg} variant="warning" />}
+        {noticeMsg && status !== 'error' && <NoticeBanner message={noticeMsg} variant="success" />}
         <div className="flex gap-2 justify-end">
           <button type="button" onClick={onClose} className="btn-secondary text-sm">
             Cancel

@@ -1,5 +1,4 @@
 import { Link } from 'react-router-dom';
-import { motion } from 'framer-motion';
 import { BookOpen, Mail, ShieldCheck, Ban, Radar, Dices, KeyRound, AlertTriangle, Sparkles, Heart, Scale, Shuffle, HelpCircle } from 'lucide-react';
 import PageHeader from '../components/PageHeader';
 import Breadcrumb from '../components/Breadcrumb';
@@ -109,29 +108,25 @@ export default function GuidesPage() {
         subtitle="Step-by-step workflows for safe sweepstakes casino signup and research"
       />
 
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 mb-10">
-        {quickLinks.map((link, i) => (
-          <motion.div key={link.to} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.04 }}>
-            <Link
-              to={link.to}
-              className="block p-3 rounded-xl border border-surface-border bg-surface-raised/80
-                hover:border-glow/40 text-center transition-all group card-shine"
-            >
-              <link.icon className="w-5 h-5 mx-auto mb-1 text-brand-light group-hover:text-glow transition-colors" />
-              <span className="text-xs text-gray-400 group-hover:text-white">{link.label}</span>
-            </Link>
-          </motion.div>
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 mb-10 animate-stagger">
+        {quickLinks.map((link) => (
+          <Link
+            key={link.to}
+            to={link.to}
+            className="block p-3 rounded-xl border border-surface-border bg-surface-raised/80
+              hover:border-glow/40 text-center transition-all group card-shine"
+          >
+            <link.icon className="w-5 h-5 mx-auto mb-1 text-brand-light group-hover:text-glow transition-colors" />
+            <span className="text-xs text-gray-400 group-hover:text-white">{link.label}</span>
+          </Link>
         ))}
       </div>
 
-      <div className="grid md:grid-cols-2 gap-6">
-        {GUIDES.map((guide, i) => (
-          <motion.div
+      <div className="grid md:grid-cols-2 gap-6 animate-stagger">
+        {GUIDES.map((guide) => (
+          <div
             key={guide.title}
-            initial={{ opacity: 0, y: 16 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: i * 0.06 }}
-            className="glass-glow p-6 border-surface-border"
+            className="glass-glow p-6 border-glow/10"
           >
             <div className="flex items-center gap-3 mb-4">
               <div className="p-2 rounded-lg bg-glow/10 border border-glow/25">
@@ -144,21 +139,18 @@ export default function GuidesPage() {
                 <li key={step} className="text-sm text-gray-400 leading-relaxed">{step}</li>
               ))}
             </ol>
-          </motion.div>
+          </div>
         ))}
       </div>
 
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ delay: 0.5 }}
+      <div
         className="mt-10 p-5 rounded-xl bg-amber-500/10 border border-amber-500/25 flex gap-3"
       >
         <AlertTriangle className="w-5 h-5 text-amber-400 shrink-0" />
         <p className="text-sm text-gray-400">
           The Method helps you find and organize sweepstakes casinos — you are responsible for following each site&apos;s terms of service and your local laws.
         </p>
-      </motion.div>
+      </div>
     </div>
   );
 }

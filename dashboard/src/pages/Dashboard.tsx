@@ -131,16 +131,16 @@ export default function DashboardPage() {
 
       {!statsLoading && stats ? (
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 md:gap-4 mb-8 animate-stagger">
-          <StatCard label="Verified Catalog" value={stats.verifiedCasinos} icon={ShieldCheck} color="bg-emerald-500/20 text-emerald-300" delay={0} />
+          <StatCard label="Verified Catalog" value={stats.verifiedCasinos} icon={ShieldCheck} color="bg-emerald-500/20 text-emerald-300" to="/casinos" />
           {user?.isAdmin && (
-            <StatCard label="Pending Review" value={stats.pendingReview} icon={Clock} color="bg-amber-500/20 text-amber-300" delay={0.05} />
+            <StatCard label="Pending Review" value={stats.pendingReview} icon={Clock} color="bg-amber-500/20 text-amber-300" to="/review?tab=discoveries" />
           )}
-          <StatCard label="No Phone Required" value={stats.noPhoneCasinos} icon={PhoneOff} color="bg-glow/20 text-glow" delay={0.1} />
-          <StatCard label="Email Only Signup" value={stats.emailOnlyCasinos} icon={Mail} color="bg-violet-500/20 text-violet-300" delay={0.15} />
-          <StatCard label="With Slots" value={stats.withSlots} icon={Sparkles} color="bg-amber-500/20 text-amber-300" delay={0.2} />
-          <StatCard label="Live Games" value={stats.withLiveGames} icon={Radio} color="bg-rose-500/20 text-rose-300" delay={0.25} />
-          <StatCard label="VPN Allowed" value={stats.vpnAllowedCasinos} icon={Shield} color="bg-emerald-500/20 text-emerald-300" delay={0.3} />
-          <StatCard label="Blocked Scams" value={stats.blockedSites} icon={Ban} color="bg-red-500/20 text-red-400" delay={0.35} />
+          <StatCard label="No Phone Required" value={stats.noPhoneCasinos} icon={PhoneOff} color="bg-glow/20 text-glow" to="/casinos?no_phone=1" />
+          <StatCard label="Email Only Signup" value={stats.emailOnlyCasinos} icon={Mail} color="bg-violet-500/20 text-violet-300" to="/casinos?feature=email_only" />
+          <StatCard label="With Slots" value={stats.withSlots} icon={Sparkles} color="bg-amber-500/20 text-amber-300" to="/casinos?feature=slots" />
+          <StatCard label="Live Games" value={stats.withLiveGames} icon={Radio} color="bg-rose-500/20 text-rose-300" to="/casinos?feature=live_games" />
+          <StatCard label="VPN Allowed" value={stats.vpnAllowedCasinos} icon={Shield} color="bg-emerald-500/20 text-emerald-300" to="/casinos?feature=vpn_allowed" />
+          <StatCard label="Blocked Scams" value={stats.blockedSites} icon={Ban} color="bg-red-500/20 text-red-400" to="/blocked" />
         </div>
       ) : statsLoading ? (
         <StatsSkeleton count={user?.isAdmin ? 8 : 7} />
