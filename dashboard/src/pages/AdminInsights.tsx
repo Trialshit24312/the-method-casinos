@@ -9,6 +9,7 @@ import EmptyState from '../components/EmptyState';
 import ErrorBanner from '../components/ErrorBanner';
 import Breadcrumb from '../components/Breadcrumb';
 import NoticeBanner from '../components/NoticeBanner';
+import { useTimedNotice } from '../hooks/useTimedNotice';
 import { useAuth } from '../context/AuthContext';
 import { usePageTitle } from '../hooks/usePageTitle';
 import { apiBaseUrl } from '../lib/site';
@@ -33,7 +34,7 @@ export default function AdminInsights() {
   const { user } = useAuth();
   const [data, setData] = useState<Insights | null>(null);
   const [error, setError] = useState('');
-  const [exportMsg, setExportMsg] = useState('');
+  const { message: exportMsg, show: showExportMsg } = useTimedNotice(4000);
   const [exporting, setExporting] = useState(false);
 
   const load = () => {
@@ -56,7 +57,6 @@ export default function AdminInsights() {
 
   const downloadCsv = (url: string, filename: string) => {
     setExporting(true);
-    setExportMsg('');
     void fetch(url, { credentials: 'include' })
       .then((r) => {
         if (!r.ok) throw new Error(`Export failed (${r.status})`);
@@ -67,10 +67,9 @@ export default function AdminInsights() {
         a.href = URL.createObjectURL(blob);
         a.download = filename;
         a.click();
-        setExportMsg(`Downloaded ${filename}`);
-        setTimeout(() => setExportMsg(''), 4000);
+        showExportMsg(`Downloaded ${filename}`);
       })
-      .catch((e) => setExportMsg(e instanceof Error ? e.message : 'Export failed'))
+      .catch((e) => showExportMsg(e instanceof Error ? e.message : 'Export failed'))
       .finally(() => setExporting(false));
   };
 
@@ -84,12 +83,12 @@ export default function AdminInsights() {
       />
 
       {error && <ErrorBanner message={error} onRetry={load} />}
-      {exportMsg && <NoticeBanner message={exportMsg} variant={exportMsg.includes('Downloaded') ? 'success' : 'info'} />}
+      {exportMsg && <NoticeBanner message={exportMsg} variant={exportMsg.includes('Downloaded') ? 'success' : 'warning'} />}
       {!data && !error && <StatsSkeleton count={4} />}
 
       {data && (
         <>
-          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8 animate-stagger">
             <div className="glass-glow p-4 border-amber-500/20">
               <p className="text-xs text-gray-500 uppercase">Pending review</p>
               <p className="text-3xl font-bold text-amber-300 mt-1">{data.pendingCount}</p>

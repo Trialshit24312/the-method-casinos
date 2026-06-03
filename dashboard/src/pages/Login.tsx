@@ -86,16 +86,28 @@ export default function Login() {
           Sign in with Discord
         </motion.a>
 
-        <motion.p
+        <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ delay: 0.65 }}
-          className="mt-6"
+          className="mt-6 space-y-3"
         >
-          <Link to="/casinos" className="text-sm text-glow hover:underline">
+          <Link to="/casinos" className="text-sm text-glow hover:underline block">
             Browse as guest →
           </Link>
-        </motion.p>
+          <div className="flex flex-wrap justify-center gap-2">
+            {[
+              { to: '/casinos', label: 'Catalog' },
+              { to: '/random', label: 'Random' },
+              { to: '/tools/checker', label: 'URL check' },
+              { to: '/mylist', label: 'My list' },
+            ].map(({ to, label }) => (
+              <Link key={to} to={to} className="chip text-xs hover:border-glow/30">
+                {label}
+              </Link>
+            ))}
+          </div>
+        </motion.div>
 
         <motion.p
           initial={{ opacity: 0 }}

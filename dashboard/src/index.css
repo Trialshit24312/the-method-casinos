@@ -248,6 +248,31 @@
     @apply flex flex-wrap items-center gap-2 mb-4 p-3 rounded-xl border border-glow/20 bg-glow/5;
   }
 
+  .carousel-fade {
+    @apply relative;
+  }
+
+  .carousel-fade::before,
+  .carousel-fade::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 2rem;
+    z-index: 2;
+    pointer-events: none;
+  }
+
+  .carousel-fade::before {
+    left: 0;
+    background: linear-gradient(to right, #060608, transparent);
+  }
+
+  .carousel-fade::after {
+    right: 0;
+    background: linear-gradient(to left, #060608, transparent);
+  }
+
   .notice-enter {
     animation: noticeIn 0.35s cubic-bezier(0.22, 1, 0.36, 1);
   }

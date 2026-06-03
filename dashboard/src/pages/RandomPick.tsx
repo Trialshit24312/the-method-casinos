@@ -1,7 +1,8 @@
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Dices, RefreshCw } from 'lucide-react';
+import { Dices, RefreshCw, Scale, Sparkles } from 'lucide-react';
+import RandomPickSkeleton from '../components/RandomPickSkeleton';
+import QuickLinkRow from '../components/QuickLinkRow';
 import { api } from '../api';
 import type { Casino, CasinoFeature } from '../types';
 import PageHeader from '../components/PageHeader';
@@ -85,18 +86,19 @@ export default function RandomPick() {
 
       {error && <ErrorBanner message={error} onRetry={() => void roll()} variant="warning" />}
 
+      {loading && <RandomPickSkeleton />}
+
       {pick && !loading && (
         <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="space-y-4">
           <p className="text-xs text-gray-500 uppercase tracking-wide">Your pick</p>
           <CasinoCard casino={pick} index={0} />
-          <div className="flex flex-wrap gap-4 text-sm">
-            <Link to={`/casinos/${pick.urlNormalized ?? pick.id}`} className="text-glow hover:underline">
-              Full profile →
-            </Link>
-            <Link to={`/similar?casino=${pick.id}`} className="text-glow hover:underline">
-              Find similar →
-            </Link>
-          </div>
+          <QuickLinkRow
+            links={[
+              { to: `/casinos/${pick.urlNormalized ?? pick.id}`, label: 'Full profile' },
+              { to: `/similar?casino=${pick.id}`, label: 'Find similar', icon: Sparkles },
+              { to: `/compare?a=${encodeURIComponent(pick.id)}`, label: 'Compare', icon: Scale },
+            ]}
+          />
         </motion.div>
       )}
 

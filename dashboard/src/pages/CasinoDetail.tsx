@@ -21,6 +21,7 @@ import CasinoDetailSkeleton from '../components/CasinoDetailSkeleton';
 import QuickLinkRow from '../components/QuickLinkRow';
 import { FEATURE_LABELS, FEATURE_COLORS, vpnLabel, formatTrackableValue } from '../types';
 import { formatLastChecked, isCatalogStale } from '../lib/freshness';
+import { isGuestFavorite, toggleGuestFavorite } from '../lib/guest-favorites';
 
 export default function CasinoDetail() {
   const { slug } = useParams<{ slug: string }>();
@@ -45,7 +46,7 @@ export default function CasinoDetail() {
     ])
       .then(async ([c, favs]) => {
         setCasino(c);
-        setFavorited(favs.some((f) => f.casino.id === c.id));
+        setFavorited(user ? favs.some((f) => f.casino.id === c.id) : isGuestFavorite(c.id));
         pushRecentlyViewed(c);
         window.dispatchEvent(new Event('method-recent-view'));
         const sim = await api.getSimilar({ casinoId: c.id, limit: 6 }).catch(() => null);
@@ -56,7 +57,13 @@ export default function CasinoDetail() {
   }, [slug, user]);
 
   const toggleFavorite = async () => {
-    if (!user || !casino) return;
+    if (!casino) return;
+    if (!user) {
+      const added = toggleGuestFavorite(casino);
+      setFavorited(added);
+      showFavMsg(added ? 'Added to My List (local)' : 'Removed from My List');
+      return;
+    }
     if (favorited) {
       await api.removeFavorite(casino.id);
       setFavorited(false);
@@ -196,28 +203,18 @@ export default function CasinoDetail() {
             </span>
           </div>
           <div className="flex items-center gap-2 flex-wrap">
-            {user ? (
-              <button
-                type="button"
-                onClick={() => void toggleFavorite()}
-                className={`p-2 rounded-lg border transition-colors ${
-                  favorited
-                    ? 'border-rose-500/40 bg-rose-500/10 text-rose-400'
-                    : 'border-surface-border text-gray-500 hover:text-rose-400'
-                }`}
-                title={favorited ? 'Remove from My List' : 'Save to My List'}
-              >
-                <Heart className={`w-4 h-4 ${favorited ? 'fill-current' : ''}`} />
-              </button>
-            ) : (
-              <Link
-                to={`/login?next=${encodeURIComponent(window.location.pathname)}`}
-                className="p-2 rounded-lg border border-surface-border text-gray-500 hover:text-rose-400 transition-colors"
-                title="Sign in to save to My List"
-              >
-                <Heart className="w-4 h-4" />
-              </Link>
-            )}
+            <button
+              type="button"
+              onClick={() => void toggleFavorite()}
+              className={`p-2 rounded-lg border transition-colors ${
+                favorited
+                  ? 'border-rose-500/40 bg-rose-500/10 text-rose-400'
+                  : 'border-surface-border text-gray-500 hover:text-rose-400'
+              }`}
+              title={favorited ? 'Remove from My List' : 'Save to My List'}
+            >
+              <Heart className={`w-4 h-4 ${favorited ? 'fill-current' : ''}`} />
+            </button>
             <button
               type="button"
               onClick={() => void copySignupKit()}

@@ -3,6 +3,8 @@ import { motion } from 'framer-motion';
 import { Phone, Copy, Check, RefreshCw, ExternalLink, Sparkles, AlertCircle } from 'lucide-react';
 import PageHeader from '../../components/PageHeader';
 import ToolsBreadcrumb from '../../components/ToolsBreadcrumb';
+import NoticeBanner from '../../components/NoticeBanner';
+import { useTimedNotice } from '../../hooks/useTimedNotice';
 import { usePageTitle } from '../../hooks/usePageTitle';
 import { ServiceGrid } from '../../components/ServiceCard';
 import { generatePhones, SMS_RECEIVER_SITES, PHONE_TOOL_SITES, GENERATOR_DISCLAIMER } from '../../lib/generators';
@@ -23,12 +25,14 @@ export default function PhoneGeneratorPage() {
   const [count, setCount] = useState(5);
   const [phones, setPhones] = useState<string[]>(() => generatePhones(5, 'national'));
   const [copied, setCopied] = useState<string | null>(null);
+  const { message: copyMsg, show: showCopyMsg } = useTimedNotice();
 
   const regenerate = () => setPhones(generatePhones(count, format));
 
   const copy = async (text: string) => {
     await navigator.clipboard.writeText(text);
     setCopied(text);
+    showCopyMsg('Copied to clipboard');
     setTimeout(() => setCopied(null), 2000);
   };
 
@@ -50,6 +54,8 @@ export default function PhoneGeneratorPage() {
           </button>
         }
       />
+
+      {copyMsg && <NoticeBanner message={copyMsg} variant="success" />}
 
       <motion.div
         initial={{ opacity: 0 }}

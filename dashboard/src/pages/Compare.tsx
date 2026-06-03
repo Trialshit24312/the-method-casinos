@@ -108,10 +108,50 @@ export default function ComparePage() {
       {shareMsg && <NoticeBanner message={shareMsg} variant="success" />}
       {catalogError && <ErrorBanner message={catalogError} onRetry={loadCatalog} variant="warning" />}
 
-      <div className="grid md:grid-cols-2 gap-4 mb-8">
+      <div className="grid md:grid-cols-2 gap-4 mb-4">
         <CasinoCombobox label="Casino A" casinos={casinos} value={a} onChange={setA} />
         <CasinoCombobox label="Casino B" casinos={casinos} value={b} onChange={setB} />
       </div>
+
+      {!a && !b && casinos.length > 0 && (
+        <div className="mb-8">
+          <p className="text-xs text-gray-600 mb-2">Quick pick — choose casino A</p>
+          <div className="flex flex-wrap gap-2">
+            {[...casinos].sort((x, y) => y.rating - x.rating).slice(0, 8).map((c) => (
+              <button
+                key={c.id}
+                type="button"
+                onClick={() => setA(c.id)}
+                className="chip text-xs hover:border-glow/30 hover:text-glow"
+              >
+                {c.name}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {a && !b && casinos.length > 1 && (
+        <div className="mb-8">
+          <p className="text-xs text-gray-600 mb-2">Now pick casino B</p>
+          <div className="flex flex-wrap gap-2">
+            {[...casinos]
+              .filter((c) => c.id !== a)
+              .sort((x, y) => y.rating - x.rating)
+              .slice(0, 6)
+              .map((c) => (
+                <button
+                  key={c.id}
+                  type="button"
+                  onClick={() => setB(c.id)}
+                  className="chip text-xs hover:border-glow/30 hover:text-glow"
+                >
+                  {c.name}
+                </button>
+              ))}
+          </div>
+        </div>
+      )}
 
       {a && b && a === b && (
         <p className="text-amber-400 text-sm mb-4">Pick two different casinos.</p>

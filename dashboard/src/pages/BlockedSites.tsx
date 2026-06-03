@@ -163,6 +163,17 @@ export default function BlockedSitesPage() {
         />
       </div>
 
+      {search.trim() && !loading && (
+        <div className="filter-bar mb-4">
+          <span className="text-xs text-gray-500">
+            {sites.length} match{sites.length === 1 ? '' : 'es'} for “{search.trim()}”
+          </span>
+          <button type="button" onClick={() => setSearch('')} className="text-xs text-glow hover:underline ml-auto">
+            Clear search
+          </button>
+        </div>
+      )}
+
       {loadError && <ErrorBanner message={loadError} onRetry={load} />}
 
       {!loading && sites.length > 0 && (

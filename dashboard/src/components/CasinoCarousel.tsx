@@ -55,9 +55,10 @@ export default function CasinoCarousel({ title, subtitle, casinos, icon, action 
           </button>
         </div>
       </div>
+      <div className="carousel-fade -mx-1 px-1">
       <div
         ref={trackRef}
-        className="flex gap-4 overflow-x-auto pb-2 snap-x snap-mandatory scrollbar-thin scroll-smooth -mx-1 px-1"
+        className="flex gap-4 overflow-x-auto pb-2 snap-x snap-mandatory scrollbar-thin scroll-smooth"
         style={{ scrollbarWidth: 'thin' }}
       >
         {casinos.map((casino, i) => (
@@ -65,6 +66,7 @@ export default function CasinoCarousel({ title, subtitle, casinos, icon, action 
             <CasinoCard casino={casino} index={i} />
           </div>
         ))}
+      </div>
       </div>
     </motion.section>
   );

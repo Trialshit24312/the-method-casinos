@@ -16,6 +16,7 @@ import Breadcrumb from '../components/Breadcrumb';
 import { useAuth } from '../context/AuthContext';
 import { usePageTitle } from '../hooks/usePageTitle';
 import { isCatalogStale } from '../lib/freshness';
+import { readGuestFavorites, toggleGuestFavorite } from '../lib/guest-favorites';
 
 interface FormData {
   name: string;
@@ -82,6 +83,9 @@ export default function CasinosPage() {
   const [staleOnly, setStaleOnly] = useState(false);
   const [sort, setSort] = useState<'name' | 'rating' | 'checked'>('rating');
   const [favoriteIds, setFavoriteIds] = useState<Set<string>>(new Set());
+  const [guestFavoriteIds, setGuestFavoriteIds] = useState(
+    () => new Set(readGuestFavorites().map((c) => c.id)),
+  );
 
   useEffect(() => {
     if (!modalOpen) return;
@@ -147,6 +151,16 @@ export default function CasinosPage() {
       .catch(() => setFavoriteIds(new Set()));
   }, [user]);
 
+  useEffect(() => {
+    const refresh = () => setGuestFavoriteIds(new Set(readGuestFavorites().map((c) => c.id)));
+    window.addEventListener('method-guest-favorites', refresh);
+    window.addEventListener('storage', refresh);
+    return () => {
+      window.removeEventListener('method-guest-favorites', refresh);
+      window.removeEventListener('storage', refresh);
+    };
+  }, []);
+
   const toggleFavorite = async (casinoId: string) => {
     if (!user) return;
     if (favoriteIds.has(casinoId)) {
@@ -160,6 +174,11 @@ export default function CasinosPage() {
       await api.addFavorite(casinoId);
       setFavoriteIds((prev) => new Set(prev).add(casinoId));
     }
+  };
+
+  const toggleGuestFav = (casino: Casino) => {
+    toggleGuestFavorite(casino);
+    setGuestFavoriteIds(new Set(readGuestFavorites().map((c) => c.id)));
   };
 
   const filtered = useMemo(() => {
@@ -457,9 +476,8 @@ export default function CasinosPage() {
               admin={user?.isAdmin}
               onEdit={openEdit}
               onBlock={handleBlock}
-              favorited={user ? favoriteIds.has(casino.id) : undefined}
-              onToggleFavorite={user ? () => void toggleFavorite(casino.id) : undefined}
-              favoriteLoginHref={user ? undefined : `/login?next=${encodeURIComponent('/casinos')}`}
+              favorited={user ? favoriteIds.has(casino.id) : guestFavoriteIds.has(casino.id)}
+              onToggleFavorite={() => (user ? void toggleFavorite(casino.id) : toggleGuestFav(casino))}
             />
           ))}
         </div>
