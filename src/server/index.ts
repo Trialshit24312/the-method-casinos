@@ -62,9 +62,19 @@ import {
   startClientDiscovery,
   runClientDiscoveryStep,
   cancelClientDiscovery,
+  resumeClientDiscovery,
 } from '../discovery/step-engine.js';
-import { hasDiscoverySession } from '../database/index.js';
+import { hasDiscoverySession, loadDiscoverySession } from '../database/index.js';
 import { SqliteSessionStore } from './session-store.js';
+import {
+  createRememberToken,
+  setRememberCookie,
+  clearRememberCookie,
+  revokeRememberToken,
+  rememberCookieName,
+  tryRestoreSessionFromRemember,
+  purgeExpiredRememberTokens,
+} from './remember-auth.js';
 import { getBotHealth } from '../bot/state.js';
 import { registerHttpServer } from '../shared/shutdown.js';
 import { notifySiteReport, notifyCasinoApproved } from '../shared/notify.js';
@@ -81,6 +91,15 @@ const SESSION_MAX_AGE_MS = (() => {
 
 export function createServer(): express.Application {
   const app = express();
+
+  if ((process.env.NODE_ENV === 'production' || process.env.RENDER)
+    && (!process.env.SESSION_SECRET || process.env.SESSION_SECRET === 'dev-secret-change-me')) {
+    console.warn(
+      '⚠️  SESSION_SECRET is missing or default — set a stable value in Render env or users will be logged out on every deploy.',
+    );
+  }
+
+  purgeExpiredRememberTokens();
 
   if (process.env.NODE_ENV === 'production' || process.env.RENDER) {
     app.set('trust proxy', 1);
@@ -116,6 +135,12 @@ export function createServer(): express.Application {
       path: '/',
     },
   }));
+
+  app.use((req, res, next) => {
+    tryRestoreSessionFromRemember(req, res)
+      .then(() => next())
+      .catch(next);
+  });
 
   app.get('/health', (_req, res) => {
     try {
@@ -185,11 +210,13 @@ export function createServer(): express.Application {
     try {
       const user = await exchangeCode(code);
       req.session.user = user;
+      const rememberToken = createRememberToken(user);
       req.session.save((err) => {
         if (err) {
           res.redirect(`${redirectToDashboardPath(req, '/login')}?error=session_failed`);
           return;
         }
+        setRememberCookie(res, rememberToken);
         const fromState = parsed.next;
         const fromSession = req.session.loginRedirect;
         delete req.session.loginRedirect;
@@ -206,26 +233,30 @@ export function createServer(): express.Application {
   });
 
   app.get('/auth/me', (req, res) => {
-    if (!req.session.user) {
-      res.json({ user: null });
-      return;
-    }
-    req.session.cookie.maxAge = SESSION_MAX_AGE_MS;
-    req.session.save((err) => {
-      if (err) {
-        res.status(500).json({ error: 'Session refresh failed' });
+    void tryRestoreSessionFromRemember(req, res).then(() => {
+      if (!req.session.user) {
+        res.json({ user: null });
         return;
       }
-      res.json({
-        user: {
-          ...req.session.user!,
-          avatarUrl: getAvatarUrl(req.session.user!),
-        },
+      req.session.cookie.maxAge = SESSION_MAX_AGE_MS;
+      req.session.save((err) => {
+        if (err) {
+          res.status(500).json({ error: 'Session refresh failed' });
+          return;
+        }
+        res.json({
+          user: {
+            ...req.session.user!,
+            avatarUrl: getAvatarUrl(req.session.user!),
+          },
+        });
       });
     });
   });
 
   app.post('/auth/logout', (req, res) => {
+    revokeRememberToken(req.cookies?.[rememberCookieName()] as string | undefined);
+    clearRememberCookie(res);
     req.session.destroy(() => {
       res.json({ ok: true });
     });
@@ -516,8 +547,12 @@ export function createServer(): express.Application {
 
   app.post('/api/discover/client/start', discoverStartLimit, requireAuth, requireAdmin, (req, res) => {
     const deep = Boolean(req.body?.deep);
-    if (isDiscoveryRunning() || isDiscoveryLiveActive() || hasDiscoverySession()) {
+    if (isDiscoveryRunning() || isDiscoveryLiveActive()) {
       res.status(409).json({ error: 'Discovery scan already running' });
+      return;
+    }
+    if (hasDiscoverySession()) {
+      res.status(409).json({ error: 'Paused scan saved — use Resume on the Discovery page' });
       return;
     }
     try {
@@ -525,6 +560,39 @@ export function createServer(): express.Application {
       res.status(202).json({ started: true, mode: deep ? 'deep' : 'quick', client: true });
     } catch (err) {
       res.status(500).json({ error: err instanceof Error ? err.message : 'Failed to start scan' });
+    }
+  });
+
+  app.get('/api/discover/client/status', requireAuth, requireAdmin, (_req, res) => {
+    const live = getDiscoveryLiveSnapshot(0);
+    const session = loadDiscoverySession<{ mode: 'quick' | 'deep'; phase: string }>();
+    const resumable = Boolean(
+      session && session.phase !== 'complete' && !live.running && !live.result,
+    );
+    res.json({
+      resumable,
+      paused: resumable,
+      mode: session?.mode ?? live.mode,
+      phase: session?.phase,
+      phaseLabel: live.phaseLabel,
+      stats: live.stats,
+    });
+  });
+
+  app.post('/api/discover/client/resume', requireAuth, requireAdmin, (_req, res) => {
+    if (!hasDiscoverySession()) {
+      res.status(404).json({ error: 'No saved scan to resume' });
+      return;
+    }
+    if (isDiscoveryRunning() || isDiscoveryLiveActive()) {
+      res.status(409).json({ error: 'Discovery scan already running' });
+      return;
+    }
+    try {
+      resumeClientDiscovery();
+      res.status(202).json({ resumed: true });
+    } catch (err) {
+      res.status(500).json({ error: err instanceof Error ? err.message : 'Failed to resume scan' });
     }
   });
 

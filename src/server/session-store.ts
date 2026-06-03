@@ -38,7 +38,18 @@ export class SqliteSessionStore extends Store {
       const row = getDatabase().prepare(
         'SELECT sess FROM sessions WHERE sid = ? AND expired > ?',
       ).get(sid, Date.now()) as { sess: string } | undefined;
-      callback(null, row ? (JSON.parse(row.sess) as SessionRecord) : null);
+      if (!row) {
+        callback(null, null);
+        return;
+      }
+      const session = JSON.parse(row.sess) as SessionRecord;
+      const maxAge = session.cookie?.maxAge ?? DEFAULT_SESSION_MS;
+      if (session.cookie) {
+        session.cookie.maxAge = maxAge;
+        session.cookie.expires = new Date(Date.now() + maxAge);
+      }
+      this.set(sid, session);
+      callback(null, session);
     } catch (err) {
       callback(err);
     }

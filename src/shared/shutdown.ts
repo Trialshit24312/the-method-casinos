@@ -1,6 +1,6 @@
 import type { Server } from 'http';
 import type { Client } from 'discord.js';
-import { cancelDiscoveryRun } from '../discovery/run-state.js';
+import { pauseDiscoveryForShutdown } from '../discovery/shutdown-pause.js';
 
 let httpServer: Server | null = null;
 let botClient: Client | null = null;
@@ -20,7 +20,7 @@ export function setupGracefulShutdown(): void {
     shuttingDown = true;
     console.log(`\n${signal} received — shutting down gracefully…`);
 
-    cancelDiscoveryRun();
+    pauseDiscoveryForShutdown();
 
     if (botClient?.isReady()) {
       try {

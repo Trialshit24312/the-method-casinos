@@ -107,6 +107,7 @@ export default function DiscoveryPage() {
   const [phaseLabel, setPhaseLabel] = useState('');
   const [dbStats, setDbStats] = useState<Stats | null>(null);
   const [history, setHistory] = useState<DiscoveryHistoryEntry[]>([]);
+  const [resumableScan, setResumableScan] = useState<{ mode: 'quick' | 'deep'; phaseLabel: string } | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const logRef = useRef<HTMLDivElement>(null);
   const logIdRef = useRef(0);
@@ -121,6 +122,14 @@ export default function DiscoveryPage() {
     if (user?.isAdmin) {
       api.getDiscoveryLive(0).then((snap) => {
         if (snap.result && !snap.running) setResult(snap.result);
+      }).catch(() => {});
+      api.getDiscoveryClientStatus().then((status) => {
+        if (status.resumable && status.mode) {
+          setResumableScan({
+            mode: status.mode,
+            phaseLabel: status.phaseLabel ?? 'Scan paused after server restart',
+          });
+        }
       }).catch(() => {});
     }
   }, [result, user?.isAdmin]);
@@ -174,19 +183,27 @@ export default function DiscoveryPage() {
     void api.cancelDiscovery().catch(() => {});
   };
 
-  const runScan = async (deep: boolean) => {
+  const runScan = async (deep: boolean, resume = false) => {
     if (!user?.isAdmin) return;
     if (deep) setDeepRunning(true);
     else setRunning(true);
     setError('');
-    setResult(null);
-    setActivityLog([]);
-    setLiveStats({ ...emptyStats(), queryTotal: 0 });
-    setPhaseLabel('Starting…');
+    if (!resume) {
+      setResult(null);
+      setActivityLog([]);
+      setLiveStats({ ...emptyStats(), queryTotal: 0 });
+    }
+    setPhaseLabel(resume ? 'Resuming…' : 'Starting…');
+    setResumableScan(null);
 
     abortRef.current = new AbortController();
     try {
-      const res = await api.discoverStream(deep, pushLog, abortRef.current.signal);
+      if (resume) {
+        const snap = await api.getDiscoveryLive(0);
+        if (snap.stats) setLiveStats(snap.stats);
+        if (snap.phaseLabel) setPhaseLabel(snap.phaseLabel);
+      }
+      const res = await api.discoverStream(deep, pushLog, abortRef.current.signal, { resume });
       setResult(res);
       if (res.errors.length > 0) {
         setError(res.errors.join(' '));
@@ -202,6 +219,11 @@ export default function DiscoveryPage() {
       setDeepRunning(false);
       abortRef.current = null;
     }
+  };
+
+  const resumeScan = () => {
+    if (!resumableScan) return;
+    void runScan(resumableScan.mode === 'deep', true);
   };
 
   const workProgress = liveStats.queryTotal
@@ -244,6 +266,25 @@ export default function DiscoveryPage() {
         </p>
       )}
 
+      {resumableScan && !isScanning && (
+        <div className="mb-6 p-4 rounded-xl border border-amber-500/30 bg-amber-500/10 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div>
+            <p className="text-sm font-medium text-amber-200">Paused scan saved</p>
+            <p className="text-xs text-gray-400 mt-1">
+              {resumableScan.phaseLabel} · {resumableScan.mode === 'deep' ? 'Deep' : 'Quick'} scan can continue where it left off.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={resumeScan}
+            disabled={!user?.isAdmin}
+            className="btn-primary shrink-0 disabled:opacity-40"
+          >
+            Resume Scan
+          </button>
+        </div>
+      )}
+
       <div className="grid md:grid-cols-2 gap-6 mb-8">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
@@ -266,7 +307,7 @@ export default function DiscoveryPage() {
           </ul>
           <button
             onClick={() => runScan(false)}
-            disabled={isScanning || !user?.isAdmin}
+            disabled={isScanning || !user?.isAdmin || Boolean(resumableScan)}
             className="btn-primary w-full disabled:opacity-40"
           >
             {running ? 'Quick Scan Running…' : 'Run Quick Scan'}
@@ -295,7 +336,7 @@ export default function DiscoveryPage() {
           </ul>
           <button
             onClick={() => runScan(true)}
-            disabled={isScanning || !user?.isAdmin}
+            disabled={isScanning || !user?.isAdmin || Boolean(resumableScan)}
             className="btn-glow w-full disabled:opacity-40"
           >
             {deepRunning ? 'Deep Scan Running…' : 'Run Deep Scan'}

@@ -45,18 +45,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   const refresh = useCallback(async () => {
-    try {
-      const { user: u } = await api.getMe();
-      setUser(u);
-      writeCachedUser(u);
-    } catch {
-      if (!readCachedUser()) {
-        setUser(null);
-        writeCachedUser(null);
+    const cached = readCachedUser();
+    for (let attempt = 0; attempt < 4; attempt++) {
+      try {
+        const { user: u } = await api.getMe();
+        setUser(u);
+        writeCachedUser(u);
+        setLoading(false);
+        return;
+      } catch {
+        if (attempt < 3) {
+          await new Promise((resolve) => setTimeout(resolve, 1000 * (attempt + 1)));
+          continue;
+        }
+        if (!cached) {
+          setUser(null);
+          writeCachedUser(null);
+        }
       }
-    } finally {
-      setLoading(false);
     }
+    setLoading(false);
   }, []);
 
   useEffect(() => {

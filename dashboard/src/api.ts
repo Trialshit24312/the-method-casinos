@@ -1,22 +1,41 @@
-import type { Casino, Stats, User, DiscoveryResult, DiscoveryProgressEvent, DiscoveryLiveSnapshot, BlockedSite, BlockReason, BlockSeverity, UrlCheckResult, SimilarCasinosResult, SimilarWebDiscoveryResult, SiteReport, DiscoveryHistoryEntry, CasinoCompareResult } from './types';
+import type { Casino, Stats, User, DiscoveryResult, DiscoveryProgressEvent, DiscoveryLiveSnapshot, DiscoveryLiveStats, BlockedSite, BlockReason, BlockSeverity, UrlCheckResult, SimilarCasinosResult, SimilarWebDiscoveryResult, SiteReport, DiscoveryHistoryEntry, CasinoCompareResult } from './types';
 
 import { apiBaseUrl } from './lib/site';
 
 const API = apiBaseUrl();
 
-async function request<T>(path: string, options?: RequestInit): Promise<T> {
-  const res = await fetch(`${API}${path}`, {
-    credentials: 'include',
-    headers: { 'Content-Type': 'application/json', ...options?.headers },
-    ...options,
-  });
+const RETRYABLE_STATUS = new Set([502, 503, 504]);
 
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({ error: res.statusText }));
-    throw new Error(err.error || 'Request failed');
+async function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function request<T>(path: string, options?: RequestInit, attempt = 0): Promise<T> {
+  try {
+    const res = await fetch(`${API}${path}`, {
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json', ...options?.headers },
+      ...options,
+    });
+
+    if (RETRYABLE_STATUS.has(res.status) && attempt < 4) {
+      await sleep(1200 * (attempt + 1));
+      return request<T>(path, options, attempt + 1);
+    }
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ error: res.statusText }));
+      throw new Error(err.error || 'Request failed');
+    }
+
+    return res.json();
+  } catch (err) {
+    if (attempt < 4 && err instanceof TypeError) {
+      await sleep(1200 * (attempt + 1));
+      return request<T>(path, options, attempt + 1);
+    }
+    throw err;
   }
-
-  return res.json();
 }
 
 export const api = {
@@ -57,12 +76,20 @@ export const api = {
     deep: boolean,
     onEvent: (event: DiscoveryProgressEvent) => void,
     signal?: AbortSignal,
+    options?: { resume?: boolean },
   ): Promise<DiscoveryResult> => {
-    await request<{ started: boolean }>('/api/discover/client/start', {
-      method: 'POST',
-      body: JSON.stringify({ deep }),
-      signal,
-    });
+    if (options?.resume) {
+      await request<{ resumed: boolean }>('/api/discover/client/resume', {
+        method: 'POST',
+        signal,
+      });
+    } else {
+      await request<{ started: boolean }>('/api/discover/client/start', {
+        method: 'POST',
+        body: JSON.stringify({ deep }),
+        signal,
+      });
+    }
 
     let cursor = 0;
     let stepping = false;
@@ -126,6 +153,15 @@ export const api = {
   },
   getDiscoveryLive: (since = 0) =>
     request<DiscoveryLiveSnapshot>(`/api/discover/live?since=${since}`),
+  getDiscoveryClientStatus: () =>
+    request<{
+      resumable: boolean;
+      paused: boolean;
+      mode: 'quick' | 'deep' | null;
+      phase?: string;
+      phaseLabel?: string;
+      stats: DiscoveryLiveStats | null;
+    }>('/api/discover/client/status'),
   getBlockedSites: (q?: string) =>
     request<BlockedSite[]>(q ? `/api/blocked?q=${encodeURIComponent(q)}` : '/api/blocked'),
   checkUrl: (url: string) =>

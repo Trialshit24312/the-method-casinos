@@ -1345,9 +1345,45 @@ export function getDiscoveryLiveStorage(sinceSeq = 0): {
   };
 }
 
-export function recoverDiscoveryLiveOnBoot(): void {
-  clearDiscoverySession();
+export function pauseDiscoveryLiveForRestart(label: string): void {
+  const now = new Date().toISOString();
+  db.prepare(`
+    UPDATE discovery_live SET
+      running = 0,
+      phase_label = @label,
+      updated_at = @now
+    WHERE id = 1
+  `).run({ label, now });
+}
+
+export function resumeDiscoveryLiveStorage(mode?: 'quick' | 'deep'): void {
   const row = readDiscoveryLiveRow();
+  const now = new Date().toISOString();
+  db.prepare(`
+    UPDATE discovery_live SET
+      running = 1,
+      mode = COALESCE(@mode, mode),
+      phase_label = 'Resuming…',
+      result_json = NULL,
+      updated_at = @now
+    WHERE id = 1
+  `).run({ mode: mode ?? row.mode, now });
+}
+
+export function recoverDiscoveryLiveOnBoot(): void {
+  const row = readDiscoveryLiveRow();
+  const sessionExists = hasDiscoverySession();
+
+  if (sessionExists) {
+    pauseDiscoveryLiveForRestart('Scan paused (server restart) — open Discovery and tap Resume');
+    appendDiscoveryLiveEventStorage({
+      type: 'phase',
+      phase: 'analyze',
+      label: 'Server restarted — progress saved. Resume when ready.',
+    });
+    return;
+  }
+
   if (!row.running) return;
 
   const stats = row.stats ?? emptyDiscoveryLiveStats();

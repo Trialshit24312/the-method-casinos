@@ -22,6 +22,7 @@ import { buildSearchQueries, SEARCH_PAGES_DEEP, SEARCH_PAGES_QUICK } from './que
 import { collectFreeSearchLinks, extractCasinoUrlsFromHtml } from './free-search.js';
 import { beginDiscoveryRun, endDiscoveryRun, throwIfCancelled } from './run-state.js';
 import { beginDiscoveryLive, pushDiscoveryLiveEvent, finishDiscoveryLive } from './live-state.js';
+import { resumeDiscoveryLiveStorage } from '../database/index.js';
 import { ingestDiscovery, persistDiscovery, analyzeUrl, CURATED_DISCOVERIES } from './engine.js';
 
 type ProgressPublisher = (event: DiscoveryProgressEvent) => void;
@@ -294,6 +295,17 @@ export function startClientDiscovery(deep: boolean): void {
   beginDiscoveryRun();
   saveDiscoverySession(state);
   setPhase(state, 'curated', 'Client-driven scan — runs while this tab is open', pushDiscoveryLiveEvent);
+  saveDiscoverySession(state);
+}
+
+export function resumeClientDiscovery(): void {
+  const state = loadDiscoverySession() as DiscoverySessionState | null;
+  if (!state || state.phase === 'complete') {
+    throw new Error('No discovery session to resume');
+  }
+  resumeDiscoveryLiveStorage(state.mode);
+  beginDiscoveryRun();
+  setPhase(state, state.phase, 'Resuming scan…', pushDiscoveryLiveEvent);
   saveDiscoverySession(state);
 }
 
