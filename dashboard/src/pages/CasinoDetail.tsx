@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link, useParams, Navigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
-  ExternalLink, Star, ShieldCheck, Sparkles, Heart, Share2, AlertTriangle, Clock, Flag, Link2,
+  ExternalLink, Star, ShieldCheck, Sparkles, Heart, Share2, AlertTriangle, Clock, Flag, Link2, ClipboardList,
 } from 'lucide-react';
 import ReportSiteModal from '../components/ReportSiteModal';
 import { api } from '../api';
@@ -78,6 +78,26 @@ export default function CasinoDetail() {
     setTimeout(() => setCopyMsg(''), 2500);
   };
 
+  const copySignupKit = async () => {
+    if (!casino) return;
+    const checker = `${window.location.origin}/tools/checker?url=${encodeURIComponent(casino.url)}`;
+    const emailTools = `${window.location.origin}/tools/email`;
+    const lines = [
+      `🎰 ${casino.name}`,
+      casino.url,
+      '',
+      casino.signupRequirements.length ? 'Signup requirements:' : '',
+      ...casino.signupRequirements.map((req) => `• ${req}`),
+      casino.bonusInfo ? `\nBonus: ${casino.bonusInfo}` : '',
+      '',
+      `URL safety check: ${checker}`,
+      `Temp email tools: ${emailTools}`,
+    ].filter((line) => line !== '').join('\n');
+    await navigator.clipboard.writeText(lines);
+    setCopyMsg('Signup kit copied to clipboard');
+    setTimeout(() => setCopyMsg(''), 2500);
+  };
+
   if (loading) {
     return (
       <div className="p-8 flex justify-center">
@@ -134,8 +154,8 @@ export default function CasinoDetail() {
               )}
             </span>
           </div>
-          <div className="flex items-center gap-2">
-            {user && (
+          <div className="flex items-center gap-2 flex-wrap">
+            {user ? (
               <button
                 type="button"
                 onClick={() => void toggleFavorite()}
@@ -148,7 +168,23 @@ export default function CasinoDetail() {
               >
                 <Heart className={`w-4 h-4 ${favorited ? 'fill-current' : ''}`} />
               </button>
+            ) : (
+              <Link
+                to={`/login?next=${encodeURIComponent(window.location.pathname)}`}
+                className="p-2 rounded-lg border border-surface-border text-gray-500 hover:text-rose-400 transition-colors"
+                title="Sign in to save to My List"
+              >
+                <Heart className="w-4 h-4" />
+              </Link>
             )}
+            <button
+              type="button"
+              onClick={() => void copySignupKit()}
+              className="btn-glow text-sm flex items-center gap-1.5"
+              title="Copy signup checklist with tools links"
+            >
+              <ClipboardList className="w-3.5 h-3.5" /> Signup kit
+            </button>
             <button
               type="button"
               onClick={() => setReportOpen(true)}

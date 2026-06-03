@@ -279,7 +279,7 @@ export default function DiscoveryPage() {
   const progress = isScanning ? Math.max(workProgress, timeProgress * 0.6) : 0;
 
   const toneClass: Record<LogEntry['tone'], string> = {
-    info: 'text-[#00aeef]',
+    info: 'text-glow',
     success: 'text-emerald-400',
     warn: 'text-amber-400',
     error: 'text-red-400',
@@ -301,18 +301,18 @@ export default function DiscoveryPage() {
       />
 
       {user?.isAdmin && (queueCounts.pending > 0 || queueCounts.reports > 0) && (
-        <div className="mb-6 p-4 rounded-xl border border-[#00aeef]/25 bg-[#00aeef]/5 text-center text-sm">
+        <div className="mb-6 p-4 rounded-xl border border-glow/25 bg-glow/5 text-center text-sm">
           <span className="text-gray-300">In Review Queue right now: </span>
           {queueCounts.pending > 0 && (
-            <a href="/review?tab=discoveries" className="text-emerald-400 hover:underline font-medium">
+            <Link to="/review?tab=discoveries" className="text-emerald-400 hover:underline font-medium">
               {queueCounts.pending} pending {queueCounts.pending === 1 ? 'casino' : 'casinos'}
-            </a>
+            </Link>
           )}
           {queueCounts.pending > 0 && queueCounts.reports > 0 && <span className="text-gray-600"> · </span>}
           {queueCounts.reports > 0 && (
-            <a href="/review?tab=reports" className="text-amber-400 hover:underline font-medium">
+            <Link to="/review?tab=reports" className="text-amber-400 hover:underline font-medium">
               {queueCounts.reports} ban review {queueCounts.reports === 1 ? 'URL' : 'URLs'}
-            </a>
+            </Link>
           )}
         </div>
       )}
@@ -360,11 +360,11 @@ export default function DiscoveryPage() {
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="glass-glow p-6 border-[#00aeef]/20"
+          className="glass-glow p-6 border-glow/20"
         >
           <div className="flex items-center gap-3 mb-4">
-            <div className="p-3 rounded-xl bg-[#00aeef]/10 border border-[#00aeef]/30">
-              <Radar className="w-6 h-6 text-[#00aeef]" />
+            <div className="p-3 rounded-xl bg-glow/10 border border-glow/30">
+              <Radar className="w-6 h-6 text-glow" />
             </div>
             <div>
               <h3 className="font-display font-semibold text-lg">Quick Scan</h3>
@@ -463,7 +463,7 @@ export default function DiscoveryPage() {
       {!user?.isAdmin && (
         <p className="text-sm text-gray-500 mb-6 text-center">
           Discovery scans are admin-only.{' '}
-          <a href="/login" className="text-[#00aeef] hover:underline">Sign in with Discord</a> if you manage the catalog.
+          <Link to="/login" className="text-glow hover:underline">Sign in with Discord</Link> if you manage the catalog.
         </p>
       )}
 
@@ -474,12 +474,12 @@ export default function DiscoveryPage() {
               <p className="text-gray-300 font-medium">
                 {deepRunning ? 'Deep scan in progress' : 'Quick scan in progress'}
               </p>
-              <p className="text-xs text-[#00aeef] mt-1">
+              <p className="text-xs text-glow mt-1">
                 {phaseLabel || PHASE_LABELS[liveStats.phase] || liveStats.phase}
               </p>
             </div>
             <div className="flex items-center gap-3">
-              <span className="font-mono text-[#00aeef]">
+              <span className="font-mono text-glow">
                 {formatElapsed(elapsed)} / {formatElapsed(maxSeconds)}
               </span>
               <button
@@ -492,9 +492,9 @@ export default function DiscoveryPage() {
             </div>
           </div>
 
-          <div className="h-2 rounded-full bg-[#1a1a22] overflow-hidden mb-4">
+          <div className="h-2 rounded-full bg-surface-muted overflow-hidden mb-4">
             <motion.div
-              className="h-full bg-gradient-to-r from-[#b87333] to-[#00aeef]"
+              className="h-full bg-gradient-to-r from-brand to-glow"
               initial={{ width: 0 }}
               animate={{ width: `${progress}%` }}
               transition={{ duration: 0.4 }}
@@ -504,23 +504,23 @@ export default function DiscoveryPage() {
           <div className="grid grid-cols-3 sm:grid-cols-6 gap-2 mb-4">
             {[
               { label: 'Added', value: liveStats.added, color: 'text-emerald-400' },
-              { label: 'Scanned', value: liveStats.scanned, color: 'text-[#00aeef]' },
+              { label: 'Scanned', value: liveStats.scanned, color: 'text-glow' },
               { label: 'Rejected', value: liveStats.rejected, color: 'text-amber-400' },
               { label: 'Blocked', value: liveStats.blocked, color: 'text-red-400' },
-              { label: 'In queue', value: liveStats.queued, color: liveStats.queued > 0 ? 'text-[#00aeef]' : 'text-gray-400' },
+              { label: 'In queue', value: liveStats.queued, color: liveStats.queued > 0 ? 'text-glow' : 'text-gray-400' },
               { label: 'Sources', value: liveStats.sourcesChecked, color: 'text-[#d4956a]' },
               { label: 'Queries', value: `${liveStats.queryIndex}/${liveStats.queryTotal}`, color: 'text-gray-300' },
             ].map(({ label, value, color }) => (
-              <div key={label} className="text-center p-2 rounded-lg bg-[#1a1a22] border border-[#2a2a35]">
+              <div key={label} className="text-center p-2 rounded-lg bg-surface-muted border border-surface-border">
                 <p className={`text-lg font-bold ${color}`}>{value}</p>
                 <p className="text-[10px] text-gray-600 uppercase">{label}</p>
               </div>
             ))}
           </div>
 
-          <div className="rounded-xl border border-[#2a2a35] bg-[#0d0d12] overflow-hidden">
-            <div className="flex items-center gap-2 px-4 py-2 border-b border-[#2a2a35] bg-[#121218]">
-              <Terminal className="w-4 h-4 text-[#00aeef]" />
+          <div className="rounded-xl border border-surface-border bg-[#0d0d12] overflow-hidden">
+            <div className="flex items-center gap-2 px-4 py-2 border-b border-surface-border bg-[#121218]">
+              <Terminal className="w-4 h-4 text-glow" />
               <span className="text-xs font-medium text-gray-400 uppercase tracking-wide">Live Activity</span>
               <span className="text-xs text-gray-600 ml-auto">{activityLog.length} events</span>
               {activityLog.length > 0 && (
@@ -568,14 +568,14 @@ export default function DiscoveryPage() {
           <div className="grid grid-cols-2 md:grid-cols-7 gap-3 mb-4">
             {[
               { icon: Globe, label: 'Sources', value: result.sourcesChecked, color: 'text-[#d4956a]' },
-              { icon: Search, label: 'Scanned', value: result.scanned, color: 'text-[#00aeef]' },
-              { icon: Radar, label: 'Found', value: result.found, color: 'text-[#00aeef]' },
+              { icon: Search, label: 'Scanned', value: result.scanned, color: 'text-glow' },
+              { icon: Radar, label: 'Found', value: result.found, color: 'text-glow' },
               { icon: CheckCircle, label: 'Added', value: result.added, color: 'text-emerald-400' },
               { icon: SkipForward, label: 'Skipped', value: result.skipped, color: 'text-gray-500' },
               { icon: XCircle, label: 'Rejected', value: result.rejected, color: 'text-amber-400' },
               { icon: Ban, label: 'Blocked', value: result.blocked, color: 'text-red-400' },
             ].map(({ icon: Icon, label, value, color }) => (
-              <div key={label} className="text-center p-4 rounded-xl bg-[#1a1a22] border border-[#2a2a35]">
+              <div key={label} className="text-center p-4 rounded-xl bg-surface-muted border border-surface-border">
                 <Icon className={`w-5 h-5 mx-auto mb-2 ${color}`} />
                 <p className="text-2xl font-bold">{value}</p>
                 <p className="text-xs text-gray-600">{label}</p>
@@ -597,7 +597,7 @@ export default function DiscoveryPage() {
               <p className="text-sm text-emerald-400 font-medium mb-1">Queued for review ({result.added}):</p>
               <p className="text-xs text-gray-500 mb-2">
                 Saved to the database as pending — approve in{' '}
-                <a href="/review?tab=discoveries" className="text-glow hover:underline">Review Queue → Discoveries</a>
+                <Link to="/review?tab=discoveries" className="text-glow hover:underline">Review Queue → Discoveries</Link>
                 {' '}before they appear in the public catalog.
               </p>
               <ul className="text-sm text-gray-300 space-y-1">
@@ -616,7 +616,7 @@ export default function DiscoveryPage() {
           {result.added === 0 && (
             <p className="text-sm text-gray-500 mb-4">
               No new casinos saved this run. Check{' '}
-              <a href="/review?tab=reports" className="text-amber-400 hover:underline">Ban review</a>
+              <Link to="/review?tab=reports" className="text-amber-400 hover:underline">Ban review</Link>
               {' '}for hard rejects, or run again — operator-shaped URLs are now saved as pending when the server cannot fully validate the page.
             </p>
           )}
@@ -670,8 +670,8 @@ export default function DiscoveryPage() {
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="glass-glow p-6 mt-8">
         <h3 className="font-display font-semibold mb-3">Admin tools</h3>
         <p className="text-xs text-gray-500 mb-4">
-          Valid discoveries go to <a href="/review" className="text-glow hover:underline">Discoveries</a>.
-          Rejected URLs go to <a href="/review" className="text-glow hover:underline">Ban review</a> for blocklist triage.
+          Valid discoveries go to <Link to="/review?tab=discoveries" className="text-glow hover:underline">Discoveries</Link>.
+          Rejected URLs go to <Link to="/review?tab=reports" className="text-glow hover:underline">Ban review</Link> for blocklist triage.
         </p>
         <div className="flex flex-wrap gap-2">
           <button

@@ -36,12 +36,17 @@ export default function DashboardPage() {
   usePageTitle('Dashboard — The Method Casinos');
   const { user } = useAuth();
   const [stats, setStats] = useState<Stats | null>(null);
+  const [statsLoading, setStatsLoading] = useState(true);
+  const [statsError, setStatsError] = useState(false);
   const [featured, setFeatured] = useState<Casino[]>([]);
   const [recent, setRecent] = useState<Casino[]>([]);
   const [carouselsLoading, setCarouselsLoading] = useState(true);
 
   useEffect(() => {
-    api.getStats().then(setStats).catch(console.error);
+    api.getStats()
+      .then(setStats)
+      .catch(() => setStatsError(true))
+      .finally(() => setStatsLoading(false));
     setCarouselsLoading(true);
     Promise.all([
       api.getFeaturedCasinos(8),
@@ -99,9 +104,13 @@ export default function DashboardPage() {
         </motion.div>
       )}
 
-      {!stats ? (
-        <StatsSkeleton count={user?.isAdmin ? 8 : 7} />
-      ) : (
+      {!statsLoading && statsError && (
+        <p className="text-amber-400/90 text-sm mb-6 p-3 rounded-xl border border-amber-500/25 bg-amber-500/10">
+          Could not load live stats — catalog and tools are still available.
+        </p>
+      )}
+
+      {!statsLoading && stats ? (
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 md:gap-4 mb-8 animate-stagger">
           <StatCard label="Verified Catalog" value={stats.verifiedCasinos} icon={ShieldCheck} color="bg-emerald-500/20 text-emerald-300" delay={0} />
           {user?.isAdmin && (
@@ -114,7 +123,9 @@ export default function DashboardPage() {
           <StatCard label="VPN Allowed" value={stats.vpnAllowedCasinos} icon={Shield} color="bg-emerald-500/20 text-emerald-300" delay={0.3} />
           <StatCard label="Blocked Scams" value={stats.blockedSites} icon={Ban} color="bg-red-500/20 text-red-400" delay={0.35} />
         </div>
-      )}
+      ) : statsLoading ? (
+        <StatsSkeleton count={user?.isAdmin ? 8 : 7} />
+      ) : null}
 
       {carouselsLoading ? (
         <>

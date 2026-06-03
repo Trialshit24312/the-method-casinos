@@ -44,7 +44,7 @@ export default function ActivityFeed() {
             {item.type === 'approval' ? (
               <CheckCircle className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
             ) : (
-              <Radar className="w-4 h-4 text-[#00aeef] shrink-0 mt-0.5" />
+              <Radar className="w-4 h-4 text-glow shrink-0 mt-0.5" />
             )}
             <div className="min-w-0 flex-1">
               {item.casinoSlug ? (

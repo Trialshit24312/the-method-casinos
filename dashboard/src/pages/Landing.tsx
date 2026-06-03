@@ -11,6 +11,7 @@ import CasinoCarousel from '../components/CasinoCarousel';
 import CarouselSkeleton from '../components/CarouselSkeleton';
 import StatsSkeleton from '../components/StatsSkeleton';
 import BrandLogo from '../components/BrandLogo';
+import ActivityFeed from '../components/ActivityFeed';
 import PricingTiers from '../components/PricingTiers';
 import { usePageTitle } from '../hooks/usePageTitle';
 
@@ -22,13 +23,18 @@ const fadeUp = {
 export default function Landing() {
   usePageTitle('The Method Casinos — Verified US Sweepstakes Catalog');
   const [stats, setStats] = useState<Stats | null>(null);
+  const [statsLoading, setStatsLoading] = useState(true);
+  const [statsError, setStatsError] = useState(false);
   const [featured, setFeatured] = useState<Casino[]>([]);
   const [featuredLoading, setFeaturedLoading] = useState(true);
   const [newArrivals, setNewArrivals] = useState<Casino[]>([]);
   const discordInvite = discordInviteUrl();
 
   useEffect(() => {
-    api.getStats().then(setStats).catch(() => {});
+    api.getStats()
+      .then(setStats)
+      .catch(() => setStatsError(true))
+      .finally(() => setStatsLoading(false));
     setFeaturedLoading(true);
     api.getFeaturedCasinos(6)
       .then(setFeatured)
@@ -120,11 +126,13 @@ export default function Landing() {
           <FeatureStrip compact />
         </motion.section>
 
-        {!stats ? (
+        {statsLoading ? (
           <div className="mb-16">
             <StatsSkeleton count={4} />
           </div>
-        ) : (
+        ) : statsError ? (
+          <p className="text-center text-gray-500 text-sm mb-16">Live stats unavailable — catalog is still browsable.</p>
+        ) : stats ? (
           <motion.div
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
@@ -132,25 +140,30 @@ export default function Landing() {
             className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-16"
           >
             {[
-              { label: 'Verified casinos', value: stats.verifiedCasinos, icon: Shield, accent: 'text-emerald-400' },
-              { label: 'No phone signup', value: stats.noPhoneCasinos, icon: Dices, accent: 'text-glow' },
-              { label: 'Blocked scams', value: stats.blockedSites, icon: ShieldCheck, accent: 'text-red-400' },
-              { label: 'Email only', value: stats.emailOnlyCasinos, icon: Wrench, accent: 'text-brand-light' },
-            ].map(({ label, value, icon: Icon, accent }, i) => (
+              { label: 'Verified casinos', value: stats.verifiedCasinos, icon: Shield, accent: 'text-emerald-400', to: '/casinos' },
+              { label: 'No phone signup', value: stats.noPhoneCasinos, icon: Dices, accent: 'text-glow', to: '/casinos?no_phone=1' },
+              { label: 'Blocked scams', value: stats.blockedSites, icon: ShieldCheck, accent: 'text-red-400', to: '/blocked' },
+              { label: 'Email only', value: stats.emailOnlyCasinos, icon: Wrench, accent: 'text-brand-light', to: '/casinos?feature=email_only' },
+            ].map(({ label, value, icon: Icon, accent, to }, i) => (
               <motion.div
                 key={label}
                 initial={{ opacity: 0, y: 12 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.3 + i * 0.05 }}
-                className="stat-card text-center card-shine"
               >
-                <Icon className={`w-5 h-5 ${accent} mx-auto mb-2`} />
-                <p className="text-3xl font-display font-bold text-white">{value}</p>
-                <p className="text-xs text-gray-500 mt-1">{label}</p>
+                <Link to={to} className="stat-card text-center card-shine block hover:border-glow/30 transition-colors">
+                  <Icon className={`w-5 h-5 ${accent} mx-auto mb-2`} />
+                  <p className="text-3xl font-display font-bold text-white">{value}</p>
+                  <p className="text-xs text-gray-500 mt-1">{label}</p>
+                </Link>
               </motion.div>
             ))}
           </motion.div>
-        )}
+        ) : null}
+
+        <div className="mb-16 px-2">
+          <ActivityFeed />
+        </div>
 
         {newArrivals.length > 0 && (
           <motion.div

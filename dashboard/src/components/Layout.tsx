@@ -64,6 +64,7 @@ const toolsNav = [
   { to: '/tools/checker', icon: ShieldCheck, label: 'URL Checker' },
   { to: '/status', icon: Activity, label: 'Status' },
   { to: '/guides', icon: BookOpen, label: 'Guides' },
+  { to: '/assistant', icon: Sparkles, label: 'Catalog Help' },
 ];
 
 const legalNav = [
@@ -250,7 +251,7 @@ export default function Layout() {
         </header>
         <ReportSiteModal open={reportOpen} onClose={() => setReportOpen(false)} />
         <ShortcutsHelp />
-        <div className="flex-1 relative z-10 p-6 md:p-8">
+        <div className="flex-1 relative z-10">
           <AnimatePresence mode="wait">
             <PageTransition key={location.pathname}>
               <Outlet />

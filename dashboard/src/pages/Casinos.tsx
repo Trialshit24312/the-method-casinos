@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Plus, Search, X, Trash2, Dices } from 'lucide-react';
 import { api } from '../api';
 import type { Casino, CasinoFeature, Trackable } from '../types';
-import { FEATURE_LABELS, FEATURE_CATEGORIES } from '../types';
+import { FEATURE_LABELS, FEATURE_CATEGORIES, ALL_FEATURES } from '../types';
 import PageHeader from '../components/PageHeader';
 import CasinoCard from '../components/CasinoCard';
 import EmptyState from '../components/EmptyState';
@@ -61,8 +61,11 @@ export default function CasinosPage() {
   usePageTitle('Browse Casinos — The Method');
   const [casinos, setCasinos] = useState<Casino[]>([]);
   const [search, setSearch] = useState(searchParams.get('q') ?? '');
-  const [filter, setFilter] = useState<CasinoFeature | ''>('');
-  const [noPhoneOnly, setNoPhoneOnly] = useState(false);
+  const [filter, setFilter] = useState<CasinoFeature | ''>(() => {
+    const f = searchParams.get('feature');
+    return f && (ALL_FEATURES as string[]).includes(f) ? (f as CasinoFeature) : '';
+  });
+  const [noPhoneOnly, setNoPhoneOnly] = useState(() => searchParams.get('no_phone') === '1');
   const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<Casino | null>(null);
@@ -76,8 +79,20 @@ export default function CasinosPage() {
 
   useEffect(() => {
     const q = searchParams.get('q');
-    if (q) setSearch(q);
+    if (q != null) setSearch(q);
+    setNoPhoneOnly(searchParams.get('no_phone') === '1');
+    const f = searchParams.get('feature');
+    setFilter(f && (ALL_FEATURES as string[]).includes(f) ? (f as CasinoFeature) : '');
   }, [searchParams]);
+
+  const syncUrlParams = useCallback(() => {
+    const params = new URLSearchParams();
+    const trimmed = search.trim();
+    if (trimmed) params.set('q', trimmed);
+    if (noPhoneOnly) params.set('no_phone', '1');
+    if (filter) params.set('feature', filter);
+    setSearchParams(params, { replace: true });
+  }, [search, noPhoneOnly, filter, setSearchParams]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -103,12 +118,9 @@ export default function CasinosPage() {
   }, [load]);
 
   useEffect(() => {
-    const t = setTimeout(() => {
-      const trimmed = search.trim();
-      setSearchParams(trimmed ? { q: trimmed } : {}, { replace: true });
-    }, 400);
+    const t = setTimeout(syncUrlParams, 400);
     return () => clearTimeout(t);
-  }, [search, setSearchParams]);
+  }, [syncUrlParams]);
 
   useEffect(() => {
     if (!user) {
@@ -404,6 +416,7 @@ export default function CasinosPage() {
               onBlock={handleBlock}
               favorited={user ? favoriteIds.has(casino.id) : undefined}
               onToggleFavorite={user ? () => void toggleFavorite(casino.id) : undefined}
+              favoriteLoginHref={user ? undefined : `/login?next=${encodeURIComponent('/casinos')}`}
             />
           ))}
         </div>

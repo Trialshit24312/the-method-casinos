@@ -7,22 +7,23 @@ import type { Casino, SimilarCasinoMatch, SimilarWebDiscoveryResult } from '../t
 import { FEATURE_LABELS, FEATURE_COLORS } from '../types';
 import PageHeader from '../components/PageHeader';
 import { usePageTitle } from '../hooks/usePageTitle';
+import { useAuth } from '../context/AuthContext';
 
 function MatchCard({ match, index }: { match: SimilarCasinoMatch; index: number }) {
   const pct = match.matchPercent;
-  const ringColor = pct >= 75 ? 'text-emerald-400' : pct >= 50 ? 'text-[#00aeef]' : 'text-[#d4956a]';
+  const ringColor = pct >= 75 ? 'text-emerald-400' : pct >= 50 ? 'text-glow' : 'text-brand-light';
 
   return (
     <motion.div
       initial={{ opacity: 0, y: 16 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: index * 0.06 }}
-      className="glass-glow p-5 border-[#00aeef]/15 hover:border-[#00aeef]/35 transition-all"
+      className="glass-glow p-5 border-glow/15 hover:border-glow/35 transition-all"
     >
       <div className="flex items-start justify-between gap-3 mb-3">
         <div>
           <h3 className="font-display font-semibold text-lg text-white">{match.casino.name}</h3>
-          <div className="flex items-center gap-1 text-[#d4956a] text-sm mt-0.5">
+          <div className="flex items-center gap-1 text-brand-light text-sm mt-0.5">
             <Star className="w-3.5 h-3.5 fill-current" />
             {match.casino.rating.toFixed(1)}
           </div>
@@ -38,7 +39,7 @@ function MatchCard({ match, index }: { match: SimilarCasinoMatch; index: number 
       {match.reasons.length > 0 && (
         <div className="mb-3 flex flex-wrap gap-1">
           {match.reasons.map((r) => (
-            <span key={r} className="text-[10px] px-2 py-0.5 rounded-full bg-[#00aeef]/10 text-[#00aeef] border border-[#00aeef]/25">
+            <span key={r} className="text-[10px] px-2 py-0.5 rounded-full bg-glow/10 text-glow border border-glow/25">
               {r}
             </span>
           ))}
@@ -76,7 +77,7 @@ function CandidateRow({ c }: { c: SimilarWebDiscoveryResult['candidates'][0] }) 
   const Icon = c.status === 'added' ? CheckCircle : c.status === 'rejected' ? XCircle : MinusCircle;
   const tone = c.status === 'added' ? 'text-emerald-400' : c.status === 'rejected' ? 'text-amber-400' : 'text-gray-500';
   return (
-    <div className="flex items-center gap-3 px-3 py-2 text-sm border-b border-[#2a2a35] last:border-0">
+    <div className="flex items-center gap-3 px-3 py-2 text-sm border-b border-surface-border last:border-0">
       <Icon className={`w-4 h-4 shrink-0 ${tone}`} />
       <div className="min-w-0 flex-1">
         <p className="text-white truncate">{c.name}</p>
@@ -91,6 +92,7 @@ function CandidateRow({ c }: { c: SimilarWebDiscoveryResult['candidates'][0] }) 
 
 export default function SimilarCasinosPage() {
   usePageTitle('Similar Casinos — The Method');
+  const { user } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
   const [allCasinos, setAllCasinos] = useState<Casino[]>([]);
   const [query, setQuery] = useState('');
@@ -162,12 +164,12 @@ export default function SimilarCasinosPage() {
   return (
     <div className="p-8 max-w-6xl mx-auto">
       <PageHeader
-        icon={<Sparkles className="w-6 h-6 text-[#00aeef]" />}
+        icon={<Sparkles className="w-6 h-6 text-glow" />}
         title="Similar Casinos"
         subtitle="Pick a casino — match from catalog, or search the web from your browser (no API keys) for more operators like it"
       />
 
-      <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="glass-glow p-6 mb-8 border-[#00aeef]/20">
+      <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="glass-glow p-6 mb-8 border-glow/20">
         <label className="text-xs uppercase tracking-wide text-gray-500 mb-2 block">Find casinos like...</label>
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-600" />
@@ -180,12 +182,12 @@ export default function SimilarCasinosPage() {
         </div>
 
         {showPicker && (
-          <div className="mt-2 rounded-xl border border-[#2a2a35] overflow-hidden">
+          <div className="mt-2 rounded-xl border border-surface-border overflow-hidden">
             {filtered.map((c) => (
               <button
                 key={c.id}
                 onClick={() => pickCasino(c)}
-                className="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-[#00aeef]/5 border-b border-[#2a2a35] last:border-0"
+                className="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-glow/5 border-b border-surface-border last:border-0"
               >
                 <span className="text-white font-medium">{c.name}</span>
                 <ChevronRight className="w-4 h-4 text-gray-600" />
@@ -202,8 +204,8 @@ export default function SimilarCasinosPage() {
                 <button
                   key={c.id}
                   onClick={() => pickCasino(c)}
-                  className="text-sm px-3 py-1.5 rounded-full border border-[#2a2a35] bg-[#1a1a22]
-                             hover:border-[#00aeef]/40 hover:text-[#00aeef] text-gray-400 transition-colors"
+                  className="text-sm px-3 py-1.5 rounded-full border border-surface-border bg-surface-muted
+                             hover:border-glow/40 hover:text-glow text-gray-400 transition-colors"
                 >
                   {c.name}
                 </button>
@@ -219,7 +221,7 @@ export default function SimilarCasinosPage() {
 
       {loading && (
         <div className="flex justify-center py-16">
-          <div className="w-8 h-8 border-2 border-[#00aeef] border-t-transparent rounded-full animate-spin" />
+          <div className="w-8 h-8 border-2 border-glow border-t-transparent rounded-full animate-spin" />
         </div>
       )}
 
@@ -231,20 +233,29 @@ export default function SimilarCasinosPage() {
               <span className="text-white font-semibold">{selected.name}</span>
               {' '}— {matches.length} catalog match{matches.length === 1 ? '' : 'es'}
             </p>
-            <button
-              type="button"
-              onClick={() => void searchWeb()}
-              disabled={webLoading}
-              className="btn-primary text-sm flex items-center gap-2 shrink-0"
-            >
-              <Globe className={`w-4 h-4 ${webLoading ? 'animate-spin' : ''}`} />
-              {webLoading ? 'Searching from your browser…' : 'Search web from browser'}
-            </button>
+            {user ? (
+              <button
+                type="button"
+                onClick={() => void searchWeb()}
+                disabled={webLoading}
+                className="btn-primary text-sm flex items-center gap-2 shrink-0"
+              >
+                <Globe className={`w-4 h-4 ${webLoading ? 'animate-spin' : ''}`} />
+                {webLoading ? 'Searching from your browser…' : 'Search web from browser'}
+              </button>
+            ) : (
+              <Link
+                to={`/login?next=${encodeURIComponent(`/similar?casino=${selected.id}`)}`}
+                className="btn-glow text-sm shrink-0"
+              >
+                Sign in to search the web
+              </Link>
+            )}
           </motion.div>
 
           {webResult && (
             <div className="mb-6 space-y-3">
-              <div className="p-4 rounded-lg border border-[#00aeef]/25 bg-[#00aeef]/5 text-sm text-gray-300">
+              <div className="p-4 rounded-lg border border-glow/25 bg-glow/5 text-sm text-gray-300">
                 <p>
                   {webResult.searchMode === 'browser' ? 'Browser' : webResult.searchMode === 'mixed' ? 'Browser + server' : 'Web'} search
                   ({webResult.queries.length} queries): {webResult.webUrlsFound} URLs · {webResult.analyzed} analyzed ·{' '}
@@ -256,8 +267,8 @@ export default function SimilarCasinosPage() {
                 )}
               </div>
               {webResult.candidates.length > 0 && (
-                <div className="rounded-xl border border-[#2a2a35] overflow-hidden">
-                  <p className="text-xs uppercase tracking-wide text-gray-600 px-3 py-2 bg-[#1a1a22]">Web search results</p>
+                <div className="rounded-xl border border-surface-border overflow-hidden">
+                  <p className="text-xs uppercase tracking-wide text-gray-600 px-3 py-2 bg-surface-muted">Web search results</p>
                   {webResult.candidates.map((c) => (
                     <CandidateRow key={`${c.url}-${c.status}`} c={c} />
                   ))}
@@ -283,7 +294,7 @@ export default function SimilarCasinosPage() {
 
       {!selected && !loading && (
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="glass p-8 text-center">
-          <Sparkles className="w-10 h-10 text-[#00aeef]/50 mx-auto mb-4" />
+          <Sparkles className="w-10 h-10 text-glow/50 mx-auto mb-4" />
           <p className="text-gray-500">Select a casino above — we match from the verified catalog, or search DuckDuckGo, Bing & Brave for new operators like it. 100% free, no API keys.</p>
         </motion.div>
       )}

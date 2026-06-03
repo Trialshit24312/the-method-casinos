@@ -4,6 +4,7 @@ import { Sparkles } from 'lucide-react';
 import { api } from '../api';
 import type { Casino } from '../types';
 import PageHeader from '../components/PageHeader';
+import EmptyState from '../components/EmptyState';
 import CasinoCard from '../components/CasinoCard';
 import CarouselSkeleton from '../components/CarouselSkeleton';
 import { usePageTitle } from '../hooks/usePageTitle';
@@ -37,9 +38,12 @@ export default function NewArrivals() {
       {loading ? (
         <CarouselSkeleton title="Loading" />
       ) : casinos.length === 0 ? (
-        <div className="glass-glow p-10 text-center text-gray-500">
-          No new approvals yet. Check back after the next discovery review cycle.
-        </div>
+        <EmptyState
+          icon={Sparkles}
+          title="No new arrivals yet"
+          description="Recently approved operators will appear here after the next review cycle."
+          action={<Link to="/casinos" className="btn-glow text-sm">Browse catalog</Link>}
+        />
       ) : (
         <>
           <p className="text-sm text-gray-500 mb-6">

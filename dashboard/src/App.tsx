@@ -27,6 +27,7 @@ import Status from './pages/Status';
 import Pricing from './pages/Pricing';
 import NewArrivals from './pages/NewArrivals';
 import AdminInsights from './pages/AdminInsights';
+import CatalogHelp from './pages/CatalogHelp';
 import PublicLayout from './components/PublicLayout';
 
 function AdminRoute({ children }: { children: React.ReactNode }) {
@@ -82,7 +83,7 @@ export default function App() {
           <Route path="/compare" element={<Compare />} />
           <Route path="/random" element={<RandomPick />} />
           <Route path="/status" element={<Status />} />
-          <Route path="/assistant" element={<Navigate to="/similar" replace />} />
+          <Route path="/assistant" element={<CatalogHelp />} />
           <Route path="/blocked" element={<BlockedSites />} />
           <Route path="/guides" element={<Guides />} />
           <Route path="/pricing" element={<Pricing />} />

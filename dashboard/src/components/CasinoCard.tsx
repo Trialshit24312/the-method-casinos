@@ -13,10 +13,11 @@ interface CasinoCardProps {
   admin?: boolean;
   favorited?: boolean;
   onToggleFavorite?: () => void;
+  favoriteLoginHref?: string;
 }
 
 export default function CasinoCard({
-  casino, index, onEdit, onBlock, admin, favorited, onToggleFavorite,
+  casino, index, onEdit, onBlock, admin, favorited, onToggleFavorite, favoriteLoginHref,
 }: CasinoCardProps) {
   return (
     <motion.div
@@ -134,19 +135,29 @@ export default function CasinoCard({
             <Ban className="w-4 h-4" />
           </button>
         )}
-        {onToggleFavorite != null && (
-          <button
-            type="button"
-            onClick={onToggleFavorite}
-            className={`p-2 rounded-lg border transition-colors ${
-              favorited
-                ? 'border-rose-500/40 bg-rose-500/10 text-rose-400'
-                : 'border-transparent text-gray-500 hover:text-rose-400'
-            }`}
-            title={favorited ? 'Remove from My List' : 'Save to My List'}
-          >
-            <Heart className={`w-4 h-4 ${favorited ? 'fill-current' : ''}`} />
-          </button>
+        {(onToggleFavorite != null || favoriteLoginHref) && (
+          favoriteLoginHref && !onToggleFavorite ? (
+            <Link
+              to={favoriteLoginHref}
+              className="p-2 rounded-lg border border-transparent text-gray-500 hover:text-rose-400 transition-colors"
+              title="Sign in to save to My List"
+            >
+              <Heart className="w-4 h-4" />
+            </Link>
+          ) : (
+            <button
+              type="button"
+              onClick={onToggleFavorite}
+              className={`p-2 rounded-lg border transition-colors ${
+                favorited
+                  ? 'border-rose-500/40 bg-rose-500/10 text-rose-400'
+                  : 'border-transparent text-gray-500 hover:text-rose-400'
+              }`}
+              title={favorited ? 'Remove from My List' : 'Save to My List'}
+            >
+              <Heart className={`w-4 h-4 ${favorited ? 'fill-current' : ''}`} />
+            </button>
+          )
         )}
         <Link
           to={`/similar?casino=${casino.id}`}
