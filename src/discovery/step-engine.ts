@@ -19,11 +19,20 @@ import {
 } from './filters.js';
 import { getVerifiedCuratedDiscoveries } from '../shared/verified-casinos.js';
 import { buildSearchQueries, SEARCH_PAGES_DEEP, SEARCH_PAGES_QUICK } from './queries.js';
-import { collectFreeSearchLinks, extractCasinoUrlsFromHtml } from './free-search.js';
+import { collectFreeSearchLinks, extractCasinoUrlsFromHtml, normalizeSearchLink } from './free-search.js';
 import { beginDiscoveryRun, endDiscoveryRun, throwIfCancelled } from './run-state.js';
 import { beginDiscoveryLive, pushDiscoveryLiveEvent, finishDiscoveryLive } from './live-state.js';
 import { resumeDiscoveryLiveStorage } from '../database/index.js';
-import { ingestDiscovery, persistDiscovery, analyzeUrl, CURATED_DISCOVERIES } from './engine.js';
+import {
+  ingestDiscovery,
+  persistDiscovery,
+  analyzeUrl,
+  analyzeUrlFromClientHtml,
+  CURATED_DISCOVERIES,
+  saveDiscoveryCandidateForReview,
+  isSoftDiscoveryReject,
+} from './engine.js';
+import { notifyDiscoveryComplete } from '../shared/notify.js';
 
 type ProgressPublisher = (event: DiscoveryProgressEvent) => void;
 
@@ -32,6 +41,7 @@ const QUERIES_PER_STEP_QUICK = 2;
 const QUERIES_PER_STEP_DEEP = 3;
 const ANALYZE_BATCH_QUICK = 2;
 const ANALYZE_BATCH_DEEP = 4;
+const BROWSER_VALIDATE_BATCH = 3;
 
 let stepLock: Promise<void> = Promise.resolve();
 
@@ -55,24 +65,24 @@ interface ScanConfig {
 
 const QUICK_CONFIG: ScanConfig = {
   mode: 'quick',
-  maxDurationMs: 10 * 60 * 1000,
-  delayMs: 180,
-  maxWebAnalyzes: 350,
+  maxDurationMs: 12 * 60 * 1000,
+  delayMs: 120,
+  maxWebAnalyzes: 450,
   searchPages: SEARCH_PAGES_QUICK,
   crawlLinks: false,
   crawlKnownCasinos: true,
-  crawlLimit: 60,
+  crawlLimit: 80,
 };
 
 const DEEP_CONFIG: ScanConfig = {
   mode: 'deep',
-  maxDurationMs: 35 * 60 * 1000,
-  delayMs: 200,
-  maxWebAnalyzes: 1200,
+  maxDurationMs: 40 * 60 * 1000,
+  delayMs: 140,
+  maxWebAnalyzes: 1500,
   searchPages: SEARCH_PAGES_DEEP,
   crawlLinks: true,
   crawlKnownCasinos: true,
-  crawlLimit: 120,
+  crawlLimit: 150,
 };
 
 export interface DiscoverySessionState {
@@ -102,6 +112,59 @@ export interface DiscoverySessionState {
   crawlIndex: number;
   curatedIndex: number;
   curatedByHost: Record<string, ReturnType<typeof getVerifiedCuratedDiscoveries>[number]>;
+  pendingClientSearch: { queries: string[]; searchPages: number } | null;
+  browserValidateUrls: string[];
+  browserCrawlUrls: string[];
+}
+
+export interface ClientSearchRequest {
+  queries: string[];
+  searchPages: number;
+}
+
+export interface ClientSerpResult {
+  query: string;
+  engine: string;
+  links: string[];
+}
+
+export interface ClientPageHtml {
+  url: string;
+  html: string;
+}
+
+function takeBrowserValidateBatch(state: DiscoverySessionState): string[] {
+  if (!state.browserValidateUrls.length) return [];
+  return state.browserValidateUrls.splice(0, BROWSER_VALIDATE_BATCH);
+}
+
+function maybeReturnBrowserValidate(
+  state: DiscoverySessionState,
+  onProgress?: ProgressPublisher,
+): { done: false; browserValidate: string[] } | null {
+  const batch = takeBrowserValidateBatch(state);
+  if (!batch.length) return null;
+  saveDiscoverySession(state);
+  emitProgress(state, onProgress);
+  return { done: false, browserValidate: batch };
+}
+
+const BROWSER_CRAWL_BATCH = 4;
+
+function takeBrowserCrawlBatch(state: DiscoverySessionState): string[] {
+  if (!state.browserCrawlUrls.length) return [];
+  return state.browserCrawlUrls.splice(0, BROWSER_CRAWL_BATCH);
+}
+
+function maybeReturnBrowserCrawl(
+  state: DiscoverySessionState,
+  onProgress?: ProgressPublisher,
+): { done: false; browserCrawl: string[] } | null {
+  const batch = takeBrowserCrawlBatch(state);
+  if (!batch.length) return null;
+  saveDiscoverySession(state);
+  emitProgress(state, onProgress);
+  return { done: false, browserCrawl: batch };
 }
 
 function sleep(ms: number): Promise<void> {
@@ -154,6 +217,25 @@ function recordRejection(state: DiscoverySessionState, root: string, host: strin
   state.rejected++;
   if (!state.sessionHosts.includes(host)) state.sessionHosts.push(host);
   markDiscoverySeen(root, 'rejected', reason);
+
+  if (isSoftDiscoveryReject(reason)) {
+    const saved = saveDiscoveryCandidateForReview(root, reason, knownSet(state));
+    if (saved) {
+      state.added++;
+      state.found++;
+      state.knownHosts = [...getKnownHosts()];
+      state.addedCasinos.push(saved);
+      publish(onProgress, {
+        type: 'url_added',
+        url: saved.url,
+        name: saved.name,
+        needsReview: true,
+        reviewNote: reason,
+      });
+      return;
+    }
+  }
+
   queueDiscoveryBanReview(root, reason);
   publish(onProgress, { type: 'url_rejected', url: host, reason });
 }
@@ -251,6 +333,9 @@ function buildInitialState(deep: boolean): DiscoverySessionState {
     crawlIndex: 0,
     curatedIndex: 0,
     curatedByHost,
+    pendingClientSearch: null,
+    browserValidateUrls: [],
+    browserCrawlUrls: [],
   };
 }
 
@@ -283,6 +368,7 @@ function finishSession(state: DiscoverySessionState, onProgress?: ProgressPublis
   finishDiscoveryLive(result);
   clearDiscoverySession();
   endDiscoveryRun();
+  void notifyDiscoveryComplete(result);
   return result;
 }
 
@@ -311,10 +397,25 @@ export function resumeClientDiscovery(): void {
 
 async function runClientDiscoveryStepInner(
   onProgress?: ProgressPublisher,
-): Promise<{ done: boolean; result?: DiscoveryResult }> {
+): Promise<{
+  done: boolean;
+  result?: DiscoveryResult;
+  clientSearch?: ClientSearchRequest;
+  browserValidate?: string[];
+  browserCrawl?: string[];
+}> {
   const state = loadDiscoverySession() as DiscoverySessionState | null;
   if (!state) {
     throw new Error('No active discovery session');
+  }
+  if (state.pendingClientSearch === undefined) {
+    state.pendingClientSearch = null;
+  }
+  if (!state.browserValidateUrls) {
+    state.browserValidateUrls = [];
+  }
+  if (!state.browserCrawlUrls) {
+    state.browserCrawlUrls = [];
   }
 
   // Keep in sync with DB — casinos added in prior steps must stay known.
@@ -349,7 +450,7 @@ async function runClientDiscoveryStepInner(
       setPhase(state, 'crawl', `Mining links from ${state.crawlCasinoUrls.length} active casinos…`, onProgress);
     } else {
       state.phase = 'search';
-      setPhase(state, 'search', `Running ${state.searchQueries.length} fresh web searches…`, onProgress);
+      setPhase(state, 'search', `Browser search — ${state.searchQueries.length} queries from your computer…`, onProgress);
     }
     saveDiscoverySession(state);
     emitProgress(state, onProgress);
@@ -359,7 +460,7 @@ async function runClientDiscoveryStepInner(
   if (state.phase === 'crawl') {
     if (state.crawlIndex >= state.crawlCasinoUrls.length) {
       state.phase = 'search';
-      setPhase(state, 'search', `Running ${state.searchQueries.length} fresh web searches…`, onProgress);
+      setPhase(state, 'search', `Browser search — ${state.searchQueries.length} queries from your computer…`, onProgress);
       saveDiscoverySession(state);
       return { done: false };
     }
@@ -374,9 +475,14 @@ async function runClientDiscoveryStepInner(
         for (const link of extractCasinoUrlsFromHtml(html, root, 'page')) {
           if (enqueue(state, link, onProgress)) batchLinks++;
         }
+      } else if (!state.browserCrawlUrls.includes(root)) {
+        state.browserCrawlUrls.push(root);
       }
       await sleep(80);
     }
+
+    const browserCrawl = maybeReturnBrowserCrawl(state, onProgress);
+    if (browserCrawl) return browserCrawl;
 
     if (batchLinks > 0 || state.crawlIndex % CRAWL_BATCH_SIZE === 0) {
       publish(onProgress, {
@@ -399,40 +505,29 @@ async function runClientDiscoveryStepInner(
       return { done: false };
     }
 
+    if (state.pendingClientSearch) {
+      return {
+        done: false,
+        clientSearch: state.pendingClientSearch,
+      };
+    }
+
     const queriesPerStep = state.mode === 'deep' ? QUERIES_PER_STEP_DEEP : QUERIES_PER_STEP_QUICK;
-    for (let q = 0; q < queriesPerStep && state.queryIndex < state.searchQueries.length; q++) {
-      const query = state.searchQueries[state.queryIndex];
-      publish(onProgress, { type: 'search_query', query });
-
-      try {
-        const links = await collectFreeSearchLinks(
-          query,
-          state.config.searchPages,
-          (engine, eq, linkCount) => {
-            state.sourcesChecked++;
-            publish(onProgress, { type: 'search_engine', engine, query: eq, linkCount });
-          },
-        );
-        for (const link of links) {
-          enqueue(state, link, onProgress);
-        }
-      } catch (e) {
-        state.errors.push(`Search: ${e instanceof Error ? e.message : 'unknown'}`);
-      }
-
-      state.queryIndex++;
-      await sleep(state.config.delayMs);
+    const batch: string[] = [];
+    for (let q = 0; q < queriesPerStep && state.queryIndex + batch.length < state.searchQueries.length; q++) {
+      batch.push(state.searchQueries[state.queryIndex + batch.length]!);
     }
 
-    const analyzeBatch = state.mode === 'deep' ? ANALYZE_BATCH_DEEP : ANALYZE_BATCH_QUICK;
-    for (let i = 0; i < analyzeBatch; i++) {
-      if (state.queueIndex >= state.urlQueue.length || state.webAnalyzes >= state.config.maxWebAnalyzes) break;
-      await processOneUrl(state, onProgress);
-    }
-
+    state.pendingClientSearch = {
+      queries: batch,
+      searchPages: state.config.searchPages,
+    };
     saveDiscoverySession(state);
     emitProgress(state, onProgress);
-    return { done: false };
+    return {
+      done: false,
+      clientSearch: state.pendingClientSearch,
+    };
   }
 
   if (state.phase === 'analyze') {
@@ -441,6 +536,8 @@ async function runClientDiscoveryStepInner(
       || state.webAnalyzes >= state.config.maxWebAnalyzes
       || timeLeft(state) <= 0
     ) {
+      const browserDone = maybeReturnBrowserValidate(state, onProgress);
+      if (browserDone) return browserDone;
       return { done: true, result: finishSession(state, onProgress) };
     }
     const analyzeBatch = state.mode === 'deep' ? ANALYZE_BATCH_DEEP : ANALYZE_BATCH_QUICK;
@@ -448,6 +545,8 @@ async function runClientDiscoveryStepInner(
       if (state.queueIndex >= state.urlQueue.length || state.webAnalyzes >= state.config.maxWebAnalyzes) break;
       await processOneUrl(state, onProgress);
     }
+    const browserMid = maybeReturnBrowserValidate(state, onProgress);
+    if (browserMid) return browserMid;
     saveDiscoverySession(state);
     emitProgress(state, onProgress);
     return { done: false };
@@ -458,7 +557,13 @@ async function runClientDiscoveryStepInner(
 
 export async function runClientDiscoveryStep(
   onProgress?: ProgressPublisher,
-): Promise<{ done: boolean; result?: DiscoveryResult }> {
+): Promise<{
+  done: boolean;
+  result?: DiscoveryResult;
+  clientSearch?: ClientSearchRequest;
+  browserValidate?: string[];
+  browserCrawl?: string[];
+}> {
   let release!: () => void;
   const gate = new Promise<void>((resolve) => {
     release = resolve;
@@ -511,6 +616,14 @@ async function processOneUrl(state: DiscoverySessionState, onProgress?: Progress
   try {
     const { raw: analyzed, rejectReason } = await analyzeUrl(root, known);
     if (!analyzed) {
+      if (rejectReason === 'fetch failed') {
+        if (!state.browserValidateUrls.includes(root)) {
+          state.browserValidateUrls.push(root);
+        }
+        publish(onProgress, { type: 'browser_fetch', url: root });
+        await sleep(state.config.delayMs / 4);
+        return;
+      }
       recordRejection(state, root, host, rejectReason ?? 'validation failed', onProgress);
       await sleep(state.config.delayMs / 3);
       return;
@@ -535,6 +648,11 @@ async function processOneUrl(state: DiscoverySessionState, onProgress?: Progress
     } else {
       state.skipped++;
       markDiscoverySeen(root, 'skipped', saved.reason ?? 'duplicate');
+      publish(onProgress, {
+        type: 'url_skipped',
+        url: host,
+        reason: saved.reason ?? 'duplicate',
+      });
     }
   } catch (e) {
     recordRejection(state, root, host, 'scan error', onProgress);
@@ -548,4 +666,234 @@ export function cancelClientDiscovery(): boolean {
   clearDiscoverySession();
   endDiscoveryRun();
   return true;
+}
+
+const SERP_BASE_URLS: Record<string, string> = {
+  duckduckgo_lite: 'https://lite.duckduckgo.com/lite/',
+  duckduckgo: 'https://html.duckduckgo.com/html/',
+  bing: 'https://www.bing.com/search',
+  brave: 'https://search.brave.com/search',
+  ddg_instant: 'https://duckduckgo.com/',
+  reddit: 'https://www.reddit.com/',
+  browser: 'https://search.local/',
+};
+
+function ingestRawLinks(
+  state: DiscoverySessionState,
+  rawLinks: string[],
+  baseUrl: string,
+  onProgress?: ProgressPublisher,
+): number {
+  let queued = 0;
+  for (const raw of rawLinks) {
+    const normalized = normalizeSearchLink(raw, baseUrl);
+    if (normalized && enqueue(state, normalized, onProgress)) {
+      queued++;
+    }
+  }
+  return queued;
+}
+
+async function serverSearchFallback(
+  state: DiscoverySessionState,
+  query: string,
+  onProgress?: ProgressPublisher,
+): Promise<number> {
+  try {
+    const links = await collectFreeSearchLinks(
+      query,
+      Math.min(state.config.searchPages, 2),
+      (engine, eq, linkCount) => {
+        state.sourcesChecked++;
+        publish(onProgress, { type: 'search_engine', engine, query: eq, linkCount });
+      },
+      { useSerper: false },
+    );
+    let queued = 0;
+    for (const link of links) {
+      if (enqueue(state, link, onProgress)) queued++;
+    }
+    return queued;
+  } catch (e) {
+    state.errors.push(`Search fallback: ${e instanceof Error ? e.message : 'unknown'}`);
+    return 0;
+  }
+}
+
+/** Browser submitted SERP links — normalize, queue, analyze batch. */
+export async function submitClientSerpResults(
+  results: ClientSerpResult[],
+  onProgress?: ProgressPublisher,
+): Promise<{ queued: number }> {
+  const state = loadDiscoverySession() as DiscoverySessionState | null;
+  if (!state?.pendingClientSearch) {
+    throw new Error('No pending browser search batch');
+  }
+
+  const pendingQueries = new Set(state.pendingClientSearch.queries);
+  const linksByQuery = new Map<string, number>();
+
+  for (const result of results) {
+    if (!pendingQueries.has(result.query)) continue;
+
+    publish(onProgress, { type: 'search_query', query: result.query });
+    state.sourcesChecked++;
+
+    const baseUrl = SERP_BASE_URLS[result.engine] ?? SERP_BASE_URLS.browser!;
+    const queued = ingestRawLinks(state, result.links, baseUrl, onProgress);
+    linksByQuery.set(result.query, (linksByQuery.get(result.query) ?? 0) + queued);
+
+    publish(onProgress, {
+      type: 'search_engine',
+      engine: result.engine as 'ddg_instant' | 'duckduckgo' | 'duckduckgo_lite' | 'bing' | 'brave' | 'reddit' | 'browser',
+      query: result.query,
+      linkCount: result.links.length,
+    });
+  }
+
+  for (const query of state.pendingClientSearch.queries) {
+    if ((linksByQuery.get(query) ?? 0) === 0) {
+      const fallbackQueued = await serverSearchFallback(state, query, onProgress);
+      if (fallbackQueued > 0) {
+        linksByQuery.set(query, fallbackQueued);
+      }
+    }
+    state.queryIndex++;
+  }
+
+  state.pendingClientSearch = null;
+
+  const analyzeBatch = state.mode === 'deep' ? ANALYZE_BATCH_DEEP : ANALYZE_BATCH_QUICK;
+  for (let i = 0; i < analyzeBatch; i++) {
+    if (state.queueIndex >= state.urlQueue.length || state.webAnalyzes >= state.config.maxWebAnalyzes) break;
+    await processOneUrl(state, onProgress);
+  }
+
+  saveDiscoverySession(state);
+  emitProgress(state, onProgress);
+
+  const totalQueued = [...linksByQuery.values()].reduce((a, b) => a + b, 0);
+  return { queued: totalQueued };
+}
+
+/** HTML fetched in the user's browser for URLs the server could not reach. */
+export async function submitBrowserValidatedPages(
+  pages: ClientPageHtml[],
+  onProgress?: ProgressPublisher,
+): Promise<{ added: number }> {
+  const state = loadDiscoverySession() as DiscoverySessionState | null;
+  if (!state) {
+    throw new Error('No active discovery session');
+  }
+
+  let added = 0;
+  const known = knownSet(state);
+
+  for (const page of pages.slice(0, 5)) {
+    if (!page.url?.trim() || !page.html?.trim()) continue;
+    const root = toCasinoRootUrl(page.url);
+    const host = casinoHostKey(root);
+    state.scanned++;
+    publish(onProgress, { type: 'url_scanning', url: host });
+
+    const { raw, rejectReason } = analyzeUrlFromClientHtml(page.url, page.html, known);
+    if (raw) {
+      state.found++;
+      touchLastCheckedAt(root);
+      const saved = persistDiscovery(raw, known);
+      if (saved.saved) {
+        state.added++;
+        added++;
+        state.knownHosts = [...getKnownHosts()];
+        markDiscoverySeen(root, 'added', 'browser validated');
+        state.addedCasinos.push({ name: raw.name, url: raw.url });
+        publish(onProgress, { type: 'url_added', url: raw.url, name: raw.name });
+      } else {
+        state.skipped++;
+        publish(onProgress, { type: 'url_skipped', url: host, reason: saved.reason ?? 'duplicate' });
+      }
+    } else {
+      recordRejection(state, root, host, rejectReason ?? 'validation failed', onProgress);
+    }
+    await sleep(60);
+  }
+
+  saveDiscoverySession(state);
+  emitProgress(state, onProgress);
+  return { added };
+}
+
+/** HTML from browser for catalog pages the server could not crawl. */
+export function submitBrowserCrawlPages(
+  pages: ClientPageHtml[],
+  onProgress?: ProgressPublisher,
+): { linksQueued: number } {
+  const state = loadDiscoverySession() as DiscoverySessionState | null;
+  if (!state) {
+    throw new Error('No active discovery session');
+  }
+
+  let linksQueued = 0;
+  for (const page of pages.slice(0, 6)) {
+    if (!page.url?.trim() || !page.html?.trim()) continue;
+    const root = toCasinoRootUrl(page.url);
+    for (const link of extractCasinoUrlsFromHtml(page.html, root, 'page')) {
+      if (enqueue(state, link, onProgress)) linksQueued++;
+    }
+  }
+
+  if (linksQueued > 0) {
+    publish(onProgress, {
+      type: 'crawl_summary',
+      crawled: state.crawlIndex,
+      linksQueued,
+      label: `Browser crawl → +${linksQueued} links queued`,
+    });
+  }
+
+  saveDiscoverySession(state);
+  emitProgress(state, onProgress);
+  return { linksQueued };
+}
+
+/** Manually pasted URLs — works with or without an active scan. */
+export function quickAddDiscoveryUrls(urls: string[]): { queued: number } {
+  const known = new Set(getKnownHosts());
+  let queued = 0;
+  for (const raw of urls) {
+    const trimmed = raw.trim();
+    if (!trimmed) continue;
+    const href = trimmed.startsWith('http') ? trimmed : `https://${trimmed}`;
+    const saved = saveDiscoveryCandidateForReview(href, 'manual admin add', known);
+    if (saved) {
+      queued++;
+      known.add(casinoHostKey(saved.url));
+    }
+  }
+  return { queued };
+}
+
+/** Manually pasted URLs during an active scan. */
+export function ingestManualDiscoveryUrls(
+  urls: string[],
+  onProgress?: ProgressPublisher,
+): { queued: number } {
+  const state = loadDiscoverySession() as DiscoverySessionState | null;
+  if (!state) {
+    throw new Error('No active discovery session');
+  }
+
+  let queued = 0;
+  for (const raw of urls) {
+    const trimmed = raw.trim();
+    if (!trimmed) continue;
+    const href = trimmed.startsWith('http') ? trimmed : `https://${trimmed}`;
+    if (ingestRawLinks(state, [href], SERP_BASE_URLS.browser!, onProgress) > 0) {
+      queued++;
+    }
+  }
+
+  saveDiscoverySession(state);
+  emitProgress(state, onProgress);
+  return { queued };
 }

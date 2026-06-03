@@ -1,7 +1,18 @@
 import * as cheerio from 'cheerio';
 import type { CasinoFeature, DiscoveryProgressEvent, DiscoveryResult, DiscoveryPhase, DiscoveryLiveStats } from '../shared/types.js';
 import { inferFeaturesFromText } from '../shared/feature-inference.js';
-import { addCasino, getKnownHosts, logDiscovery, getBlockedUrls, isUrlBlocked, markDiscoverySeen, getAllCasinos, touchLastCheckedAt, queueDiscoveryBanReview } from '../database/index.js';
+import {
+  addCasino,
+  getKnownHosts,
+  logDiscovery,
+  getBlockedUrls,
+  isUrlBlocked,
+  markDiscoverySeen,
+  getAllCasinos,
+  touchLastCheckedAt,
+  queueDiscoveryBanReview,
+  setCasinoHealth,
+} from '../database/index.js';
 import { casinoHostKey, toCasinoRootUrl, isValidCasinoHost } from '../shared/utils.js';
 import { inferRating } from '../shared/rating.js';
 import {
@@ -59,7 +70,7 @@ const DEEP_CONFIG: ScanConfig = {
   crawlKnownCasinos: true,
 };
 
-const FETCH_TIMEOUT_MS = 12_000;
+const FETCH_TIMEOUT_MS = 18_000;
 
 const URL_IN_TEXT_REGEX = /https?:\/\/(?:www\.)?[a-z0-9][-a-z0-9]{0,62}\.[a-z]{2,24}(?:\/[^\s"'<>]*)?/gi;
 
@@ -69,7 +80,7 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-async function fetchPage(url: string, retries = 1): Promise<string | null> {
+async function fetchPage(url: string, retries = 2): Promise<string | null> {
   for (let attempt = 0; attempt <= retries; attempt++) {
     try {
       const controller = new AbortController();
@@ -93,22 +104,14 @@ async function fetchPage(url: string, retries = 1): Promise<string | null> {
   return null;
 }
 
-async function analyzeUrl(url: string, knownHosts: Set<string>): Promise<{ raw: RawDiscovery | null; rejectReason?: string }> {
-  const root = toCasinoRootUrl(url);
-  const host = casinoHostKey(root);
-
-  if (knownHosts.has(host)) return { raw: null, rejectReason: 'already known' };
-  if (!isValidCasinoHost(host)) return { raw: null, rejectReason: 'invalid hostname' };
-  if (isBlockedDomain(root) || !isDiscoveryCandidateUrl(root)) {
-    return { raw: null, rejectReason: 'not a casino candidate URL' };
-  }
-
-  const html = await fetchPage(root);
-  if (!html) return { raw: null, rejectReason: 'fetch failed' };
-
+function analyzeHtmlContent(
+  root: string,
+  host: string,
+  html: string,
+): { raw: RawDiscovery | null; rejectReason?: string } {
   const $ = cheerio.load(html);
   const title = $('title').text().trim() || host;
-  const bodyText = $('body').text().replace(/\s+/g, ' ').slice(0, 6000);
+  const bodyText = $('body').text().replace(/\s+/g, ' ').slice(0, 8000);
   const metaDesc = $('meta[name="description"]').attr('content') || '';
 
   const validation = validateSweepstakesPage(title, metaDesc, bodyText, root);
@@ -132,6 +135,45 @@ async function analyzeUrl(url: string, knownHosts: Set<string>): Promise<{ raw: 
       source: 'web_scan',
     },
   };
+}
+
+async function analyzeUrl(url: string, knownHosts: Set<string>): Promise<{ raw: RawDiscovery | null; rejectReason?: string }> {
+  const root = toCasinoRootUrl(url);
+  const host = casinoHostKey(root);
+
+  if (knownHosts.has(host)) return { raw: null, rejectReason: 'already known' };
+  if (!isValidCasinoHost(host)) return { raw: null, rejectReason: 'invalid hostname' };
+  if (isBlockedDomain(root) || !isDiscoveryCandidateUrl(root)) {
+    return { raw: null, rejectReason: 'not a casino candidate URL' };
+  }
+
+  const html = await fetchPage(root);
+  if (!html) return { raw: null, rejectReason: 'fetch failed' };
+
+  return analyzeHtmlContent(root, host, html);
+}
+
+/** Validate using HTML fetched in the user's browser (avoids server/datacenter blocks). */
+export function analyzeUrlFromClientHtml(
+  url: string,
+  html: string,
+  knownHosts: Set<string>,
+): { raw: RawDiscovery | null; rejectReason?: string } {
+  const root = toCasinoRootUrl(url);
+  const host = casinoHostKey(root);
+
+  if (knownHosts.has(host)) return { raw: null, rejectReason: 'already known' };
+  if (!isValidCasinoHost(host)) return { raw: null, rejectReason: 'invalid hostname' };
+  if (isBlockedDomain(root) || !isDiscoveryCandidateUrl(root)) {
+    return { raw: null, rejectReason: 'not a casino candidate URL' };
+  }
+
+  const trimmed = html?.trim();
+  if (!trimmed || trimmed.length < 200) {
+    return { raw: null, rejectReason: 'fetch failed' };
+  }
+
+  return analyzeHtmlContent(root, host, trimmed.slice(0, 500_000));
 }
 
 function ingestDiscovery(raw: RawDiscovery, knownHosts: Set<string>): boolean {
@@ -166,6 +208,61 @@ export function persistDiscovery(raw: RawDiscovery, knownHosts: Set<string>): { 
   if (isUrlBlocked(root)) return { saved: false, reason: 'blocked' };
   if (ingestDiscovery(raw, knownHosts)) return { saved: true };
   return { saved: false, reason: 'duplicate or insert failed' };
+}
+
+const HARD_REJECT_REASONS = [
+  'adult content',
+  'news/media site',
+  'generic non-casino site',
+  'blocked domain',
+  'not a casino candidate URL',
+  'invalid hostname',
+  'already known',
+];
+
+/** Save operator-shaped URL as pending when auto-validation could not confirm (shows in Review Queue). */
+export function saveDiscoveryCandidateForReview(
+  url: string,
+  reason: string,
+  knownHosts: Set<string>,
+): { name: string; url: string } | null {
+  const root = toCasinoRootUrl(url);
+  const host = casinoHostKey(root);
+  if (knownHosts.has(host) || !isValidCasinoHost(host)) return null;
+  if (isUrlBlocked(root) || !isDiscoveryCandidateUrl(root)) return null;
+
+  const brand = host.split('.')[0] ?? host;
+  const name = brand.charAt(0).toUpperCase() + brand.slice(1);
+
+  const casino = addCasino({
+    name,
+    url: root,
+    description: `Auto-discovered — needs your review (${reason}). Confirm sweepstakes operator before approving.`,
+    features: [],
+    signupRequirements: ['Email'],
+    bonusInfo: '',
+    source: 'web_scan',
+    verified: false,
+    reviewStatus: 'pending',
+  });
+
+  if (!casino) return null;
+
+  setCasinoHealth(casino.id, 'stale', `Discovery scan: ${reason}`);
+  knownHosts.add(host);
+  markDiscoverySeen(root, 'added', `pending review: ${reason}`);
+  return { name: casino.name, url: root };
+}
+
+export function isSoftDiscoveryReject(reason: string): boolean {
+  const lower = reason.toLowerCase();
+  if (HARD_REJECT_REASONS.some((h) => lower.includes(h))) return false;
+  return (
+    lower.includes('insufficient sweepstakes')
+    || lower.includes('fetch failed')
+    || lower.includes('validation failed')
+    || lower.includes('scan error')
+  );
 }
 
 async function collectFromSearch(
@@ -279,6 +376,24 @@ export async function runDiscovery(deep = false, onProgress?: DiscoveryProgressC
     rejected++;
     sessionHosts.add(host);
     markDiscoverySeen(root, 'rejected', rejectReason);
+
+    if (isSoftDiscoveryReject(rejectReason)) {
+      const saved = saveDiscoveryCandidateForReview(root, rejectReason, knownHosts);
+      if (saved) {
+        added++;
+        found++;
+        addedCasinos.push(saved);
+        onProgress?.({
+          type: 'url_added',
+          url: saved.url,
+          name: saved.name,
+          needsReview: true,
+          reviewNote: rejectReason,
+        });
+        return;
+      }
+    }
+
     queueDiscoveryBanReview(root, rejectReason);
     onProgress?.({ type: 'url_rejected', url: host, reason: rejectReason });
   };

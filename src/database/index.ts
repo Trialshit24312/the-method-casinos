@@ -166,6 +166,10 @@ function migrateSchema(): void {
       FOREIGN KEY (casino_id) REFERENCES casinos(id) ON DELETE CASCADE
     );
   `);
+  const favCols = db.prepare('PRAGMA table_info(user_favorites)').all() as { name: string }[];
+  if (!favCols.some((c) => c.name === 'note')) {
+    db.exec('ALTER TABLE user_favorites ADD COLUMN note TEXT');
+  }
 
   const logCols = db.prepare('PRAGMA table_info(discovery_log)').all() as { name: string }[];
   const logNames = new Set(logCols.map((c) => c.name));
@@ -534,10 +538,14 @@ export function searchCasinos(filters: SearchFilters = {}): Casino[] {
   const limit = filters.limit ?? 50;
   const offset = filters.offset ?? 0;
 
+  const orderBy = filters.pendingOnly
+    ? 'created_at DESC'
+    : 'rating DESC, name ASC';
+
   const sql = `
     SELECT * FROM casinos
     WHERE ${conditions.join(' AND ')}
-    ORDER BY rating DESC, name ASC
+    ORDER BY ${orderBy}
     LIMIT ${limit} OFFSET ${offset}
   `;
 
@@ -659,14 +667,32 @@ export function getCasinoBySlug(slug: string): Casino | null {
   return row ? rowToCasino(row as Record<string, unknown>) : null;
 }
 
-export function getUserFavorites(userId: string): Casino[] {
+export interface FavoriteEntry {
+  casino: Casino;
+  note: string | null;
+}
+
+export function getUserFavorites(userId: string): FavoriteEntry[] {
   const rows = db.prepare(`
-    SELECT c.* FROM user_favorites f
+    SELECT c.*, f.note as favorite_note FROM user_favorites f
     JOIN casinos c ON c.id = f.casino_id
     WHERE f.user_id = @userId AND c.active = 1
     ORDER BY f.created_at DESC
-  `).all({ userId });
-  return rows.map((r) => rowToCasino(r as Record<string, unknown>));
+  `).all({ userId }) as Record<string, unknown>[];
+  return rows.map((r) => {
+    const note = typeof r.favorite_note === 'string' ? r.favorite_note : null;
+    const { favorite_note: _fn, ...casinoRow } = r;
+    return { casino: rowToCasino(casinoRow), note: note?.trim() ? note : null };
+  });
+}
+
+export function setUserFavoriteNote(userId: string, casinoId: string, note: string): boolean {
+  const trimmed = note.trim().slice(0, 500);
+  const result = db.prepare(`
+    UPDATE user_favorites SET note = @note
+    WHERE user_id = @userId AND casino_id = @casinoId
+  `).run({ userId, casinoId, note: trimmed || null });
+  return result.changes > 0;
 }
 
 export function addUserFavorite(userId: string, casinoId: string): boolean {
@@ -702,10 +728,21 @@ export function approveCasino(id: string, approvedBy?: string): Casino | null {
   const now = new Date().toISOString();
   db.prepare(`
     UPDATE casinos SET verified = 1, review_status = 'approved', active = 1, updated_at = @now,
-      approved_by = @approvedBy, approved_at = @now
+      approved_by = @approvedBy, approved_at = @now,
+      health_status = 'ok', health_note = ''
     WHERE id = @id
   `).run({ id, now, approvedBy: approvedBy ?? null });
   return getCasinoById(id);
+}
+
+export function approveAllPendingCasinos(approvedBy?: string, limit = 50): { approved: number; ids: string[] } {
+  const pending = getPendingCasinos().slice(0, Math.min(limit, 100));
+  const ids: string[] = [];
+  for (const casino of pending) {
+    const approved = approveCasino(casino.id, approvedBy);
+    if (approved) ids.push(approved.id);
+  }
+  return { approved: ids.length, ids };
 }
 
 export function rejectCasino(id: string): boolean {
@@ -855,6 +892,83 @@ export interface DiscoveryHistoryEntry {
   mode: string;
   durationMs: number;
   errors: string[];
+}
+
+export function getRecentlyApprovedCasinos(limit = 24): Casino[] {
+  const rows = db.prepare(`
+    SELECT * FROM casinos
+    WHERE active = 1 AND review_status = 'approved' AND verified = 1
+    ORDER BY COALESCE(approved_at, created_at) DESC
+    LIMIT @limit
+  `).all({ limit: Math.min(limit, 50) });
+  return rows.map((r) => rowToCasino(r as Record<string, unknown>));
+}
+
+export interface AdminInsights {
+  pendingCount: number;
+  openReports: number;
+  pendingBySource: { source: string; count: number }[];
+  discoveryLast7d: { runs: number; added: number; rejected: number };
+  recentRuns: DiscoveryHistoryEntry[];
+  catalogGrowth30d: number;
+}
+
+export function getAdminInsights(): AdminInsights {
+  const pendingCount = (db.prepare(
+    "SELECT COUNT(*) as c FROM casinos WHERE active = 1 AND review_status = 'pending'",
+  ).get() as { c: number }).c;
+
+  const openReports = (db.prepare(
+    "SELECT COUNT(*) as c FROM site_reports WHERE status = 'open'",
+  ).get() as { c: number }).c;
+
+  const pendingBySource = (db.prepare(`
+    SELECT COALESCE(source, 'unknown') as source, COUNT(*) as count
+    FROM casinos WHERE active = 1 AND review_status = 'pending'
+    GROUP BY source ORDER BY count DESC
+  `).all() as { source: string; count: number }[]);
+
+  const cutoff7d = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+  const d7 = db.prepare(`
+    SELECT COUNT(*) as runs, COALESCE(SUM(added), 0) as added, COALESCE(SUM(rejected), 0) as rejected
+    FROM discovery_log WHERE ran_at >= ?
+  `).get(cutoff7d) as { runs: number; added: number; rejected: number };
+
+  const cutoff30d = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+  const growth = (db.prepare(`
+    SELECT COUNT(*) as c FROM casinos
+    WHERE review_status = 'approved' AND verified = 1 AND COALESCE(approved_at, created_at) >= ?
+  `).get(cutoff30d) as { c: number }).c;
+
+  return {
+    pendingCount,
+    openReports,
+    pendingBySource,
+    discoveryLast7d: {
+      runs: d7.runs,
+      added: d7.added,
+      rejected: d7.rejected,
+    },
+    recentRuns: getDiscoveryHistory(12),
+    catalogGrowth30d: growth,
+  };
+}
+
+export function exportPendingCasinosCsv(): string {
+  const rows = getPendingCasinos();
+  const escape = (v: string) => `"${v.replace(/"/g, '""')}"`;
+  const lines = [
+    'name,url,source,rating,created_at,health_note',
+    ...rows.map((c) => [
+      escape(c.name),
+      escape(c.url),
+      escape(c.source),
+      String(c.rating),
+      escape(c.createdAt),
+      escape(c.healthNote ?? ''),
+    ].join(',')),
+  ];
+  return lines.join('\n');
 }
 
 export function getDiscoveryHistory(limit = 20): DiscoveryHistoryEntry[] {
@@ -1096,6 +1210,12 @@ export function queueDiscoveryBanReview(url: string, reason: string): SiteReport
 
     const catalog = getCasinoByUrl(root);
     if (catalog?.active && catalog.reviewStatus === 'approved') return null;
+
+    const host = casinoHostKey(root);
+    const pending = db.prepare(`
+      SELECT id FROM casinos WHERE url_normalized = ? AND review_status = 'pending' AND active = 1
+    `).get(host) as { id: string } | undefined;
+    if (pending) return null;
 
     return addSiteReport({
       url: root,

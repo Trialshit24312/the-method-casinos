@@ -279,7 +279,7 @@ export const commands: Command[] = [
     async execute(interaction) {
       await interaction.deferReply({ ephemeral: true });
       const favorites = getUserFavorites(interaction.user.id);
-      await interaction.editReply({ embeds: [buildMyListEmbed(favorites)] });
+      await interaction.editReply({ embeds: [buildMyListEmbed(favorites.map((f) => f.casino))] });
     },
   },
 

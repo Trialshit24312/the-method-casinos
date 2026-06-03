@@ -25,6 +25,7 @@ import {
   clearDiscoverySeen,
   getPendingCasinos,
   approveCasino,
+  approveAllPendingCasinos,
   rejectCasino,
   addSiteReport,
   getOpenSiteReports,
@@ -36,11 +37,16 @@ import {
   unlistCasino,
   getCasinoBySlug,
   getUserFavorites,
+  setUserFavoriteNote,
   addUserFavorite,
   removeUserFavorite,
   getClosedSiteReports,
   getFeaturedCasinos,
   getRecentCasinos,
+  getKnownHosts,
+  getAdminInsights,
+  exportPendingCasinosCsv,
+  getRecentlyApprovedCasinos,
 } from '../database/index.js';
 import { runDiscovery } from '../discovery/engine.js';
 import { cancelDiscoveryRun, isDiscoveryRunning } from '../discovery/run-state.js';
@@ -63,7 +69,13 @@ import {
   runClientDiscoveryStep,
   cancelClientDiscovery,
   resumeClientDiscovery,
+  submitClientSerpResults,
+  submitBrowserValidatedPages,
+  submitBrowserCrawlPages,
+  ingestManualDiscoveryUrls,
+  quickAddDiscoveryUrls,
 } from '../discovery/step-engine.js';
+import { saveDiscoveryCandidateForReview } from '../discovery/engine.js';
 import { hasDiscoverySession, loadDiscoverySession } from '../database/index.js';
 import { SqliteSessionStore } from './session-store.js';
 import {
@@ -80,7 +92,7 @@ import { registerHttpServer } from '../shared/shutdown.js';
 import { notifySiteReport, notifyCasinoApproved } from '../shared/notify.js';
 import { checkCasinoUrl } from '../shared/url-check.js';
 import { redirectToDashboardPath } from './request-origin.js';
-import { discoverSimilarOnWeb } from '../discovery/similar-search.js';
+import { discoverSimilarOnWeb, getSimilarWebQueries } from '../discovery/similar-search.js';
 import { compareCasinos } from '../shared/compare.js';
 
 const SESSION_MAX_AGE_MS = (() => {
@@ -307,6 +319,12 @@ export function createServer(): express.Application {
     res.json(getPendingCasinos());
   });
 
+  app.post('/api/casinos/pending/approve-all', requireAuth, requireAdmin, (req, res) => {
+    const limit = Math.min(100, Math.max(1, parseInt(String(req.body?.limit ?? '50'), 10) || 50));
+    const result = approveAllPendingCasinos(req.session.user?.username, limit);
+    res.json({ ok: true, ...result, remaining: getPendingCasinos().length });
+  });
+
   app.post('/api/casinos/:id/approve', requireAuth, requireAdmin, (req, res) => {
     const approved = approveCasino(String(req.params.id), req.session.user?.username);
     if (!approved) {
@@ -363,6 +381,16 @@ export function createServer(): express.Application {
 
   app.delete('/api/favorites/:casinoId', requireAuth, (req, res) => {
     const ok = removeUserFavorite(req.session.user!.id, String(req.params.casinoId));
+    if (!ok) {
+      res.status(404).json({ error: 'Favorite not found' });
+      return;
+    }
+    res.json({ ok: true });
+  });
+
+  app.patch('/api/favorites/:casinoId/note', requireAuth, (req, res) => {
+    const note = typeof req.body?.note === 'string' ? req.body.note : '';
+    const ok = setUserFavoriteNote(req.session.user!.id, String(req.params.casinoId), note);
     if (!ok) {
       res.status(404).json({ error: 'Favorite not found' });
       return;
@@ -458,14 +486,32 @@ export function createServer(): express.Application {
     res.json(result);
   });
 
-  app.post('/api/similar/:id/discover-web', async (req, res) => {
+  app.get('/api/similar/:id/web-queries', requireAuth, (req, res) => {
+    const plan = getSimilarWebQueries(String(req.params.id), req.session.user?.isAdmin ? 6 : 4);
+    if (!plan) {
+      res.status(404).json({ error: 'Casino not found' });
+      return;
+    }
+    res.json(plan);
+  });
+
+  app.post('/api/similar/:id/discover-web', requireAuth, async (req, res) => {
     const casinoId = String(req.params.id);
     const isAdmin = Boolean(req.session.user?.isAdmin);
+    const browserResults = Array.isArray(req.body?.browserResults)
+      ? (req.body.browserResults as { query?: string; links?: string[] }[])
+          .filter((r) => typeof r.query === 'string' && Array.isArray(r.links))
+          .map((r) => ({
+            query: r.query!,
+            links: r.links!.filter((l): l is string => typeof l === 'string'),
+          }))
+      : undefined;
     try {
       const result = await discoverSimilarOnWeb(casinoId, {
         maxQueries: isAdmin ? 6 : 4,
         maxAnalyze: isAdmin ? 15 : 8,
         searchPages: isAdmin ? 2 : 1,
+        browserResults,
       });
       if (!result) {
         res.status(404).json({ error: 'Casino not found' });
@@ -596,6 +642,112 @@ export function createServer(): express.Application {
     }
   });
 
+  app.post('/api/discover/client/serp-links', requireAuth, requireAdmin, async (req, res) => {
+    if (!hasDiscoverySession()) {
+      res.status(400).json({ error: 'No active discovery session' });
+      return;
+    }
+    const results = Array.isArray(req.body?.results) ? req.body.results as { query?: string; engine?: string; links?: string[] }[] : [];
+    const normalized = results
+      .filter((r) => typeof r.query === 'string' && Array.isArray(r.links))
+      .map((r) => ({
+        query: r.query!,
+        engine: typeof r.engine === 'string' ? r.engine : 'browser',
+        links: r.links!.filter((l): l is string => typeof l === 'string'),
+      }));
+    if (normalized.length === 0) {
+      res.status(400).json({ error: 'No search results provided' });
+      return;
+    }
+    try {
+      const { queued } = await submitClientSerpResults(normalized, pushDiscoveryLiveEvent);
+      const live = getDiscoveryLiveSnapshot(0);
+      res.json({ ok: true, queued, live });
+    } catch (err) {
+      res.status(500).json({ error: err instanceof Error ? err.message : 'Failed to ingest search links' });
+    }
+  });
+
+  app.post('/api/discover/client/crawl-pages', requireAuth, requireAdmin, (req, res) => {
+    if (!hasDiscoverySession()) {
+      res.status(400).json({ error: 'No active discovery session' });
+      return;
+    }
+    const pages = Array.isArray(req.body?.pages) ? req.body.pages as { url?: string; html?: string }[] : [];
+    const normalized = pages
+      .filter((p) => typeof p.url === 'string' && typeof p.html === 'string')
+      .map((p) => ({ url: p.url!, html: p.html!.slice(0, 500_000) }));
+    if (normalized.length === 0) {
+      res.status(400).json({ error: 'No crawl HTML provided' });
+      return;
+    }
+    try {
+      const { linksQueued } = submitBrowserCrawlPages(normalized, pushDiscoveryLiveEvent);
+      res.json({ ok: true, linksQueued, live: getDiscoveryLiveSnapshot(0) });
+    } catch (err) {
+      res.status(500).json({ error: err instanceof Error ? err.message : 'Crawl ingest failed' });
+    }
+  });
+
+  app.post('/api/discover/client/validate-pages', requireAuth, requireAdmin, async (req, res) => {
+    if (!hasDiscoverySession()) {
+      res.status(400).json({ error: 'No active discovery session' });
+      return;
+    }
+    const pages = Array.isArray(req.body?.pages) ? req.body.pages as { url?: string; html?: string }[] : [];
+    const normalized = pages
+      .filter((p) => typeof p.url === 'string' && typeof p.html === 'string')
+      .map((p) => ({ url: p.url!, html: p.html!.slice(0, 500_000) }));
+    if (normalized.length === 0) {
+      res.status(400).json({ error: 'No page HTML provided' });
+      return;
+    }
+    try {
+      const { added } = await submitBrowserValidatedPages(normalized, pushDiscoveryLiveEvent);
+      res.json({ ok: true, added, live: getDiscoveryLiveSnapshot(0) });
+    } catch (err) {
+      res.status(500).json({ error: err instanceof Error ? err.message : 'Validation failed' });
+    }
+  });
+
+  app.post('/api/discover/quick-add', requireAuth, requireAdmin, (req, res) => {
+    const raw = req.body?.urls;
+    const urls = Array.isArray(raw)
+      ? raw.filter((u): u is string => typeof u === 'string')
+      : typeof raw === 'string'
+        ? raw.split(/[\s,]+/)
+        : [];
+    if (!urls.length) {
+      res.status(400).json({ error: 'Provide urls array' });
+      return;
+    }
+    const { queued } = quickAddDiscoveryUrls(urls.slice(0, 30));
+    res.json({ ok: true, queued, pending: getPendingCasinos().length });
+  });
+
+  app.post('/api/discover/client/manual-links', requireAuth, requireAdmin, (req, res) => {
+    if (!hasDiscoverySession()) {
+      res.status(400).json({ error: 'Start or resume a scan first' });
+      return;
+    }
+    const raw = req.body?.urls;
+    const urls = Array.isArray(raw)
+      ? raw.filter((u): u is string => typeof u === 'string')
+      : typeof raw === 'string'
+        ? raw.split(/[\s,]+/)
+        : [];
+    if (urls.length === 0) {
+      res.status(400).json({ error: 'Provide urls array or newline-separated string' });
+      return;
+    }
+    try {
+      const { queued } = ingestManualDiscoveryUrls(urls.slice(0, 50), pushDiscoveryLiveEvent);
+      res.json({ ok: true, queued, live: getDiscoveryLiveSnapshot(0) });
+    } catch (err) {
+      res.status(500).json({ error: err instanceof Error ? err.message : 'Failed to queue URLs' });
+    }
+  });
+
   app.post('/api/discover/client/step', requireAuth, requireAdmin, async (req, res) => {
     if (!hasDiscoverySession()) {
       res.status(400).json({ error: 'No active discovery session — start a scan first' });
@@ -708,6 +860,23 @@ export function createServer(): express.Application {
     res.json(getClosedSiteReports(limit));
   });
 
+  app.post('/api/reports/:id/promote', requireAuth, requireAdmin, (req, res) => {
+    const id = String(req.params.id);
+    const row = getDatabase().prepare('SELECT url FROM site_reports WHERE id = ?').get(id) as { url: string } | undefined;
+    if (!row?.url) {
+      res.status(404).json({ error: 'Report not found' });
+      return;
+    }
+    const known = new Set(getKnownHosts());
+    const saved = saveDiscoveryCandidateForReview(row.url, 'promoted from ban review', known);
+    if (!saved) {
+      res.status(409).json({ error: 'Already in catalog, blocked, or not an operator URL' });
+      return;
+    }
+    dismissSiteReport(id, req.session.user?.username);
+    res.json({ ok: true, casino: saved });
+  });
+
   app.post('/api/reports/:id/dismiss', requireAuth, requireAdmin, (req, res) => {
     const ok = dismissSiteReport(String(req.params.id), req.session.user?.username);
     if (!ok) {
@@ -810,6 +979,37 @@ export function createServer(): express.Application {
   app.post('/api/admin/clear-discovery-seen', requireAuth, requireAdmin, (_req, res) => {
     const cleared = clearDiscoverySeen();
     res.json({ cleared });
+  });
+
+  app.get('/api/admin/insights', requireAuth, requireAdmin, (_req, res) => {
+    res.json(getAdminInsights());
+  });
+
+  app.get('/api/casinos/pending/export', requireAuth, requireAdmin, (_req, res) => {
+    const csv = exportPendingCasinosCsv();
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', 'attachment; filename="pending-casinos.csv"');
+    res.send(csv);
+  });
+
+  app.get('/api/casinos/new-arrivals', (req, res) => {
+    const limit = Math.min(50, Math.max(1, parseInt(String(req.query.limit ?? '24'), 10) || 24));
+    res.json(getRecentlyApprovedCasinos(limit));
+  });
+
+  app.get('/sitemap.xml', (_req, res) => {
+    const base = process.env.PUBLIC_SITE_URL?.trim() || getAllowedCorsOrigins()[0] || 'https://the-method-casinos.onrender.com';
+    const casinos = searchCasinos({ catalogOnly: true, limit: 500 });
+    const staticPaths = ['/', '/casinos', '/similar', '/compare', '/pricing', '/new', '/guides', '/tools', '/status', '/blocked'];
+    const urls = [
+      ...staticPaths.map((p) => `${base}${p}`),
+      ...casinos.map((c) => `${base}/casinos/${c.urlNormalized || c.id}`),
+    ];
+    const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+${urls.map((loc) => `  <url><loc>${loc.replace(/&/g, '&amp;')}</loc></url>`).join('\n')}
+</urlset>`;
+    res.type('application/xml').send(xml);
   });
 
   app.post('/api/admin/revalidate', requireAuth, requireAdmin, async (req, res) => {

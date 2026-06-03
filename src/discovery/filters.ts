@@ -117,7 +117,7 @@ export function isDiscoveryCandidateUrl(url: string): boolean {
     const brand = parts[0] ?? '';
 
     // Most US sweepstakes operators use .us domains
-    if (tld === 'us' && brand.length >= 4 && /^[a-z0-9-]+$/.test(brand)) {
+    if (tld === 'us' && brand.length >= 3 && /^[a-z0-9-]+$/.test(brand)) {
       return true;
     }
 
@@ -198,7 +198,25 @@ export function validateSweepstakesPage(
     return { valid: true, sweepsKeywordCount };
   }
 
+  // Operator-shaped .us / casino hosts — queue for review even when page copy is thin (SPA / bot wall)
+  if (isUsOperator && brandFromHost(host).length >= 3) {
+    return { valid: true, sweepsKeywordCount: Math.max(sweepsKeywordCount, 1) };
+  }
+
+  if (hostHasMarker && (tldIsOperator(host) || combined.includes('casino') || combined.includes('sweeps'))) {
+    return { valid: true, sweepsKeywordCount: Math.max(sweepsKeywordCount, 1) };
+  }
+
   return { valid: false, reason: 'insufficient sweepstakes signals', sweepsKeywordCount };
+}
+
+function brandFromHost(host: string): string {
+  return host.replace(/^www\./, '').split('.')[0] ?? '';
+}
+
+function tldIsOperator(host: string): boolean {
+  const tld = host.split('.').pop() ?? '';
+  return tld === 'us' || tld === 'com' || tld === 'io';
 }
 
 export function sanitizeCasinoName(title: string, url: string): string {

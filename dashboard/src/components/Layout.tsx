@@ -16,12 +16,15 @@ import {
   KeyRound,
   ShieldCheck,
   Sparkles,
+  Clock,
   Lock as LockIcon,
   Heart,
   Bell,
   Scale,
   Activity,
   Crown,
+  BarChart3,
+  Flag,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import SiteFooter from './SiteFooter';
@@ -31,10 +34,12 @@ import MobileNav from './MobileNav';
 import UserAvatar from './UserAvatar';
 import { discordInviteUrl } from '../lib/site';
 import { api } from '../api';
+import ReportSiteModal from './ReportSiteModal';
 
 const mainNav = [
   { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
   { to: '/casinos', icon: Dices, label: 'Casinos' },
+  { to: '/new', icon: Clock, label: 'New Arrivals' },
   { to: '/mylist', icon: Heart, label: 'My List' },
   { to: '/similar', icon: Sparkles, label: 'Similar Casinos' },
   { to: '/compare', icon: Scale, label: 'Compare' },
@@ -45,6 +50,7 @@ const mainNav = [
 const adminNav = [
   { to: '/discovery', icon: Radar, label: 'Discovery' },
   { to: '/review', icon: ShieldCheck, label: 'Review Queue' },
+  { to: '/insights', icon: BarChart3, label: 'Insights' },
 ];
 
 const toolsNav = [
@@ -118,6 +124,7 @@ export default function Layout() {
   const location = useLocation();
   const discordInvite = discordInviteUrl();
   const [notifyTotal, setNotifyTotal] = useState(0);
+  const [reportOpen, setReportOpen] = useState(false);
 
   useEffect(() => {
     if (!user?.isAdmin) return;
@@ -232,10 +239,18 @@ export default function Layout() {
           <div className="flex-1 min-w-0">
             <GlobalSearch />
           </div>
+          <button
+            type="button"
+            onClick={() => setReportOpen(true)}
+            className="shrink-0 p-2 rounded-xl border border-white/10 text-gray-400 hover:text-amber-400 hover:border-amber-500/30 transition-colors"
+            title="Report a site"
+          >
+            <Flag className="w-4 h-4" />
+          </button>
           {user?.isAdmin && notifyTotal > 0 && (
             <Link
               to="/review"
-              className="lg:hidden shrink-0 relative p-2 rounded-xl border border-amber-500/30 bg-amber-500/10 text-amber-400"
+              className="shrink-0 relative p-2 rounded-xl border border-amber-500/30 bg-amber-500/10 text-amber-400"
               aria-label={`${notifyTotal} review items`}
             >
               <Bell className="w-4 h-4" />
@@ -245,6 +260,7 @@ export default function Layout() {
             </Link>
           )}
         </header>
+        <ReportSiteModal open={reportOpen} onClose={() => setReportOpen(false)} />
         <div className="flex-1 relative z-10 p-1">
           <AnimatePresence mode="wait">
             <PageTransition key={location.pathname}>

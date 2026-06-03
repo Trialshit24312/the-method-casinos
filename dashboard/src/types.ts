@@ -184,11 +184,12 @@ export type DiscoveryProgressEvent =
   | { type: 'phase'; phase: DiscoveryPhase; label: string }
   | { type: 'progress'; stats: DiscoveryLiveStats }
   | { type: 'search_query'; query: string }
-  | { type: 'search_engine'; engine: 'serper' | 'duckduckgo' | 'duckduckgo_lite' | 'bing' | 'brave'; query: string; linkCount?: number }
+  | { type: 'search_engine'; engine: 'serper' | 'duckduckgo' | 'duckduckgo_lite' | 'bing' | 'brave' | 'ddg_instant' | 'reddit' | 'browser'; query: string; linkCount?: number }
   | { type: 'url_scanning'; url: string }
+  | { type: 'browser_fetch'; url: string }
   | { type: 'crawl_summary'; crawled: number; linksQueued: number; label: string }
   | { type: 'url_rejected'; url: string; reason: string }
-  | { type: 'url_added'; url: string; name: string }
+  | { type: 'url_added'; url: string; name: string; needsReview?: boolean; reviewNote?: string }
   | { type: 'url_skipped'; url: string; reason: string }
   | { type: 'url_blocked'; url: string }
   | { type: 'heartbeat'; ts: number }
@@ -256,6 +257,7 @@ export interface SimilarWebDiscoveryResult {
   rejected: number;
   candidates: { name: string; url: string; status: 'added' | 'rejected' | 'skipped'; reason?: string }[];
   queries: string[];
+  searchMode?: 'browser' | 'server' | 'mixed';
 }
 
 export const FEATURE_LABELS: Record<CasinoFeature, string> = {

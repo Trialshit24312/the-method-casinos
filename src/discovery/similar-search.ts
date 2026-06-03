@@ -1,3 +1,4 @@
+import * as cheerio from 'cheerio';
 import {
   getCasinoById,
   getKnownHosts,
@@ -11,12 +12,16 @@ import {
 import { casinoHostKey, toCasinoRootUrl, isValidCasinoHost } from '../shared/utils.js';
 import { rankSimilarCasinos, type SimilarCasinoMatch } from '../shared/similarity.js';
 import type { Casino } from '../shared/types.js';
-import { inferFeaturesFromText } from '../shared/feature-inference.js';
-import { buildSimilarWebQueries, collectFreeSearchLinks } from './free-search.js';
+import { buildSimilarWebQueries, normalizeSearchLink, collectFreeSearchLinks } from './free-search.js';
 import { isBlockedDomain, isDiscoveryCandidateUrl, validateSweepstakesPage, sanitizeCasinoName } from './filters.js';
 import { inferRating } from '../shared/rating.js';
+import {
+  analyzeUrlFromClientHtml,
+  saveDiscoveryCandidateForReview,
+  isSoftDiscoveryReject,
+} from './engine.js';
 
-const ANALYZE_TIMEOUT_MS = 12_000;
+const ANALYZE_TIMEOUT_MS = 18_000;
 
 const HOST_SCORE_HINTS = ['sweep', 'sweeps', 'casino', 'slots', 'coin', 'spin', 'vegas', 'luck', 'play', 'win'];
 
@@ -57,6 +62,19 @@ async function fetchHomepage(url: string): Promise<string | null> {
   }
 }
 
+function parsePageSignals(html: string, root: string, fallbackHost: string): {
+  title: string;
+  metaDesc: string;
+  bodyText: string;
+} {
+  const $ = cheerio.load(html);
+  return {
+    title: $('title').text().trim() || fallbackHost,
+    metaDesc: $('meta[name="description"]').attr('content') || '',
+    bodyText: $('body').text().replace(/\s+/g, ' ').slice(0, 8000),
+  };
+}
+
 export interface SimilarWebDiscoveryResult {
   source: Casino;
   catalogMatches: SimilarCasinoMatch[];
@@ -66,52 +84,184 @@ export interface SimilarWebDiscoveryResult {
   rejected: number;
   candidates: { name: string; url: string; status: 'added' | 'rejected' | 'skipped'; reason?: string }[];
   queries: string[];
+  searchMode: 'browser' | 'server' | 'mixed';
+}
+
+export interface SimilarBrowserSearchHit {
+  query: string;
+  links: string[];
+}
+
+export function getSimilarWebQueries(casinoId: string, maxQueries = 6): { source: Casino; queries: string[] } | null {
+  const source = getCasinoById(casinoId);
+  if (!source) return null;
+  const host = casinoHostKey(source.url);
+  return {
+    source,
+    queries: buildSimilarWebQueries(source.name, host).slice(0, maxQueries),
+  };
+}
+
+async function collectUrlScores(
+  source: Casino,
+  queries: string[],
+  searchPages: number,
+  browserResults?: SimilarBrowserSearchHit[],
+): Promise<{ urlScores: Map<string, number>; searchMode: SimilarWebDiscoveryResult['searchMode'] }> {
+  const knownHosts = getKnownHosts();
+  const blockedUrls = getBlockedUrls();
+  const host = casinoHostKey(source.url);
+  const urlScores = new Map<string, number>();
+
+  const ingestLink = (link: string, baseUrl: string) => {
+    const normalized = normalizeSearchLink(link, baseUrl) ?? (link.startsWith('http') ? toCasinoRootUrl(link) : null);
+    if (!normalized) return;
+    const h = casinoHostKey(normalized);
+    if (h === host || knownHosts.has(h)) return;
+    if (blockedUrls.has(h) || isUrlBlocked(normalized)) return;
+    if (!isDiscoveryCandidateUrl(normalized) || isBlockedDomain(normalized)) return;
+    const score = scoreUrlForSource(normalized, source);
+    urlScores.set(normalized, Math.max(urlScores.get(normalized) ?? 0, score));
+  };
+
+  let searchMode: SimilarWebDiscoveryResult['searchMode'] = 'server';
+
+  if (browserResults?.length) {
+    searchMode = 'browser';
+    for (const hit of browserResults) {
+      for (const link of hit.links) {
+        ingestLink(link, 'https://html.duckduckgo.com/html/');
+      }
+    }
+  }
+
+  if (urlScores.size < 8) {
+    for (const query of queries) {
+      const links = await collectFreeSearchLinks(
+        query,
+        searchPages,
+        undefined,
+        { maxLinks: 40, useSerper: false },
+      );
+      for (const link of links) ingestLink(link, 'https://html.duckduckgo.com/html/');
+      await sleep(180);
+    }
+    if (browserResults?.length && urlScores.size > 0) searchMode = 'mixed';
+  }
+
+  return { urlScores, searchMode };
+}
+
+async function analyzeSimilarUrl(
+  url: string,
+  source: Casino,
+  knownHosts: Set<string>,
+  clientHtml?: string,
+): Promise<{ name: string; url: string; status: 'added' | 'rejected' | 'skipped'; reason?: string }> {
+  const root = toCasinoRootUrl(url);
+  const h = casinoHostKey(root);
+  if (!isValidCasinoHost(h) || knownHosts.has(h)) {
+    return { name: h, url: root, status: 'skipped', reason: 'already known' };
+  }
+
+  let rawResult: ReturnType<typeof analyzeUrlFromClientHtml> | null = null;
+  if (clientHtml) {
+    rawResult = analyzeUrlFromClientHtml(root, clientHtml, knownHosts);
+  } else {
+    const html = await fetchHomepage(root);
+    if (!html) {
+      const saved = saveDiscoveryCandidateForReview(root, 'fetch failed', knownHosts);
+      if (saved) {
+        knownHosts.add(h);
+        return { name: saved.name, url: root, status: 'added', reason: 'saved for review (fetch failed)' };
+      }
+      markDiscoverySeen(root, 'rejected', 'fetch failed');
+      if (!isSoftDiscoveryReject('fetch failed')) {
+        queueDiscoveryBanReview(root, 'fetch failed');
+      }
+      return { name: h, url: root, status: 'rejected', reason: 'fetch failed' };
+    }
+    rawResult = analyzeUrlFromClientHtml(root, html, knownHosts);
+  }
+
+  if (!rawResult?.raw) {
+    const reason = rawResult?.rejectReason ?? 'validation failed';
+    const saved = isSoftDiscoveryReject(reason)
+      ? saveDiscoveryCandidateForReview(root, reason, knownHosts)
+      : null;
+    if (saved) {
+      knownHosts.add(h);
+      return { name: saved.name, url: root, status: 'added', reason: `saved for review (${reason})` };
+    }
+    markDiscoverySeen(root, 'rejected', reason);
+    if (!isSoftDiscoveryReject(reason)) {
+      queueDiscoveryBanReview(root, reason);
+    }
+    const { title, metaDesc, bodyText } = clientHtml
+      ? parsePageSignals(clientHtml, root, h)
+      : { title: h, metaDesc: '', bodyText: '' };
+    return {
+      name: sanitizeCasinoName(title, root),
+      url: root,
+      status: 'rejected',
+      reason,
+    };
+  }
+
+  const { raw } = rawResult;
+  const casino = addCasino({
+    name: raw.name,
+    url: raw.url,
+    description: raw.description || `Found via web search similar to ${source.name}`,
+    features: raw.features,
+    signupRequirements: raw.signupRequirements,
+    bonusInfo: raw.bonusInfo,
+    source: 'similar_web',
+    verified: false,
+    reviewStatus: 'pending',
+    rating: raw.rating ?? inferRating(raw.features, { source: 'similar_web' }),
+  });
+
+  if (casino) {
+    knownHosts.add(h);
+    markDiscoverySeen(root, 'added', `similar to ${source.name}`);
+    return { name: casino.name, url: root, status: 'added' };
+  }
+  return { name: raw.name, url: root, status: 'skipped', reason: 'duplicate or blocked' };
 }
 
 export async function discoverSimilarOnWeb(
   casinoId: string,
-  options: { maxQueries?: number; maxAnalyze?: number; searchPages?: number } = {},
+  options: {
+    maxQueries?: number;
+    maxAnalyze?: number;
+    searchPages?: number;
+    browserResults?: SimilarBrowserSearchHit[];
+  } = {},
 ): Promise<SimilarWebDiscoveryResult | null> {
   const source = getCasinoById(casinoId);
   if (!source) return null;
 
-  const maxQueries = options.maxQueries ?? 5;
-  const maxAnalyze = options.maxAnalyze ?? 12;
+  const maxQueries = options.maxQueries ?? 6;
+  const maxAnalyze = options.maxAnalyze ?? 15;
   const searchPages = options.searchPages ?? 2;
 
   const catalog = getAllCasinos(true);
   const catalogMatches = rankSimilarCasinos(source, catalog.filter((c) => c.id !== source.id), 12);
 
-  const knownHosts = getKnownHosts();
-  const blockedUrls = getBlockedUrls();
-  const host = casinoHostKey(source.url);
-  const queries = buildSimilarWebQueries(source.name, host).slice(0, maxQueries);
-
-  const urlScores = new Map<string, number>();
-
-  for (const query of queries) {
-    const links = await collectFreeSearchLinks(
-      query,
-      searchPages,
-      undefined,
-      { maxLinks: 40 },
-    );
-    for (const link of links) {
-      const h = casinoHostKey(link);
-      if (h === host || knownHosts.has(h)) continue;
-      if (blockedUrls.has(h) || isUrlBlocked(link)) continue;
-      if (!isDiscoveryCandidateUrl(link) || isBlockedDomain(link)) continue;
-      const score = scoreUrlForSource(link, source);
-      const prev = urlScores.get(link) ?? 0;
-      urlScores.set(link, Math.max(prev, score));
-    }
-    await sleep(200);
-  }
+  const queries = buildSimilarWebQueries(source.name, casinoHostKey(source.url)).slice(0, maxQueries);
+  const { urlScores, searchMode } = await collectUrlScores(
+    source,
+    queries,
+    searchPages,
+    options.browserResults,
+  );
 
   const sortedUrls = [...urlScores.entries()]
     .sort((a, b) => b[1] - a[1])
     .map(([url]) => url);
 
+  const knownHosts = new Set(getKnownHosts());
   const candidates: SimilarWebDiscoveryResult['candidates'] = [];
   let analyzed = 0;
   let added = 0;
@@ -121,63 +271,12 @@ export async function discoverSimilarOnWeb(
     if (analyzed >= maxAnalyze) break;
     analyzed++;
 
-    const root = toCasinoRootUrl(url);
-    const h = casinoHostKey(root);
-    if (!isValidCasinoHost(h) || knownHosts.has(h)) {
-      candidates.push({ name: h, url: root, status: 'skipped', reason: 'already known' });
-      continue;
-    }
+    const result = await analyzeSimilarUrl(url, source, knownHosts);
+    candidates.push(result);
+    if (result.status === 'added') added++;
+    if (result.status === 'rejected') rejected++;
 
-    const html = await fetchHomepage(root);
-    if (!html) {
-      rejected++;
-      markDiscoverySeen(root, 'rejected', 'fetch failed');
-      queueDiscoveryBanReview(root, 'fetch failed');
-      candidates.push({ name: h, url: root, status: 'rejected', reason: 'fetch failed' });
-      continue;
-    }
-
-    const titleMatch = html.match(/<title[^>]*>([^<]+)<\/title>/i);
-    const title = titleMatch?.[1]?.trim() || h;
-    const bodyText = html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').slice(0, 6000);
-    const metaMatch = html.match(/<meta[^>]+name=["']description["'][^>]+content=["']([^"']+)/i);
-    const metaDesc = metaMatch?.[1] || '';
-
-    const validation = validateSweepstakesPage(title, metaDesc, bodyText, root);
-    if (!validation.valid) {
-      rejected++;
-      const reason = validation.reason ?? 'validation failed';
-      markDiscoverySeen(root, 'rejected', reason);
-      queueDiscoveryBanReview(root, reason);
-      candidates.push({ name: sanitizeCasinoName(title, root), url: root, status: 'rejected', reason: validation.reason });
-      continue;
-    }
-
-    const combined = `${title} ${metaDesc} ${bodyText}`;
-    const features = inferFeaturesFromText(combined);
-    const name = sanitizeCasinoName(title, root);
-    const casino = addCasino({
-      name,
-      url: root,
-      description: metaDesc || `Found via web search similar to ${source.name}`,
-      features,
-      signupRequirements: features.includes('email_only') ? ['Email', 'Password'] : ['Email'],
-      source: 'similar_web',
-      verified: false,
-      reviewStatus: 'pending',
-      rating: inferRating(features, { source: 'similar_web' }),
-    });
-
-    if (casino) {
-      added++;
-      knownHosts.add(h);
-      markDiscoverySeen(root, 'added', `similar to ${source.name}`);
-      candidates.push({ name: casino.name, url: root, status: 'added' });
-    } else {
-      candidates.push({ name, url: root, status: 'skipped', reason: 'duplicate or blocked' });
-    }
-
-    await sleep(250);
+    await sleep(200);
   }
 
   return {
@@ -189,5 +288,6 @@ export async function discoverSimilarOnWeb(
     rejected,
     candidates,
     queries,
+    searchMode,
   };
 }

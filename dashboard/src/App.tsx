@@ -24,6 +24,8 @@ import LegalHub from './pages/LegalHub';
 import Compare from './pages/Compare';
 import Status from './pages/Status';
 import Pricing from './pages/Pricing';
+import NewArrivals from './pages/NewArrivals';
+import AdminInsights from './pages/AdminInsights';
 import PublicLayout from './components/PublicLayout';
 
 function AdminRoute({ children }: { children: React.ReactNode }) {
@@ -72,6 +74,7 @@ export default function App() {
         <Route element={<Layout />}>
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/casinos" element={<Casinos />} />
+          <Route path="/new" element={<NewArrivals />} />
           <Route path="/casinos/:slug" element={<CasinoDetail />} />
           <Route path="/mylist" element={<MyList />} />
           <Route path="/similar" element={<SimilarCasinos />} />
@@ -89,6 +92,7 @@ export default function App() {
           <Route path="/legal" element={<LegalHub />} />
           <Route path="/discovery" element={<AdminRoute><Discovery /></AdminRoute>} />
           <Route path="/review" element={<AdminRoute><ReviewQueue /></AdminRoute>} />
+          <Route path="/insights" element={<AdminRoute><AdminInsights /></AdminRoute>} />
         </Route>
       </Routes>
     </AuthProvider>

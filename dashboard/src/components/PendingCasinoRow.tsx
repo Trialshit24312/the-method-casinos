@@ -29,6 +29,11 @@ export default function PendingCasinoRow({ casino, onApprove, onReject }: Props)
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2 mb-1">
             <h3 className="font-semibold">{casino.name}</h3>
+            {casino.description?.includes('needs your review') && (
+              <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-300 border border-amber-500/25">
+                Auto-saved — verify
+              </span>
+            )}
             {casino.rating > 0 && (
               <span className="text-xs text-amber-400 flex items-center gap-0.5">
                 <Star className="w-3 h-3 fill-amber-400" />
@@ -41,6 +46,9 @@ export default function PendingCasinoRow({ casino, onApprove, onReject }: Props)
           </a>
           {casino.description && (
             <p className="text-xs text-gray-500 mt-1 line-clamp-2">{casino.description}</p>
+          )}
+          {casino.healthNote && (
+            <p className="text-xs text-amber-400/90 mt-1">{casino.healthNote}</p>
           )}
           {featureChips.length > 0 && (
             <div className="flex flex-wrap gap-1.5 mt-2">

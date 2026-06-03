@@ -21,8 +21,11 @@ describe('OAuth state', () => {
 
   it('rejects tampered signatures', () => {
     const state = createOAuthState('/dashboard');
-    const tampered = `${state.slice(0, -1)}0`;
-    expect(parseOAuthState(tampered).valid).toBe(false);
+    const parts = state.split('.');
+    const sig = parts[parts.length - 1]!;
+    const flipped = sig[0] === 'a' ? 'b' : 'a';
+    parts[parts.length - 1] = flipped + sig.slice(1);
+    expect(parseOAuthState(parts.join('.')).valid).toBe(false);
   });
 });
 

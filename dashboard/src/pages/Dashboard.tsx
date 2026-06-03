@@ -18,6 +18,7 @@ import {
   Activity,
   Scale,
   Clock,
+  BarChart3,
 } from 'lucide-react';
 import { api } from '../api';
 import type { Stats, Casino } from '../types';
@@ -129,6 +130,7 @@ export default function DashboardPage() {
             subtitle="Newest catalog entries"
             casinos={recent}
             icon={<Clock className="w-5 h-5 text-glow" />}
+            action={<Link to="/new" className="text-sm text-glow hover:underline">All new arrivals</Link>}
           />
         </>
       )}
@@ -142,6 +144,7 @@ export default function DashboardPage() {
         <h2 className="font-display font-semibold text-lg mb-5 text-white">Quick Start</h2>
         <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-4">
           {[
+            { title: 'New Arrivals', desc: 'Recently approved operators added to the catalog.', path: '/new', icon: Clock },
             { title: 'Similar Casinos', desc: 'Match by features — or search the web for alike sites.', path: '/similar', icon: Sparkles },
             { title: 'Compare Casinos', desc: 'Side-by-side feature and signup comparison.', path: '/compare', icon: Scale },
             { title: 'Service Status', desc: 'Bot online, search engines, catalog stats.', path: '/status', icon: Activity },
@@ -152,6 +155,9 @@ export default function DashboardPage() {
             { title: 'Tools Hub', desc: 'Temp mail, SMS, passwords, and more.', path: '/tools', icon: Wrench },
             { title: 'Discovery Scan', desc: user?.isAdmin ? 'Client-driven scan from your browser.' : 'Admin sign-in required.', path: user?.isAdmin ? '/discovery' : '/login?next=/discovery', icon: Radar },
             { title: 'Review Queue', desc: user?.isAdmin ? 'Approve discoveries & ban review.' : 'Admin sign-in required.', path: user?.isAdmin ? '/review' : '/login?next=/review', icon: Flag },
+            ...(user?.isAdmin
+              ? [{ title: 'Admin Insights', desc: 'Backlog, discovery stats, export pending CSV.', path: '/insights', icon: BarChart3 }]
+              : []),
           ].map((item, i) => (
             <motion.div
               key={item.title}

@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
   Radar, Zap, CheckCircle, SkipForward, AlertTriangle, Clock, Search, Globe, Ban, XCircle, Terminal, StopCircle, Monitor,
@@ -51,10 +52,14 @@ function eventToLog(event: DiscoveryProgressEvent): LogEntry | null {
     case 'search_engine': {
       const labels: Record<string, string> = {
         serper: 'Google (Serper)',
+        ddg_instant: 'DDG Instant',
+        reddit: 'Reddit',
+        browser: 'Browser',
         duckduckgo: 'DuckDuckGo',
         duckduckgo_lite: 'DDG Lite',
         bing: 'Bing',
         brave: 'Brave',
+        startpage: 'Startpage',
       };
       const engineLabel = labels[event.engine] ?? event.engine;
       const count = event.linkCount != null ? ` · ${event.linkCount} links` : '';
@@ -67,12 +72,31 @@ function eventToLog(event: DiscoveryProgressEvent): LogEntry | null {
     }
     case 'url_scanning':
       return { id: Date.now(), type: event.type, message: `Scanning ${shortUrl(event.url)}`, tone: 'info' };
+    case 'browser_fetch':
+      return {
+        id: Date.now(),
+        type: event.type,
+        message: `↻ Your browser loading ${shortUrl(event.url)} (server blocked)`,
+        tone: 'info',
+      };
     case 'crawl_summary':
       return { id: Date.now(), type: event.type, message: `▸ ${event.label}`, tone: 'muted' };
     case 'url_added':
-      return { id: Date.now(), type: event.type, message: `✓ Queued for review: ${event.name} (${shortUrl(event.url)})`, tone: 'success' };
+      return {
+        id: Date.now(),
+        type: event.type,
+        message: event.needsReview
+          ? `◐ Saved to Review Queue (verify): ${event.name} — ${event.reviewNote ?? 'needs manual check'}`
+          : `✓ Queued for review: ${event.name} (${shortUrl(event.url)})`,
+        tone: 'success',
+      };
     case 'url_rejected':
-      return { id: Date.now(), type: event.type, message: `✗ Rejected ${shortUrl(event.url)} — ${event.reason}`, tone: 'warn' };
+      return {
+        id: Date.now(),
+        type: event.type,
+        message: `✗ Ban review only: ${shortUrl(event.url)} — ${event.reason} (see Review Queue → Ban review)`,
+        tone: 'warn',
+      };
     case 'url_skipped':
       return { id: Date.now(), type: event.type, message: `– Skipped ${shortUrl(event.url)} — ${event.reason}`, tone: 'muted' };
     case 'url_blocked':
@@ -108,13 +132,16 @@ export default function DiscoveryPage() {
   const [dbStats, setDbStats] = useState<Stats | null>(null);
   const [history, setHistory] = useState<DiscoveryHistoryEntry[]>([]);
   const [resumableScan, setResumableScan] = useState<{ mode: 'quick' | 'deep'; phaseLabel: string } | null>(null);
+  const [manualUrls, setManualUrls] = useState('');
+  const [manualMsg, setManualMsg] = useState('');
+  const [queueCounts, setQueueCounts] = useState({ pending: 0, reports: 0 });
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const logRef = useRef<HTMLDivElement>(null);
   const logIdRef = useRef(0);
   const abortRef = useRef<AbortController | null>(null);
 
   const isScanning = running || deepRunning;
-  const maxSeconds = deepRunning ? 30 * 60 : 8 * 60;
+  const maxSeconds = deepRunning ? 40 * 60 : 12 * 60;
 
   useEffect(() => {
     api.getStats().then(setDbStats).catch(() => {});
@@ -133,6 +160,24 @@ export default function DiscoveryPage() {
       }).catch(() => {});
     }
   }, [result, user?.isAdmin]);
+
+  const refreshQueueCounts = () => {
+    if (!user?.isAdmin) return;
+    Promise.all([api.getPendingCasinos(), api.getReports()])
+      .then(([p, r]) => setQueueCounts({ pending: p.length, reports: r.length }))
+      .catch(() => {});
+  };
+
+  useEffect(() => {
+    refreshQueueCounts();
+  }, [user?.isAdmin, result]);
+
+  useEffect(() => {
+    if (!isScanning || !user?.isAdmin) return;
+    refreshQueueCounts();
+    const id = setInterval(refreshQueueCounts, 12_000);
+    return () => clearInterval(id);
+  }, [isScanning, user?.isAdmin]);
 
   useEffect(() => {
     if (!isScanning) return;
@@ -245,18 +290,43 @@ export default function DiscoveryPage() {
       <PageHeader
         icon={<Radar className="w-6 h-6 text-glow" />}
         title="Discovery Engine"
-        subtitle="Runs from your browser while this tab is open — closes cleanly when you leave. Rejected URLs go to Ban review."
+        subtitle="Searches run from your browser (your IP) — no paid APIs. Keep this tab open. New finds go to Review Queue."
         badge={(
           <span className="pro-badge">
             <Monitor className="w-3.5 h-3.5" />
-            Client-driven · Stops when tab closes
+            Browser search · Your IP · No API keys
           </span>
         )}
       />
 
+      {user?.isAdmin && (queueCounts.pending > 0 || queueCounts.reports > 0) && (
+        <div className="mb-6 p-4 rounded-xl border border-[#00aeef]/25 bg-[#00aeef]/5 text-center text-sm">
+          <span className="text-gray-300">In Review Queue right now: </span>
+          {queueCounts.pending > 0 && (
+            <a href="/review?tab=discoveries" className="text-emerald-400 hover:underline font-medium">
+              {queueCounts.pending} pending {queueCounts.pending === 1 ? 'casino' : 'casinos'}
+            </a>
+          )}
+          {queueCounts.pending > 0 && queueCounts.reports > 0 && <span className="text-gray-600"> · </span>}
+          {queueCounts.reports > 0 && (
+            <a href="/review?tab=reports" className="text-amber-400 hover:underline font-medium">
+              {queueCounts.reports} ban review {queueCounts.reports === 1 ? 'URL' : 'URLs'}
+            </a>
+          )}
+        </div>
+      )}
+
       {dbStats && (
         <p className="text-xs text-gray-500 mb-6 text-center">
           Database: {dbStats.totalCasinos} casinos ({dbStats.verifiedCasinos} verified)
+          {(dbStats.pendingReview ?? 0) > 0 && (
+            <>
+              {' '}·{' '}
+              <Link to="/review" className="text-amber-400 hover:underline">
+                {dbStats.pendingReview} pending review
+              </Link>
+            </>
+          )}
           {(dbStats.staleCatalogCasinos ?? 0) > 0 && (
             <> · <span className="text-orange-400">{dbStats.staleCatalogCasinos} stale (90d+)</span></>
           )}
@@ -297,7 +367,7 @@ export default function DiscoveryPage() {
             </div>
             <div>
               <h3 className="font-display font-semibold text-lg">Quick Scan</h3>
-              <p className="text-sm text-gray-500">~10 min · 65 searches · 350 URL checks · Serper if configured</p>
+              <p className="text-sm text-gray-500">~12 min · 85 searches · 450 URL checks · from your browser</p>
             </div>
           </div>
           <ul className="text-xs text-gray-600 space-y-1 mb-4">
@@ -326,12 +396,12 @@ export default function DiscoveryPage() {
             </div>
             <div>
               <h3 className="font-display font-semibold text-lg">Deep Scan</h3>
-              <p className="text-sm text-gray-500">~35 min · 120 searches · 1200 URL checks · Serper + crawl</p>
+              <p className="text-sm text-gray-500">~40 min · 150 searches · 1500 URL checks · browser + crawl</p>
             </div>
           </div>
           <ul className="text-xs text-gray-600 space-y-1 mb-4">
-            <li>• 5 search pages per query (DDG Lite + Bing + Brave)</li>
-            <li>• Crawls all active casinos, then 100+ web searches</li>
+            <li>• 10 search pages per query (DDG, Bing, Brave, Reddit)</li>
+            <li>• Crawls 150 active casinos, then 150 browser searches</li>
             <li>• Rejected URLs sent to Ban review for blocklist</li>
           </ul>
           <button
@@ -343,6 +413,51 @@ export default function DiscoveryPage() {
           </button>
         </motion.div>
       </div>
+
+      {user?.isAdmin && (
+        <div className="mb-8 glass-glow p-5 border-white/5">
+          <h3 className="font-display font-semibold text-sm mb-2">Paste URLs manually</h3>
+          <p className="text-xs text-gray-500 mb-3">
+            Paste operator URLs (one per line). Adds to Review Queue anytime — or queues during an active scan.
+          </p>
+          <textarea
+            value={manualUrls}
+            onChange={(e) => setManualUrls(e.target.value)}
+            placeholder="https://examplecasino.us&#10;https://newsweeps.com"
+            rows={3}
+            className="w-full bg-black/30 border border-white/10 rounded-lg px-3 py-2 text-sm text-gray-200 placeholder:text-gray-600 focus:border-[#00aeef]/50 outline-none"
+          />
+          <div className="flex items-center gap-3 mt-3">
+            <button
+              type="button"
+              disabled={!manualUrls.trim()}
+              onClick={async () => {
+                setManualMsg('');
+                try {
+                  const urls = manualUrls.split(/[\s,]+/).filter(Boolean);
+                  const res = await api.submitDiscoveryUrls(urls, isScanning);
+                  const pending = 'pending' in res ? res.pending : undefined;
+                  setManualMsg(
+                    res.queued > 0
+                      ? `Added ${res.queued} to Review Queue${pending != null ? ` (${pending} pending total)` : ''}.`
+                      : 'No new URLs added — already in catalog or invalid.',
+                  );
+                  if (res.queued > 0) {
+                    setManualUrls('');
+                    refreshQueueCounts();
+                  }
+                } catch (err) {
+                  setManualMsg(err instanceof Error ? err.message : 'Failed to add URLs');
+                }
+              }}
+              className="btn-primary text-sm disabled:opacity-40"
+            >
+              Add to Review Queue
+            </button>
+            {manualMsg && <span className="text-xs text-gray-400">{manualMsg}</span>}
+          </div>
+        </div>
+      )}
 
       {!user?.isAdmin && (
         <p className="text-sm text-gray-500 mb-6 text-center">
@@ -391,7 +506,7 @@ export default function DiscoveryPage() {
               { label: 'Scanned', value: liveStats.scanned, color: 'text-[#00aeef]' },
               { label: 'Rejected', value: liveStats.rejected, color: 'text-amber-400' },
               { label: 'Blocked', value: liveStats.blocked, color: 'text-red-400' },
-              { label: 'Queue', value: liveStats.queued, color: 'text-gray-400' },
+              { label: 'In queue', value: liveStats.queued, color: liveStats.queued > 0 ? 'text-[#00aeef]' : 'text-gray-400' },
               { label: 'Sources', value: liveStats.sourcesChecked, color: 'text-[#d4956a]' },
               { label: 'Queries', value: `${liveStats.queryIndex}/${liveStats.queryTotal}`, color: 'text-gray-300' },
             ].map(({ label, value, color }) => (
@@ -478,7 +593,9 @@ export default function DiscoveryPage() {
 
           {result.added === 0 && (
             <p className="text-sm text-gray-500 mb-4">
-              No new casinos added — all candidates were already known or failed validation.
+              No new casinos saved this run. Check{' '}
+              <a href="/review?tab=reports" className="text-amber-400 hover:underline">Ban review</a>
+              {' '}for hard rejects, or run again — operator-shaped URLs are now saved as pending when the server cannot fully validate the page.
             </p>
           )}
 

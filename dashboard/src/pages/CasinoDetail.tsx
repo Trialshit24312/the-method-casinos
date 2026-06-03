@@ -2,8 +2,9 @@ import { useEffect, useState } from 'react';
 import { Link, useParams, Navigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
-  ExternalLink, Star, ShieldCheck, Sparkles, Heart, Share2, AlertTriangle, Clock,
+  ExternalLink, Star, ShieldCheck, Sparkles, Heart, Share2, AlertTriangle, Clock, Flag,
 } from 'lucide-react';
+import ReportSiteModal from '../components/ReportSiteModal';
 import { api } from '../api';
 import type { Casino, SimilarCasinosResult } from '../types';
 import PageHeader from '../components/PageHeader';
@@ -20,6 +21,7 @@ export default function CasinoDetail() {
   const [favorited, setFavorited] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [reportOpen, setReportOpen] = useState(false);
 
   useEffect(() => {
     if (!slug) return;
@@ -30,7 +32,7 @@ export default function CasinoDetail() {
     ])
       .then(async ([c, favs]) => {
         setCasino(c);
-        setFavorited(favs.some((f) => f.id === c.id));
+        setFavorited(favs.some((f) => f.casino.id === c.id));
         document.title = `${c.name} — The Method Casinos`;
         const sim = await api.getSimilar({ casinoId: c.id, limit: 6 }).catch(() => null);
         setSimilar(sim);
@@ -130,6 +132,13 @@ export default function CasinoDetail() {
                 <Heart className={`w-4 h-4 ${favorited ? 'fill-current' : ''}`} />
               </button>
             )}
+            <button
+              type="button"
+              onClick={() => setReportOpen(true)}
+              className="btn-secondary text-sm flex items-center gap-1.5 text-amber-400/90"
+            >
+              <Flag className="w-3.5 h-3.5" /> Report
+            </button>
             <button type="button" onClick={() => void share()} className="btn-secondary text-sm flex items-center gap-1.5">
               <Share2 className="w-3.5 h-3.5" /> Share
             </button>
@@ -209,6 +218,12 @@ export default function CasinoDetail() {
       <Link to="/casinos" className="inline-block mt-8 text-sm text-gray-500 hover:text-white">
         ← Back to catalog
       </Link>
+
+      <ReportSiteModal
+        open={reportOpen}
+        onClose={() => setReportOpen(false)}
+        initialUrl={casino.url}
+      />
     </div>
   );
 }

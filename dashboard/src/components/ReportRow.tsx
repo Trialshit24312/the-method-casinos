@@ -9,9 +9,10 @@ interface Props {
   report: SiteReport;
   onDismiss: () => void;
   onBlock: () => void;
+  onPromote?: () => void;
 }
 
-export default function ReportRow({ report, onDismiss, onBlock }: Props) {
+export default function ReportRow({ report, onDismiss, onBlock, onPromote }: Props) {
   const [check, setCheck] = useState<UrlCheckResult | null>(null);
   const [checking, setChecking] = useState(false);
 
@@ -48,6 +49,15 @@ export default function ReportRow({ report, onDismiss, onBlock }: Props) {
           <p className="text-[10px] text-gray-600 mt-1">{new Date(report.createdAt).toLocaleString()}</p>
         </div>
         <div className="flex gap-2 shrink-0 flex-wrap items-start">
+          {onPromote && report.reportedBy === 'discovery' && (
+            <button
+              type="button"
+              onClick={onPromote}
+              className="flex items-center gap-1 px-3 py-2 rounded-lg bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-sm"
+            >
+              Save as pending
+            </button>
+          )}
           <button type="button" onClick={onBlock} className="flex items-center gap-1 px-3 py-2 rounded-lg bg-accent-red/20 text-accent-red border border-accent-red/30 text-sm">
             <Ban className="w-4 h-4" /> Block
           </button>

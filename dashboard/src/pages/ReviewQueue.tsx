@@ -26,11 +26,13 @@ export default function ReviewQueue() {
   const [reportHistory, setReportHistory] = useState<SiteReport[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [notice, setNotice] = useState('');
   const [busyId, setBusyId] = useState<string | null>(null);
 
   const load = () => {
     setLoading(true);
     setError('');
+    setNotice('');
     Promise.all([
       api.getPendingCasinos(),
       api.getReports(),
@@ -48,6 +50,11 @@ export default function ReviewQueue() {
   };
 
   useEffect(() => { load(); }, []);
+
+  useEffect(() => {
+    const id = setInterval(() => load(), 20_000);
+    return () => clearInterval(id);
+  }, [tab]);
 
   useEffect(() => {
     const next =
@@ -124,11 +131,34 @@ export default function ReviewQueue() {
             {t.label}{(t.count ?? 0) > 0 && ` (${t.count})`}
           </button>
         ))}
+        {tab === 'discoveries' && pending.length > 0 && (
+          <button
+            type="button"
+            className="btn-primary text-sm"
+            onClick={async () => {
+              if (!confirm(`Approve all ${pending.length} pending casinos for the public catalog?`)) return;
+              try {
+                const res = await api.approveAllPending(pending.length);
+                load();
+                setNotice(
+                  res.approved > 0
+                    ? `Approved ${res.approved} casino(s) for the public catalog.${res.remaining > 0 ? ` ${res.remaining} still pending.` : ''}`
+                    : 'No casinos were approved.',
+                );
+              } catch (e) {
+                setError(e instanceof Error ? e.message : 'Bulk approve failed');
+              }
+            }}
+          >
+            Approve all ({pending.length})
+          </button>
+        )}
         <button onClick={load} className="btn-secondary flex items-center gap-2 text-sm ml-auto">
           <RefreshCw className="w-4 h-4" /> Refresh
         </button>
       </div>
 
+      {notice && <p className="text-emerald-400 text-sm mb-4">{notice}</p>}
       {error && <p className="text-accent-red text-sm mb-4">{error}</p>}
       {loading && <p className="text-gray-500">Loading…</p>}
 
@@ -173,6 +203,16 @@ export default function ReviewQueue() {
             <ReportRow
               key={report.id}
               report={report}
+              onPromote={async () => {
+                try {
+                  await api.promoteReportToDiscovery(report.id);
+                  setTab('discoveries');
+                  setSearchParams({}, { replace: true });
+                  load();
+                } catch (e) {
+                  setError(e instanceof Error ? e.message : 'Promote failed');
+                }
+              }}
               onBlock={async () => {
                 await api.blockFromReport(report.id);
                 load();

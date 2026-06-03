@@ -1,15 +1,54 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { Link, Navigate } from 'react-router-dom';
-import { Heart } from 'lucide-react';
+import { Heart, StickyNote } from 'lucide-react';
 import { api } from '../api';
 import type { Casino } from '../types';
 import PageHeader from '../components/PageHeader';
 import CasinoCard from '../components/CasinoCard';
 import { useAuth } from '../context/AuthContext';
 
+interface FavoriteRow {
+  casino: Casino;
+  note: string | null;
+}
+
+function FavoriteNote({ casinoId, initial }: { casinoId: string; initial: string | null }) {
+  const [note, setNote] = useState(initial ?? '');
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastSaved = useRef(initial ?? '');
+
+  const scheduleSave = (value: string) => {
+    if (timer.current) clearTimeout(timer.current);
+    timer.current = setTimeout(() => {
+      if (value === lastSaved.current) return;
+      api.setFavoriteNote(casinoId, value)
+        .then(() => { lastSaved.current = value; })
+        .catch(() => {});
+    }, 600);
+  };
+
+  return (
+    <div className="mt-2 px-1">
+      <label className="flex items-center gap-1 text-[10px] uppercase tracking-wide text-gray-600 mb-1">
+        <StickyNote className="w-3 h-3" /> Personal note
+      </label>
+      <textarea
+        className="input-field w-full text-sm min-h-[56px] resize-y"
+        placeholder="Signup email, promo code, last played…"
+        value={note}
+        maxLength={500}
+        onChange={(e) => {
+          setNote(e.target.value);
+          scheduleSave(e.target.value);
+        }}
+      />
+    </div>
+  );
+}
+
 export default function MyList() {
   const { user } = useAuth();
-  const [favorites, setFavorites] = useState<Casino[]>([]);
+  const [favorites, setFavorites] = useState<FavoriteRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -17,7 +56,7 @@ export default function MyList() {
     setLoading(true);
     api.getFavorites()
       .then(setFavorites)
-      .catch((e) => setError(e.message))
+      .catch((e) => setError(e instanceof Error ? e.message : 'Failed to load'))
       .finally(() => setLoading(false));
   };
 
@@ -31,7 +70,7 @@ export default function MyList() {
     <div className="p-8 max-w-6xl mx-auto">
       <PageHeader
         title="My List"
-        subtitle="Saved casinos — synced with Discord /mylist when signed in"
+        subtitle="Saved casinos with private notes — synced with Discord /mylist when signed in"
         icon={<Heart className="w-6 h-6 text-rose-400" />}
       />
 
@@ -52,8 +91,11 @@ export default function MyList() {
       )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-        {favorites.map((casino, i) => (
-          <CasinoCard key={casino.id} casino={casino} index={i} />
+        {favorites.map(({ casino, note }, i) => (
+          <div key={casino.id} className="flex flex-col">
+            <CasinoCard casino={casino} index={i} />
+            <FavoriteNote casinoId={casino.id} initial={note} />
+          </div>
         ))}
       </div>
     </div>

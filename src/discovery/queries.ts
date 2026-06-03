@@ -13,6 +13,12 @@ const NEW_SITE_QUERIES = [
   'new competitor chumba pulsz mcluck casino',
   'social casino app sweeps coins no phone',
   'free sweeps coins casino no verification',
+  'sweepstakes casino .us signup bonus',
+  'new sweeps site launch reddit',
+  'unknown social casino sweeps coins',
+  'site:.us "sweeps coins" casino -reddit',
+  '"social casino" redeem prizes .us',
+  'new sweeps casino 2026 launch signup',
 ];
 
 const OPERATOR_QUERIES = [
@@ -120,7 +126,7 @@ export function buildSearchQueries(deep: boolean): string[] {
   }
 
   const shuffled = shuffle(uniqueStrings(queries));
-  const limit = deep ? Math.min(120, shuffled.length) : Math.min(65, shuffled.length);
+  const limit = deep ? Math.min(150, shuffled.length) : Math.min(85, shuffled.length);
   const start = Math.floor(Math.random() * Math.max(1, shuffled.length));
   const rotated = [...shuffled.slice(start), ...shuffled.slice(0, start)];
 
@@ -137,5 +143,5 @@ export function buildSearchQueries(deep: boolean): string[] {
   return uniqueStrings([...fresh, ...rotated]).slice(0, limit);
 }
 
-export const SEARCH_PAGES_QUICK = 4;
-export const SEARCH_PAGES_DEEP = 8;
+export const SEARCH_PAGES_QUICK = 5;
+export const SEARCH_PAGES_DEEP = 10;

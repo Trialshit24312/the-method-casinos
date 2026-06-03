@@ -58,8 +58,30 @@ export const api = {
     if (opts.limit) params.set('limit', String(opts.limit));
     return request<SimilarCasinosResult>(`/api/similar?${params}`);
   },
-  discoverSimilarWeb: (casinoId: string) =>
-    request<SimilarWebDiscoveryResult>(`/api/similar/${casinoId}/discover-web`, { method: 'POST' }),
+  getSimilarWebQueries: (casinoId: string) =>
+    request<{ source: Casino; queries: string[] }>(`/api/similar/${casinoId}/web-queries`),
+  discoverSimilarWeb: async (casinoId: string) => {
+    const { queries } = await request<{ source: Casino; queries: string[] }>(
+      `/api/similar/${casinoId}/web-queries`,
+    );
+    const { collectBrowserSearchLinks } = await import('./lib/browser-search');
+    const browserResults: { query: string; links: string[] }[] = [];
+    for (const query of queries) {
+      const hits = await collectBrowserSearchLinks(query, 2);
+      for (const hit of hits) {
+        browserResults.push({ query: hit.query, links: hit.links });
+      }
+    }
+    return request<SimilarWebDiscoveryResult>(`/api/similar/${casinoId}/discover-web`, {
+      method: 'POST',
+      body: JSON.stringify({ browserResults }),
+    });
+  },
+  approveAllPending: (limit = 50) =>
+    request<{ ok: boolean; approved: number; ids: string[]; remaining: number }>(
+      '/api/casinos/pending/approve-all',
+      { method: 'POST', body: JSON.stringify({ limit }) },
+    ),
   addCasino: (data: Partial<Casino>) =>
     request<Casino>('/api/casinos', { method: 'POST', body: JSON.stringify(data) }),
   updateCasino: (id: string, data: Partial<Casino>) =>
@@ -115,6 +137,9 @@ export const api = {
         done: boolean;
         result?: DiscoveryResult;
         cancelled?: boolean;
+        clientSearch?: { queries: string[]; searchPages: number };
+        browserValidate?: string[];
+        browserCrawl?: string[];
         live: DiscoveryLiveSnapshot;
       };
       try {
@@ -122,6 +147,9 @@ export const api = {
           done: boolean;
           result?: DiscoveryResult;
           cancelled?: boolean;
+          clientSearch?: { queries: string[]; searchPages: number };
+          browserValidate?: string[];
+          browserCrawl?: string[];
           live: DiscoveryLiveSnapshot;
         }>('/api/discover/client/step', {
           method: 'POST',
@@ -130,6 +158,80 @@ export const api = {
         });
       } finally {
         stepping = false;
+      }
+
+      if (step.clientSearch?.queries?.length) {
+        const { collectBrowserSearchLinks } = await import('./lib/browser-search');
+        const allResults: { query: string; engine: string; links: string[] }[] = [];
+        for (const query of step.clientSearch.queries) {
+          const hits = await collectBrowserSearchLinks(
+            query,
+            step.clientSearch.searchPages,
+            (engine, linkCount) => {
+              onEvent({ type: 'search_engine', engine: engine as 'ddg_instant', query, linkCount });
+            },
+          );
+          for (const hit of hits) {
+            allResults.push({ query: hit.query, engine: hit.engine, links: hit.links });
+          }
+        }
+        const serpRes = await request<{ ok: boolean; queued: number; live: DiscoveryLiveSnapshot }>(
+          '/api/discover/client/serp-links',
+          {
+            method: 'POST',
+            body: JSON.stringify({ results: allResults }),
+            signal,
+          },
+        );
+        for (const raw of serpRes.live.events) {
+          const { seq, ...event } = raw;
+          onEvent(event as DiscoveryProgressEvent);
+          cursor = seq + 1;
+        }
+        if (serpRes.live.stats) {
+          onEvent({ type: 'progress', stats: serpRes.live.stats });
+        }
+        continue;
+      }
+
+      if (step.browserValidate?.length) {
+        const { fetchPagesInBrowser } = await import('./lib/browser-fetch-page');
+        const pages = await fetchPagesInBrowser(step.browserValidate);
+        if (pages.length) {
+          const valRes = await request<{ ok: boolean; added: number; live: DiscoveryLiveSnapshot }>(
+            '/api/discover/client/validate-pages',
+            { method: 'POST', body: JSON.stringify({ pages }), signal },
+          );
+          for (const raw of valRes.live.events) {
+            const { seq, ...event } = raw;
+            onEvent(event as DiscoveryProgressEvent);
+            cursor = seq + 1;
+          }
+          if (valRes.live.stats) {
+            onEvent({ type: 'progress', stats: valRes.live.stats });
+          }
+        }
+        continue;
+      }
+
+      if (step.browserCrawl?.length) {
+        const { fetchPagesInBrowser } = await import('./lib/browser-fetch-page');
+        const pages = await fetchPagesInBrowser(step.browserCrawl);
+        if (pages.length) {
+          const crawlRes = await request<{ ok: boolean; linksQueued: number; live: DiscoveryLiveSnapshot }>(
+            '/api/discover/client/crawl-pages',
+            { method: 'POST', body: JSON.stringify({ pages }), signal },
+          );
+          for (const raw of crawlRes.live.events) {
+            const { seq, ...event } = raw;
+            onEvent(event as DiscoveryProgressEvent);
+            cursor = seq + 1;
+          }
+          if (crawlRes.live.stats) {
+            onEvent({ type: 'progress', stats: crawlRes.live.stats });
+          }
+        }
+        continue;
       }
 
       for (const raw of step.live.events) {
@@ -153,6 +255,20 @@ export const api = {
   },
   getDiscoveryLive: (since = 0) =>
     request<DiscoveryLiveSnapshot>(`/api/discover/live?since=${since}`),
+  submitDiscoveryUrls: (urls: string[], duringScan = false) =>
+    duringScan
+      ? request<{ ok: boolean; queued: number }>('/api/discover/client/manual-links', {
+          method: 'POST',
+          body: JSON.stringify({ urls }),
+        })
+      : request<{ ok: boolean; queued: number; pending: number }>('/api/discover/quick-add', {
+          method: 'POST',
+          body: JSON.stringify({ urls }),
+        }),
+  promoteReportToDiscovery: (reportId: string) =>
+    request<{ ok: boolean; casino: { name: string; url: string } }>(`/api/reports/${reportId}/promote`, {
+      method: 'POST',
+    }),
   getDiscoveryClientStatus: () =>
     request<{
       resumable: boolean;
@@ -204,6 +320,17 @@ export const api = {
     request<{ ok: boolean }>(`/api/reports/${id}/dismiss`, { method: 'POST' }),
   blockFromReport: (id: string) =>
     request<{ ok: boolean }>(`/api/reports/${id}/block`, { method: 'POST' }),
+  getNewArrivals: (limit = 24) =>
+    request<Casino[]>(`/api/casinos/new-arrivals?limit=${limit}`),
+  getAdminInsights: () =>
+    request<{
+      pendingCount: number;
+      openReports: number;
+      pendingBySource: { source: string; count: number }[];
+      discoveryLast7d: { runs: number; added: number; rejected: number };
+      recentRuns: DiscoveryHistoryEntry[];
+      catalogGrowth30d: number;
+    }>('/api/admin/insights'),
   getDiscoveryHistory: (limit = 15) =>
     request<DiscoveryHistoryEntry[]>(`/api/discovery/history?limit=${limit}`),
   revalidateCatalog: (limit = 10) =>
@@ -216,7 +343,13 @@ export const api = {
     request<{ id: string; ok: boolean; reason?: string }>(`/api/casinos/${id}/revalidate`, { method: 'POST' }),
   unlistCasino: (id: string) =>
     request<{ ok: boolean }>(`/api/casinos/${id}/unlist`, { method: 'POST' }),
-  getFavorites: () => request<Casino[]>('/api/favorites'),
+  getFavorites: () =>
+    request<{ casino: Casino; note: string | null }[]>('/api/favorites'),
+  setFavoriteNote: (casinoId: string, note: string) =>
+    request<{ ok: boolean }>(`/api/favorites/${casinoId}/note`, {
+      method: 'PATCH',
+      body: JSON.stringify({ note }),
+    }),
   addFavorite: (casinoId: string) =>
     request<{ ok: boolean }>(`/api/favorites/${casinoId}`, { method: 'POST' }),
   removeFavorite: (casinoId: string) =>
