@@ -80,6 +80,21 @@ export async function notifyDiscoveryComplete(result: {
   });
 }
 
+export async function notifyPendingDiscovery(casino: { name: string; url: string; reason: string }): Promise<void> {
+  if (process.env.DISCORD_NOTIFY_PENDING !== '1') return;
+  await notifyDiscordWebhook({
+    title: 'New pending discovery',
+    description: [
+      `**${casino.name}** queued for review.`,
+      `**URL:** ${casino.url}`,
+      `**Note:** ${casino.reason}`,
+      '',
+      'Approve at dashboard → Review Queue → Discoveries',
+    ].join('\n'),
+    color: 0xf59e0b,
+  });
+}
+
 export async function notifyRevalidationFailures(failed: RevalidateResult[]): Promise<void> {
   if (!failed.length) return;
   const lines = failed.slice(0, 10).map((r) => `• **${r.name}** — ${r.reason ?? 'check failed'}`).join('\n');

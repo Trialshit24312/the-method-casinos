@@ -1,4 +1,5 @@
 import { motion } from 'framer-motion';
+import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { api } from '../api';
 import { discordInviteUrl } from '../lib/site';
@@ -8,6 +9,13 @@ export default function Login() {
   const error = params.get('error');
   const next = params.get('next') || '/dashboard';
   const discordInvite = discordInviteUrl();
+  const [oauthSetup, setOauthSetup] = useState<Awaited<ReturnType<typeof api.getOAuthSetup>> | null>(null);
+
+  useEffect(() => {
+    if (error === 'auth_failed' || error === 'session_failed') {
+      api.getOAuthSetup().then(setOauthSetup).catch(() => {});
+    }
+  }, [error]);
 
   const errorMessages: Record<string, string> = {
     no_code: 'Discord did not return an authorization code.',
@@ -63,9 +71,16 @@ export default function Login() {
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            className="mb-4 p-3 bg-accent-red/10 border border-accent-red/30 rounded-lg text-accent-red text-sm"
+            className="mb-4 p-3 bg-accent-red/10 border border-accent-red/30 rounded-lg text-accent-red text-sm text-left"
           >
-            {errorMessages[error] || 'An error occurred.'}
+            <p>{errorMessages[error] || 'An error occurred.'}</p>
+            {oauthSetup && (
+              <div className="mt-3 pt-3 border-t border-accent-red/20 text-xs text-gray-400 space-y-1">
+                <p className="font-medium text-gray-300">OAuth redirect URI (must match Discord exactly):</p>
+                <code className="block break-all text-glow bg-black/30 p-2 rounded">{oauthSetup.redirectUri}</code>
+                <p>{oauthSetup.discordPortalHint}</p>
+              </div>
+            )}
           </motion.div>
         )}
 

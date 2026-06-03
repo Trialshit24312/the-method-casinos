@@ -6,6 +6,7 @@ data/
 *.db-journal
 .DS_Store
 dashboard/dist/
+*.tsbuildinfo
 agents/.venv/
 __pycache__/
 *.pyc

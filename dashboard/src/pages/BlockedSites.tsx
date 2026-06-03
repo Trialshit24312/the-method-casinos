@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Ban, Plus, Search, Trash2, X, AlertTriangle, ExternalLink } from 'lucide-react';
+import { Ban, Plus, Search, Trash2, X, AlertTriangle, ExternalLink, Pencil } from 'lucide-react';
 import { api } from '../api';
 import type { BlockedSite, BlockReason, BlockSeverity } from '../types';
 import { BLOCK_REASON_LABELS, BLOCK_SEVERITY_COLORS } from '../types';
@@ -39,6 +39,7 @@ export default function BlockedSitesPage() {
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<FormData>(emptyForm);
   const [error, setError] = useState('');
 
@@ -59,7 +60,22 @@ export default function BlockedSitesPage() {
   }, [load]);
 
   const openAdd = () => {
+    setEditingId(null);
     setForm(emptyForm);
+    setError('');
+    setModalOpen(true);
+  };
+
+  const openEdit = (site: BlockedSite) => {
+    setEditingId(site.id);
+    setForm({
+      name: site.name,
+      url: site.url,
+      reason: site.reason,
+      severity: site.severity,
+      description: site.description,
+      removeCasino: false,
+    });
     setError('');
     setModalOpen(true);
   };
@@ -70,11 +86,22 @@ export default function BlockedSitesPage() {
       return;
     }
     try {
-      await api.addBlockedSite(form);
+      if (editingId) {
+        await api.updateBlockedSite(editingId, {
+          name: form.name,
+          url: form.url,
+          reason: form.reason,
+          severity: form.severity,
+          description: form.description,
+        });
+      } else {
+        await api.addBlockedSite(form);
+      }
       setModalOpen(false);
+      setEditingId(null);
       load();
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to block site');
+      setError(e instanceof Error ? e.message : 'Failed to save');
     }
   };
 
@@ -166,12 +193,24 @@ export default function BlockedSitesPage() {
                   </p>
                 </div>
                 {user?.isAdmin && (
-                  <button
-                    onClick={() => remove(site.id)}
-                    className="p-2 rounded-lg text-gray-500 hover:text-red-400 hover:bg-red-500/10 transition-colors"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
+                  <div className="flex gap-1 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => openEdit(site)}
+                      className="p-2 rounded-lg text-gray-500 hover:text-glow hover:bg-glow/10 transition-colors"
+                      title="Edit"
+                    >
+                      <Pencil className="w-4 h-4" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => remove(site.id)}
+                      className="p-2 rounded-lg text-gray-500 hover:text-red-400 hover:bg-red-500/10 transition-colors"
+                      title="Remove"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
                 )}
               </div>
             </motion.div>
@@ -207,7 +246,9 @@ export default function BlockedSitesPage() {
               onClick={(e) => e.stopPropagation()}
             >
               <div className="flex items-center justify-between mb-6">
-                <h2 className="font-display font-semibold text-lg text-white">Block Dangerous Site</h2>
+                <h2 className="font-display font-semibold text-lg text-white">
+                  {editingId ? 'Edit Blocked Site' : 'Block Dangerous Site'}
+                </h2>
                 <button onClick={() => setModalOpen(false)} className="text-gray-500 hover:text-white">
                   <X className="w-5 h-5" />
                 </button>
@@ -244,15 +285,17 @@ export default function BlockedSitesPage() {
                   <label className="text-xs text-gray-500 uppercase tracking-wide mb-1 block">Description</label>
                   <textarea className="input-field min-h-[80px]" value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} placeholder="Why is this site dangerous?" />
                 </div>
-                <label className="flex items-center gap-2 text-sm text-gray-400 cursor-pointer">
-                  <input type="checkbox" checked={form.removeCasino} onChange={(e) => setForm({ ...form, removeCasino: e.target.checked })} className="rounded" />
-                  Also remove from casino database if URL matches
-                </label>
+                {!editingId && (
+                  <label className="flex items-center gap-2 text-sm text-gray-400 cursor-pointer">
+                    <input type="checkbox" checked={form.removeCasino} onChange={(e) => setForm({ ...form, removeCasino: e.target.checked })} className="rounded" />
+                    Also remove from casino database if URL matches
+                  </label>
+                )}
               </div>
 
               <div className="flex gap-3 mt-6">
                 <button onClick={() => setModalOpen(false)} className="btn-secondary flex-1">Cancel</button>
-                <button onClick={submit} className="btn-danger flex-1">Block Site</button>
+                <button onClick={submit} className="btn-danger flex-1">{editingId ? 'Save' : 'Block Site'}</button>
               </div>
             </motion.div>
           </motion.div>

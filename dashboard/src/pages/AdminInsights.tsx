@@ -37,7 +37,19 @@ export default function AdminInsights() {
   if (!user) return <Navigate to="/login?next=/insights" replace />;
   if (!user.isAdmin) return <Navigate to="/dashboard" replace />;
 
-  const exportUrl = `${apiBaseUrl()}/api/casinos/pending/export`;
+  const exportPendingUrl = `${apiBaseUrl()}/api/casinos/pending/export`;
+  const exportCatalogUrl = `${apiBaseUrl()}/api/casinos/catalog/export`;
+
+  const downloadCsv = (url: string, filename: string) => {
+    void fetch(url, { credentials: 'include' })
+      .then((r) => r.blob())
+      .then((blob) => {
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = filename;
+        a.click();
+      });
+  };
 
   return (
     <div className="p-6 md:p-8 max-w-5xl mx-auto">
@@ -86,24 +98,20 @@ export default function AdminInsights() {
             <Link to="/review" className="btn-secondary text-sm flex items-center gap-2">
               <ShieldCheck className="w-4 h-4" /> Review queue
             </Link>
-            <a
-              href={exportUrl}
+            <button
+              type="button"
               className="btn-secondary text-sm flex items-center gap-2"
-              download="pending-casinos.csv"
-              onClick={(e) => {
-                e.preventDefault();
-                void fetch(exportUrl, { credentials: 'include' })
-                  .then((r) => r.blob())
-                  .then((blob) => {
-                    const a = document.createElement('a');
-                    a.href = URL.createObjectURL(blob);
-                    a.download = 'pending-casinos.csv';
-                    a.click();
-                  });
-              }}
+              onClick={() => downloadCsv(exportPendingUrl, 'pending-casinos.csv')}
             >
               <Download className="w-4 h-4" /> Export pending CSV
-            </a>
+            </button>
+            <button
+              type="button"
+              className="btn-secondary text-sm flex items-center gap-2"
+              onClick={() => downloadCsv(exportCatalogUrl, 'verified-catalog.csv')}
+            >
+              <Download className="w-4 h-4" /> Export catalog CSV
+            </button>
           </div>
 
           {data.pendingBySource.length > 0 && (

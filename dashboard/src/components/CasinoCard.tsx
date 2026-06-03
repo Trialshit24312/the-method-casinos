@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { ExternalLink, Star, ShieldCheck, Ban, Sparkles } from 'lucide-react';
+import { ExternalLink, Star, ShieldCheck, Ban, Sparkles, Heart } from 'lucide-react';
 import type { Casino } from '../types';
 import { FEATURE_LABELS, FEATURE_COLORS, vpnLabel, formatTrackableValue } from '../types';
 import { formatLastChecked, isCatalogStale } from '../lib/freshness';
@@ -11,9 +11,13 @@ interface CasinoCardProps {
   onEdit?: (casino: Casino) => void;
   onBlock?: (casino: Casino) => void;
   admin?: boolean;
+  favorited?: boolean;
+  onToggleFavorite?: () => void;
 }
 
-export default function CasinoCard({ casino, index, onEdit, onBlock, admin }: CasinoCardProps) {
+export default function CasinoCard({
+  casino, index, onEdit, onBlock, admin, favorited, onToggleFavorite,
+}: CasinoCardProps) {
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
@@ -128,6 +132,20 @@ export default function CasinoCard({ casino, index, onEdit, onBlock, admin }: Ca
             title="Block as scam"
           >
             <Ban className="w-4 h-4" />
+          </button>
+        )}
+        {onToggleFavorite != null && (
+          <button
+            type="button"
+            onClick={onToggleFavorite}
+            className={`p-2 rounded-lg border transition-colors ${
+              favorited
+                ? 'border-rose-500/40 bg-rose-500/10 text-rose-400'
+                : 'border-transparent text-gray-500 hover:text-rose-400'
+            }`}
+            title={favorited ? 'Remove from My List' : 'Save to My List'}
+          >
+            <Heart className={`w-4 h-4 ${favorited ? 'fill-current' : ''}`} />
           </button>
         )}
         <Link

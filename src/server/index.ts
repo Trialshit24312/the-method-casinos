@@ -47,6 +47,9 @@ import {
   getAdminInsights,
   exportPendingCasinosCsv,
   getRecentlyApprovedCasinos,
+  getRandomCasino,
+  getPublicFeed,
+  exportVerifiedCasinosCsv,
 } from '../database/index.js';
 import { runDiscovery } from '../discovery/engine.js';
 import { cancelDiscoveryRun, isDiscoveryRunning } from '../discovery/run-state.js';
@@ -301,14 +304,16 @@ export function createServer(): express.Application {
       ? Math.min(500, Math.max(1, parsedLimit))
       : 500;
 
+    const noPhone = req.query.no_phone === '1';
     const filters = {
       query,
       features,
+      noPhone: noPhone || undefined,
       limit,
       catalogOnly: !includeAll || !isAdmin,
     };
 
-    const casinos = query || features
+    const casinos = query || features || noPhone
       ? searchCasinos(filters)
       : (includeAll && isAdmin ? getAllCasinos(false) : getAllCasinos(true));
 
@@ -444,6 +449,23 @@ export function createServer(): express.Application {
   app.get('/api/casinos/recent', (_req, res) => {
     const limit = Math.min(25, Math.max(1, parseInt(String(_req.query.limit ?? '10'), 10) || 10));
     res.json(getRecentCasinos(limit));
+  });
+
+  app.get('/api/casinos/random', (req, res) => {
+    const features = req.query.features
+      ? (req.query.features as string).split(',') as CasinoFeature[]
+      : undefined;
+    const casino = getRandomCasino({
+      catalogOnly: true,
+      noPhone: req.query.no_phone === '1' ? true : undefined,
+      vpnAllowed: req.query.vpn === '1' ? true : undefined,
+      features,
+    });
+    if (!casino) {
+      res.status(404).json({ error: 'No casinos match filters' });
+      return;
+    }
+    res.json(casino);
   });
 
   app.get('/api/compare', (req, res) => {
@@ -992,15 +1014,34 @@ export function createServer(): express.Application {
     res.send(csv);
   });
 
+  app.get('/api/feed', (req, res) => {
+    const limit = Math.min(20, Math.max(1, parseInt(String(req.query.limit ?? '12'), 10) || 12));
+    res.json(getPublicFeed(limit));
+  });
+
+  app.get('/api/casinos/catalog/export', requireAuth, requireAdmin, (_req, res) => {
+    const csv = exportVerifiedCasinosCsv();
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', 'attachment; filename="verified-catalog.csv"');
+    res.send(csv);
+  });
+
   app.get('/api/casinos/new-arrivals', (req, res) => {
     const limit = Math.min(50, Math.max(1, parseInt(String(req.query.limit ?? '24'), 10) || 24));
     res.json(getRecentlyApprovedCasinos(limit));
   });
 
+  app.get('/robots.txt', (_req, res) => {
+    const base = process.env.PUBLIC_SITE_URL?.trim() || getAllowedCorsOrigins()[0] || 'https://the-method-casinos.onrender.com';
+    res.type('text/plain').send(
+      `User-agent: *\nAllow: /\nDisallow: /discovery\nDisallow: /review\nDisallow: /insights\n\nSitemap: ${base}/sitemap.xml\n`,
+    );
+  });
+
   app.get('/sitemap.xml', (_req, res) => {
     const base = process.env.PUBLIC_SITE_URL?.trim() || getAllowedCorsOrigins()[0] || 'https://the-method-casinos.onrender.com';
     const casinos = searchCasinos({ catalogOnly: true, limit: 500 });
-    const staticPaths = ['/', '/casinos', '/similar', '/compare', '/pricing', '/new', '/guides', '/tools', '/status', '/blocked'];
+    const staticPaths = ['/', '/casinos', '/similar', '/compare', '/random', '/pricing', '/new', '/guides', '/tools', '/status', '/blocked', '/mylist'];
     const urls = [
       ...staticPaths.map((p) => `${base}${p}`),
       ...casinos.map((c) => `${base}/casinos/${c.urlNormalized || c.id}`),

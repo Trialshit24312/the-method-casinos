@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from 'react';
 import { Link, Navigate } from 'react-router-dom';
-import { Heart, StickyNote } from 'lucide-react';
+import { Heart, StickyNote, Copy, Download } from 'lucide-react';
 import { api } from '../api';
 import type { Casino } from '../types';
 import PageHeader from '../components/PageHeader';
@@ -23,7 +23,7 @@ function FavoriteNote({ casinoId, initial }: { casinoId: string; initial: string
       if (value === lastSaved.current) return;
       api.setFavoriteNote(casinoId, value)
         .then(() => { lastSaved.current = value; })
-        .catch(() => {});
+        .catch(() => { /* silent — user can retry by editing */ });
     }, 600);
   };
 
@@ -72,6 +72,46 @@ export default function MyList() {
         title="My List"
         subtitle="Saved casinos with private notes — synced with Discord /mylist when signed in"
         icon={<Heart className="w-6 h-6 text-rose-400" />}
+        action={
+          favorites.length > 0 ? (
+            <div className="flex gap-2">
+              <button
+                type="button"
+                className="btn-secondary text-sm flex items-center gap-1.5"
+                onClick={() => {
+                  const text = favorites
+                    .map((f) => {
+                      const note = f.note?.trim();
+                      return note
+                        ? `• ${f.casino.name} — ${f.casino.url}\n  Note: ${note}`
+                        : `• ${f.casino.name} — ${f.casino.url}`;
+                    })
+                    .join('\n');
+                  void navigator.clipboard.writeText(text);
+                }}
+              >
+                <Copy className="w-4 h-4" /> Copy
+              </button>
+              <button
+                type="button"
+                className="btn-secondary text-sm flex items-center gap-1.5"
+                onClick={() => {
+                  const blob = new Blob(
+                    [JSON.stringify(favorites, null, 2)],
+                    { type: 'application/json' },
+                  );
+                  const a = document.createElement('a');
+                  a.href = URL.createObjectURL(blob);
+                  a.download = 'my-list.json';
+                  a.click();
+                  URL.revokeObjectURL(a.href);
+                }}
+              >
+                <Download className="w-4 h-4" /> Export
+              </button>
+            </div>
+          ) : undefined
+        }
       />
 
       {error && <p className="text-red-400 text-sm mb-4">{error}</p>}

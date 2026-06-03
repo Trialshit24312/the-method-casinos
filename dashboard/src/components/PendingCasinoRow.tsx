@@ -10,9 +10,10 @@ interface Props {
   casino: Casino;
   onApprove: () => void;
   onReject: () => void;
+  busy?: boolean;
 }
 
-export default function PendingCasinoRow({ casino, onApprove, onReject }: Props) {
+export default function PendingCasinoRow({ casino, onApprove, onReject, busy }: Props) {
   const [similar, setSimilar] = useState<SimilarCasinoMatch[]>([]);
 
   useEffect(() => {
@@ -69,15 +70,17 @@ export default function PendingCasinoRow({ casino, onApprove, onReject }: Props)
           </Link>
           <button
             type="button"
+            disabled={busy}
             onClick={onApprove}
-            className="flex items-center gap-1 px-3 py-2 rounded-lg bg-accent-green/20 text-accent-green border border-accent-green/30 text-sm"
+            className="flex items-center gap-1 px-3 py-2 rounded-lg bg-accent-green/20 text-accent-green border border-accent-green/30 text-sm disabled:opacity-40"
           >
             Approve
           </button>
           <button
             type="button"
+            disabled={busy}
             onClick={onReject}
-            className="flex items-center gap-1 px-3 py-2 rounded-lg bg-accent-red/20 text-accent-red border border-accent-red/30 text-sm"
+            className="flex items-center gap-1 px-3 py-2 rounded-lg bg-accent-red/20 text-accent-red border border-accent-red/30 text-sm disabled:opacity-40"
           >
             Reject
           </button>
@@ -92,10 +95,14 @@ export default function PendingCasinoRow({ casino, onApprove, onReject }: Props)
           </p>
           <div className="flex flex-wrap gap-2">
             {similar.map((m) => (
-              <span key={m.casino.id} className="text-xs text-gray-400">
+              <Link
+                key={m.casino.id}
+                to={`/casinos/${m.casino.urlNormalized ?? m.casino.id}`}
+                className="text-xs text-glow hover:underline"
+              >
                 {m.casino.name}
                 <span className="text-gray-600 ml-1">({Math.round(m.score * 100)}%)</span>
-              </span>
+              </Link>
             ))}
           </div>
         </div>

@@ -8,8 +8,11 @@ const QUICK_LINKS = [
   { label: 'New arrivals', path: '/new' },
   { label: 'Similar casinos', path: '/similar' },
   { label: 'Compare', path: '/compare' },
+  { label: 'Random pick', path: '/random' },
+  { label: 'Guides', path: '/guides' },
   { label: 'URL checker', path: '/tools/checker' },
   { label: 'My list', path: '/mylist' },
+  { label: 'Status', path: '/status' },
 ];
 
 const ADMIN_LINKS = [

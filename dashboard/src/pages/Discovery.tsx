@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
-  Radar, Zap, CheckCircle, SkipForward, AlertTriangle, Clock, Search, Globe, Ban, XCircle, Terminal, StopCircle, Monitor,
+  Radar, Zap, CheckCircle, SkipForward, AlertTriangle, Clock, Search, Globe, Ban, XCircle, Terminal, StopCircle, Monitor, Copy,
 } from 'lucide-react';
 import { api } from '../api';
 import type { DiscoveryResult, DiscoveryProgressEvent, DiscoveryLiveStats, Stats, DiscoveryHistoryEntry } from '../types';
@@ -522,6 +522,18 @@ export default function DiscoveryPage() {
               <Terminal className="w-4 h-4 text-[#00aeef]" />
               <span className="text-xs font-medium text-gray-400 uppercase tracking-wide">Live Activity</span>
               <span className="text-xs text-gray-600 ml-auto">{activityLog.length} events</span>
+              {activityLog.length > 0 && (
+                <button
+                  type="button"
+                  className="text-xs text-gray-500 hover:text-glow flex items-center gap-1"
+                  onClick={() => {
+                    const text = activityLog.map((e) => e.message).join('\n');
+                    void navigator.clipboard.writeText(text);
+                  }}
+                >
+                  <Copy className="w-3 h-3" /> Copy log
+                </button>
+              )}
             </div>
             <div ref={logRef} className="h-56 overflow-y-auto p-3 font-mono text-xs space-y-1">
               {activityLog.length === 0 ? (
@@ -569,6 +581,15 @@ export default function DiscoveryPage() {
               </div>
             ))}
           </div>
+
+          {result.added > 0 && (
+            <Link
+              to="/review"
+              className="inline-flex items-center gap-2 mb-4 px-4 py-2 rounded-xl bg-amber-500/15 border border-amber-500/30 text-amber-300 text-sm font-medium hover:bg-amber-500/25 transition-colors"
+            >
+              Review {result.added} pending in queue →
+            </Link>
+          )}
 
           {result.addedCasinos.length > 0 && (
             <div className="mb-4 p-4 rounded-xl bg-emerald-500/5 border border-emerald-500/20">

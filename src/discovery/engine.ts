@@ -25,7 +25,7 @@ import { getVerifiedCuratedDiscoveries } from '../shared/verified-casinos.js';
 import { buildSearchQueries, SEARCH_PAGES_DEEP, SEARCH_PAGES_QUICK } from './queries.js';
 import { collectFreeSearchLinks, extractCasinoUrlsFromHtml } from './free-search.js';
 import { beginDiscoveryRun, endDiscoveryRun, throwIfCancelled } from './run-state.js';
-import { notifyDiscoveryComplete } from '../shared/notify.js';
+import { notifyDiscoveryComplete, notifyPendingDiscovery } from '../shared/notify.js';
 
 export type DiscoveryProgressCallback = (event: DiscoveryProgressEvent) => void;
 
@@ -251,6 +251,7 @@ export function saveDiscoveryCandidateForReview(
   setCasinoHealth(casino.id, 'stale', `Discovery scan: ${reason}`);
   knownHosts.add(host);
   markDiscoverySeen(root, 'added', `pending review: ${reason}`);
+  void notifyPendingDiscovery({ name: casino.name, url: root, reason });
   return { name: casino.name, url: root };
 }
 

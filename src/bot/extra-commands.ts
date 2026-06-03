@@ -1,7 +1,8 @@
-import { SlashCommandBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } from 'discord.js';
+import { SlashCommandBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder } from 'discord.js';
 import type { Command } from './command-types.js';
-import { getFeaturedCasinos, getRecentCasinos, getStats } from '../database/index.js';
-import { buildAboutEmbed, buildFeaturedEmbed, buildRecentEmbed, buildTiersEmbed } from './embeds.js';
+import { getFeaturedCasinos, getRecentCasinos, getStats, getPublicFeed } from '../database/index.js';
+import { getBotHealth } from '../bot/state.js';
+import { buildAboutEmbed, buildFeaturedEmbed, buildRecentEmbed, buildStatusEmbed, buildTiersEmbed } from './embeds.js';
 import { brandButtonRow } from './brand.js';
 import { getPublicSiteUrl, sitePage } from '../shared/site.js';
 
@@ -43,7 +44,7 @@ export const extraCommands: Command[] = [
   {
     data: new SlashCommandBuilder()
       .setName('recent')
-      .setDescription('Recently added casinos (newest first)'),
+      .setDescription('Newest catalog rows by created date (not the same as /new approvals)'),
 
     async execute(interaction) {
       const casinos = getRecentCasinos(12);
@@ -85,18 +86,95 @@ export const extraCommands: Command[] = [
 
   {
     data: new SlashCommandBuilder()
-      .setName('ping')
-      .setDescription('Bot latency and service status'),
+      .setName('activity')
+      .setDescription('Recent catalog approvals and discovery scans'),
+
+    async execute(interaction) {
+      const feed = getPublicFeed(8);
+      if (!feed.length) {
+        await interaction.reply({ content: 'No recent activity logged yet.', ephemeral: true });
+        return;
+      }
+      const lines = feed.map((item) => {
+        const when = `<t:${Math.floor(new Date(item.at).getTime() / 1000)}:R>`;
+        const icon = item.type === 'approval' ? '✅' : '🔍';
+        return `${icon} **${item.title}** — ${item.detail} (${when})`;
+      });
+      await interaction.reply({
+        content: `**Recent activity**\n${lines.join('\n')}\n\nFull feed on dashboard → /dashboard`,
+        ephemeral: true,
+      });
+    },
+  },
+
+  {
+    data: new SlashCommandBuilder()
+      .setName('status')
+      .setDescription('Service health — bot, catalog, and API uptime'),
 
     async execute(interaction) {
       const stats = getStats();
-      const latency = Date.now() - interaction.createdTimestamp;
+      const bot = getBotHealth();
       await interaction.reply({
-        content: [
-          `🏓 **Pong** — ${latency}ms`,
-          `📊 ${stats.verifiedCasinos} verified · ${stats.totalCasinos} total · ${stats.blockedSites} blocked`,
-          `🌐 ${getPublicSiteUrl()}`,
-        ].join('\n'),
+        embeds: [buildStatusEmbed({
+          botConnected: bot.connected,
+          botTag: bot.tag,
+          verifiedCasinos: stats.verifiedCasinos,
+          totalCasinos: stats.totalCasinos,
+          pendingReview: stats.pendingReview,
+          blockedSites: stats.blockedSites,
+          uptimeSec: process.uptime(),
+        })],
+        components: [linkRow()],
+      });
+    },
+  },
+
+  {
+    data: new SlashCommandBuilder()
+      .setName('guides')
+      .setDescription('The Method signup and safety guides on the dashboard'),
+
+    async execute(interaction) {
+      const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
+        new ButtonBuilder()
+          .setLabel('Open Guides')
+          .setStyle(ButtonStyle.Link)
+          .setURL(sitePage('/guides'))
+          .setEmoji('📖'),
+        new ButtonBuilder()
+          .setLabel('URL Checker')
+          .setStyle(ButtonStyle.Link)
+          .setURL(sitePage('/tools/checker'))
+          .setEmoji('🛡️'),
+      );
+      const embed = new EmbedBuilder()
+        .setColor(0x7c3aed)
+        .setTitle('📖 The Method Guides')
+        .setDescription(
+          [
+            'Step-by-step workflows on the dashboard:',
+            '• Safe signup & email-only casinos',
+            '• VPN / geo notes for sweepstakes sites',
+            '• Redeem and cash-out checklists',
+            '',
+            `**Open:** ${sitePage('/guides')}`,
+          ].join('\n'),
+        );
+      await interaction.reply({ embeds: [embed], components: [row] });
+    },
+  },
+
+  {
+    data: new SlashCommandBuilder()
+      .setName('ping')
+      .setDescription('Quick bot latency check'),
+
+    async execute(interaction) {
+      const latency = Date.now() - interaction.createdTimestamp;
+      const bot = getBotHealth();
+      await interaction.reply({
+        content: `🏓 **Pong** — ${latency}ms · Bot ${bot.connected ? 'online' : 'offline'} · Use \`/status\` for full health`,
       });
     },
   },

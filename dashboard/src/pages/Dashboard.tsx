@@ -28,8 +28,11 @@ import StatCard from '../components/StatCard';
 import CasinoCarousel from '../components/CasinoCarousel';
 import CarouselSkeleton from '../components/CarouselSkeleton';
 import { useAuth } from '../context/AuthContext';
+import ActivityFeed from '../components/ActivityFeed';
+import { usePageTitle } from '../hooks/usePageTitle';
 
 export default function DashboardPage() {
+  usePageTitle('Dashboard — The Method Casinos');
   const { user } = useAuth();
   const [stats, setStats] = useState<Stats | null>(null);
   const [featured, setFeatured] = useState<Casino[]>([]);
@@ -132,6 +135,8 @@ export default function DashboardPage() {
             icon={<Clock className="w-5 h-5 text-glow" />}
             action={<Link to="/new" className="text-sm text-glow hover:underline">All new arrivals</Link>}
           />
+
+          <ActivityFeed />
         </>
       )}
 
@@ -145,6 +150,7 @@ export default function DashboardPage() {
         <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-4">
           {[
             { title: 'New Arrivals', desc: 'Recently approved operators added to the catalog.', path: '/new', icon: Clock },
+            { title: 'Random Casino', desc: 'Roll a verified operator with optional filters — like /random.', path: '/random', icon: Dices },
             { title: 'Similar Casinos', desc: 'Match by features — or search the web for alike sites.', path: '/similar', icon: Sparkles },
             { title: 'Compare Casinos', desc: 'Side-by-side feature and signup comparison.', path: '/compare', icon: Scale },
             { title: 'Service Status', desc: 'Bot online, search engines, catalog stats.', path: '/status', icon: Activity },

@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Mail, Phone, Wrench, ScrollText, Dices, Sparkles, Lock, Globe, Ban, KeyRound, ShieldCheck, BookOpen } from 'lucide-react';
+import { Mail, Phone, Wrench, ScrollText, Dices, Sparkles, Lock, Globe, Ban, KeyRound, ShieldCheck, BookOpen, Shuffle, Scale, Clock } from 'lucide-react';
 import PageHeader from '../../components/PageHeader';
 import { ServiceGrid } from '../../components/ServiceCard';
 import {
@@ -15,6 +15,10 @@ import {
 const quickLinks = [
   { to: '/casinos', icon: Dices, label: 'Casinos', desc: 'Browse & filter database', color: 'text-[#b87333]' },
   { to: '/similar', icon: Sparkles, label: 'Similar', desc: 'Find alike casinos', color: 'text-[#00aeef]' },
+  { to: '/random', icon: Shuffle, label: 'Random', desc: 'Roll the catalog', color: 'text-glow' },
+  { to: '/compare', icon: Scale, label: 'Compare', desc: 'Side-by-side', color: 'text-[#00aeef]' },
+  { to: '/new', icon: Clock, label: 'New', desc: 'Recent approvals', color: 'text-emerald-400' },
+  { to: '/status', icon: ShieldCheck, label: 'Status', desc: 'Service health', color: 'text-emerald-400' },
   { to: '/tools/email', icon: Mail, label: 'Email Tools', desc: '30+ temp mail sites', color: 'text-[#00aeef]' },
   { to: '/tools/phone', icon: Phone, label: 'Phone Tools', desc: '20+ SMS receivers', color: 'text-[#d4956a]' },
   { to: '/tools/password', icon: KeyRound, label: 'Password Gen', desc: 'Strong passwords', color: 'text-[#d4956a]' },

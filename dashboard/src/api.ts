@@ -42,14 +42,57 @@ export const api = {
   getMe: () => request<{ user: User | null }>('/auth/me'),
   logout: () => request<{ ok: boolean }>('/auth/logout', { method: 'POST' }),
   getStats: () => request<Stats>('/api/stats'),
+  getPublicFeed: (limit = 12) =>
+    request<{ type: 'approval' | 'discovery'; at: string; title: string; detail: string; casinoId?: string; casinoSlug?: string }[]>(
+      `/api/feed?limit=${limit}`,
+    ),
+  getOAuthSetup: () =>
+    request<{ redirectUri: string; discordPortalHint: string; loginUrl: string; hostedUrl: string | null }>(
+      '/api/oauth-setup',
+    ),
   getStatus: () => request<{ ok: boolean; searchMode: string; searchEngines: string[]; bot: boolean; stats: Pick<Stats, 'verifiedCasinos' | 'totalCasinos' | 'noPhoneCasinos' | 'blockedSites'>; uptime: number }>('/api/status'),
   getFeaturedCasinos: (limit = 10) => request<Casino[]>(`/api/casinos/featured?limit=${limit}`),
   getRecentCasinos: (limit = 10) => request<Casino[]>(`/api/casinos/recent?limit=${limit}`),
   compareCasinos: (a: string, b: string) => request<CasinoCompareResult>(`/api/compare?a=${encodeURIComponent(a)}&b=${encodeURIComponent(b)}`),
-  getCasinos: (q?: string, all?: boolean) =>
-    request<Casino[]>(
-      all ? `/api/casinos?all=1${q ? `&q=${encodeURIComponent(q)}` : ''}` : (q ? `/api/casinos?q=${encodeURIComponent(q)}` : '/api/casinos'),
-    ),
+  getCasinos: (q?: string, all?: boolean, features?: string, noPhone?: boolean) => {
+    const params = new URLSearchParams();
+    if (all) params.set('all', '1');
+    if (q) params.set('q', q);
+    if (features) params.set('features', features);
+    if (noPhone) params.set('no_phone', '1');
+    const qs = params.toString();
+    return request<Casino[]>(qs ? `/api/casinos?${qs}` : '/api/casinos');
+  },
+  getRandomCasino: (opts?: { noPhone?: boolean; vpn?: boolean; features?: string[] }) => {
+    const params = new URLSearchParams();
+    if (opts?.noPhone) params.set('no_phone', '1');
+    if (opts?.vpn) params.set('vpn', '1');
+    if (opts?.features?.length) params.set('features', opts.features.join(','));
+    const qs = params.toString();
+    return request<Casino>(qs ? `/api/casinos/random?${qs}` : '/api/casinos/random');
+  },
+  getHealth: () =>
+    request<{
+      ok: boolean;
+      db: boolean;
+      bot: boolean;
+      botTag: string | null;
+      discoveryRunning: boolean;
+      pendingReview: number;
+      openReports: number;
+      staleCatalog: number;
+      failedHealth: number;
+      uptime: number;
+      searchEngines: string[];
+    }>('/health'),
+  updateBlockedSite: (id: string, data: Partial<{
+    name: string;
+    url: string;
+    reason: BlockReason;
+    severity: BlockSeverity;
+    description: string;
+  }>) =>
+    request<BlockedSite>(`/api/blocked/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   getCasino: (id: string) => request<Casino>(`/api/casinos/${id}`),
   getSimilar: (opts: { casinoId?: string; q?: string; limit?: number }) => {
     const params = new URLSearchParams();

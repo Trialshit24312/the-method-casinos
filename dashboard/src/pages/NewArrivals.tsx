@@ -6,15 +6,21 @@ import type { Casino } from '../types';
 import PageHeader from '../components/PageHeader';
 import CasinoCard from '../components/CasinoCard';
 import CarouselSkeleton from '../components/CarouselSkeleton';
+import { usePageTitle } from '../hooks/usePageTitle';
 
 export default function NewArrivals() {
+  usePageTitle('New Arrivals — The Method Casinos');
   const [casinos, setCasinos] = useState<Casino[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
 
   useEffect(() => {
     api.getNewArrivals(24)
       .then(setCasinos)
-      .catch(() => setCasinos([]))
+      .catch((e) => {
+        setError(e instanceof Error ? e.message : 'Failed to load');
+        setCasinos([]);
+      })
       .finally(() => setLoading(false));
   }, []);
 
@@ -25,6 +31,8 @@ export default function NewArrivals() {
         title="New Arrivals"
         subtitle="Recently approved sweepstakes casinos added to the verified catalog"
       />
+
+      {error && <p className="text-red-400 text-sm mb-4">{error}</p>}
 
       {loading ? (
         <CarouselSkeleton title="Loading" />

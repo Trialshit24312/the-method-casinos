@@ -1,5 +1,5 @@
-import { useEffect, useState, useCallback } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useEffect, useState, useCallback, useMemo } from 'react';
+import { useSearchParams, Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Plus, Search, X, Trash2 } from 'lucide-react';
 import { api } from '../api';
@@ -24,6 +24,23 @@ interface FormData {
   verified: boolean;
 }
 
+const BROWSE_PRESETS: { label: string; feature?: CasinoFeature; noPhone?: boolean }[] = [
+  { label: 'No phone', noPhone: true },
+  { label: 'Slots', feature: 'slots' },
+  { label: 'Live', feature: 'live_games' },
+  { label: 'VPN OK', feature: 'vpn_allowed' },
+  { label: 'Email only', feature: 'email_only' },
+];
+
+const REDEEM_PRESETS: { label: string; feature: CasinoFeature }[] = [
+  { label: 'Fast payout', feature: 'fast_payout' },
+  { label: 'Low min redeem', feature: 'low_min_redeem' },
+  { label: 'PayPal', feature: 'paypal_redeem' },
+  { label: 'Gift card', feature: 'gift_card_redeem' },
+  { label: 'Cash App', feature: 'cash_app' },
+  { label: 'Venmo', feature: 'venmo_redeem' },
+];
+
 const emptyForm: FormData = {
   name: '',
   url: '',
@@ -39,18 +56,22 @@ const emptyForm: FormData = {
 
 export default function CasinosPage() {
   const { user } = useAuth();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   usePageTitle('Browse Casinos — The Method');
   const [casinos, setCasinos] = useState<Casino[]>([]);
   const [search, setSearch] = useState(searchParams.get('q') ?? '');
   const [filter, setFilter] = useState<CasinoFeature | ''>('');
+  const [noPhoneOnly, setNoPhoneOnly] = useState(false);
   const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<Casino | null>(null);
   const [form, setForm] = useState<FormData>(emptyForm);
   const [error, setError] = useState('');
+  const [loadError, setLoadError] = useState('');
   const [showAll, setShowAll] = useState(false);
   const [staleOnly, setStaleOnly] = useState(false);
+  const [sort, setSort] = useState<'name' | 'rating' | 'checked'>('rating');
+  const [favoriteIds, setFavoriteIds] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     const q = searchParams.get('q');
@@ -59,25 +80,73 @@ export default function CasinosPage() {
 
   const load = useCallback(async () => {
     setLoading(true);
+    setLoadError('');
     try {
-      const data = await api.getCasinos(search || undefined, user?.isAdmin && showAll);
+      const data = await api.getCasinos(
+        search || undefined,
+        user?.isAdmin && showAll,
+        filter || undefined,
+        noPhoneOnly || undefined,
+      );
       setCasinos(data);
     } catch (e) {
-      console.error(e);
+      setLoadError(e instanceof Error ? e.message : 'Failed to load casinos');
     } finally {
       setLoading(false);
     }
-  }, [search, showAll, user?.isAdmin]);
+  }, [search, showAll, user?.isAdmin, filter, noPhoneOnly]);
 
   useEffect(() => {
     const timer = setTimeout(load, 300);
     return () => clearTimeout(timer);
   }, [load]);
 
-  const filtered = (filter
-    ? casinos.filter((c) => c.features.includes(filter))
-    : casinos
-  ).filter((c) => !staleOnly || isCatalogStale(c.lastCheckedAt));
+  useEffect(() => {
+    const t = setTimeout(() => {
+      const trimmed = search.trim();
+      setSearchParams(trimmed ? { q: trimmed } : {}, { replace: true });
+    }, 400);
+    return () => clearTimeout(t);
+  }, [search, setSearchParams]);
+
+  useEffect(() => {
+    if (!user) {
+      setFavoriteIds(new Set());
+      return;
+    }
+    api.getFavorites()
+      .then((favs) => setFavoriteIds(new Set(favs.map((f) => f.casino.id))))
+      .catch(() => setFavoriteIds(new Set()));
+  }, [user]);
+
+  const toggleFavorite = async (casinoId: string) => {
+    if (!user) return;
+    if (favoriteIds.has(casinoId)) {
+      await api.removeFavorite(casinoId);
+      setFavoriteIds((prev) => {
+        const next = new Set(prev);
+        next.delete(casinoId);
+        return next;
+      });
+    } else {
+      await api.addFavorite(casinoId);
+      setFavoriteIds((prev) => new Set(prev).add(casinoId));
+    }
+  };
+
+  const filtered = useMemo(() => {
+    const base = casinos.filter((c) => !staleOnly || isCatalogStale(c.lastCheckedAt));
+
+    return [...base].sort((a, b) => {
+      if (sort === 'name') return a.name.localeCompare(b.name);
+      if (sort === 'checked') {
+        const ta = a.lastCheckedAt ? new Date(a.lastCheckedAt).getTime() : 0;
+        const tb = b.lastCheckedAt ? new Date(b.lastCheckedAt).getTime() : 0;
+        return tb - ta;
+      }
+      return b.rating - a.rating;
+    });
+  }, [casinos, staleOnly, sort]);
 
   const openAdd = () => {
     setEditing(null);
@@ -219,6 +288,16 @@ export default function CasinosPage() {
           />
         </div>
         <select
+          value={sort}
+          onChange={(e) => setSort(e.target.value as 'name' | 'rating' | 'checked')}
+          className="input-field sm:w-40"
+          aria-label="Sort casinos"
+        >
+          <option value="rating">Top rated</option>
+          <option value="name">Name A–Z</option>
+          <option value="checked">Recently checked</option>
+        </select>
+        <select
           value={filter}
           onChange={(e) => setFilter(e.target.value as CasinoFeature | '')}
           className="input-field sm:w-56"
@@ -256,6 +335,58 @@ export default function CasinosPage() {
         )}
       </div>
 
+      <div className="flex flex-wrap gap-2 mb-3">
+        <span className="text-xs text-gray-600 self-center mr-1">Browse:</span>
+        {BROWSE_PRESETS.map((p) => {
+          const active = p.noPhone ? noPhoneOnly : filter === p.feature;
+          return (
+            <button
+              key={p.label}
+              type="button"
+              onClick={() => {
+                if (p.noPhone) {
+                  setNoPhoneOnly((v) => !v);
+                  setFilter('');
+                } else {
+                  setFilter((f) => (f === p.feature ? '' : p.feature!));
+                  setNoPhoneOnly(false);
+                }
+              }}
+              className={`text-xs px-2.5 py-1 rounded-full border transition-colors ${
+                active
+                  ? 'border-glow/40 bg-glow/10 text-glow'
+                  : 'border-white/10 text-gray-500 hover:text-gray-300'
+              }`}
+            >
+              {p.label}
+            </button>
+          );
+        })}
+      </div>
+
+      <div className="flex flex-wrap gap-2 mb-4">
+        <span className="text-xs text-gray-600 self-center mr-1">Redeem:</span>
+        {REDEEM_PRESETS.map((p) => (
+          <button
+            key={p.feature}
+            type="button"
+            onClick={() => {
+              setFilter((f) => (f === p.feature ? '' : p.feature));
+              setNoPhoneOnly(false);
+            }}
+            className={`text-xs px-2.5 py-1 rounded-full border transition-colors ${
+              filter === p.feature
+                ? 'border-glow/40 bg-glow/10 text-glow'
+                : 'border-white/10 text-gray-500 hover:text-gray-300'
+            }`}
+          >
+            {p.label}
+          </button>
+        ))}
+      </div>
+
+      {loadError && <p className="text-red-400 text-sm mb-4">{loadError}</p>}
+
       {loading ? (
         <div className="flex justify-center py-20">
           <div className="w-8 h-8 border-2 border-brand border-t-transparent rounded-full animate-spin" />
@@ -270,6 +401,8 @@ export default function CasinosPage() {
               admin={user?.isAdmin}
               onEdit={openEdit}
               onBlock={handleBlock}
+              favorited={user ? favoriteIds.has(casino.id) : undefined}
+              onToggleFavorite={user ? () => void toggleFavorite(casino.id) : undefined}
             />
           ))}
         </div>
@@ -277,7 +410,14 @@ export default function CasinosPage() {
 
       {!loading && filtered.length === 0 && (
         <div className="text-center py-20 text-gray-500">
-          No casinos found. {user?.isAdmin && 'Add one or run a discovery scan.'}
+          <p>No casinos found.</p>
+          {user?.isAdmin && (
+            <p className="text-sm mt-2">
+              <Link to="/discovery" className="text-glow hover:underline">Run discovery</Link>
+              {' · '}
+              <Link to="/review" className="text-glow hover:underline">Review queue</Link>
+            </p>
+          )}
         </div>
       )}
 

@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link, useParams, Navigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
-  ExternalLink, Star, ShieldCheck, Sparkles, Heart, Share2, AlertTriangle, Clock, Flag,
+  ExternalLink, Star, ShieldCheck, Sparkles, Heart, Share2, AlertTriangle, Clock, Flag, Link2,
 } from 'lucide-react';
 import ReportSiteModal from '../components/ReportSiteModal';
 import { api } from '../api';
@@ -22,6 +22,7 @@ export default function CasinoDetail() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [reportOpen, setReportOpen] = useState(false);
+  const [copyMsg, setCopyMsg] = useState('');
 
   useEffect(() => {
     if (!slug) return;
@@ -52,13 +53,29 @@ export default function CasinoDetail() {
     }
   };
 
+  const profileUrl = () =>
+    `${window.location.origin}/casinos/${casino?.urlNormalized ?? casino?.id ?? slug}`;
+
   const share = async () => {
-    const url = `${window.location.origin}/casinos/${casino?.urlNormalized ?? casino?.id ?? slug}`;
+    const url = profileUrl();
     if (navigator.share) {
-      await navigator.share({ title: casino?.name, url });
-    } else {
-      await navigator.clipboard.writeText(url);
+      try {
+        await navigator.share({ title: casino?.name, url });
+        return;
+      } catch {
+        /* fall through to copy */
+      }
     }
+    await navigator.clipboard.writeText(url);
+    setCopyMsg('Profile link copied');
+    setTimeout(() => setCopyMsg(''), 2500);
+  };
+
+  const copySiteUrl = async () => {
+    if (!casino) return;
+    await navigator.clipboard.writeText(casino.url);
+    setCopyMsg('Casino URL copied');
+    setTimeout(() => setCopyMsg(''), 2500);
   };
 
   if (loading) {
@@ -139,6 +156,9 @@ export default function CasinoDetail() {
             >
               <Flag className="w-3.5 h-3.5" /> Report
             </button>
+            <button type="button" onClick={() => void copySiteUrl()} className="btn-secondary text-sm flex items-center gap-1.5">
+              <Link2 className="w-3.5 h-3.5" /> Copy URL
+            </button>
             <button type="button" onClick={() => void share()} className="btn-secondary text-sm flex items-center gap-1.5">
               <Share2 className="w-3.5 h-3.5" /> Share
             </button>
@@ -147,6 +167,8 @@ export default function CasinoDetail() {
             </a>
           </div>
         </div>
+
+        {copyMsg && <p className="text-emerald-400 text-sm mb-2">{copyMsg}</p>}
 
         <p className="text-gray-300 mb-4">{casino.description || 'No description available.'}</p>
 
@@ -215,9 +237,11 @@ export default function CasinoDetail() {
         />
       )}
 
-      <Link to="/casinos" className="inline-block mt-8 text-sm text-gray-500 hover:text-white">
-        ← Back to catalog
-      </Link>
+      <div className="flex flex-wrap gap-4 mt-8 text-sm">
+        <Link to="/casinos" className="text-gray-500 hover:text-white">← Back to catalog</Link>
+        <Link to={`/compare?a=${casino.id}`} className="text-glow hover:underline">Compare this casino →</Link>
+        <Link to={`/tools/checker?url=${encodeURIComponent(casino.url)}`} className="text-glow hover:underline">Check URL safety →</Link>
+      </div>
 
       <ReportSiteModal
         open={reportOpen}

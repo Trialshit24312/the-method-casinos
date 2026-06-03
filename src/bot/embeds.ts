@@ -249,21 +249,112 @@ export function buildCompareEmbed(a: Casino, b: Casino): EmbedBuilder {
   );
 }
 
-export function buildMyListEmbed(casinos: Casino[]): EmbedBuilder {
-  const lines = casinos.slice(0, 15).map((c, i) =>
-    `\`${String(i + 1).padStart(2, ' ')}\` **${c.name}** ⭐ ${c.rating.toFixed(1)} — ${c.url}`,
-  );
+export function buildMyListEmbed(
+  entries: { casino: Casino; note?: string | null }[],
+): EmbedBuilder {
+  const lines = entries.slice(0, 12).map((e, i) => {
+    const c = e.casino;
+    const note = e.note?.trim();
+    const noteLine = note ? `\n   📝 ${truncate(note, 100)}` : '';
+    return `\`${String(i + 1).padStart(2, ' ')}\` **${c.name}** ⭐ ${c.rating.toFixed(1)} — ${c.url}${noteLine}`;
+  });
 
   return new EmbedBuilder()
     .setColor(BRAND_COLOR)
     .setTitle('❤️ My Saved Casinos')
     .setDescription(
-      casinos.length
+      entries.length
         ? lines.join('\n')
         : 'No saved casinos yet. Use `/favorite` on a casino name, or save from the dashboard.',
     )
-    .setFooter({ text: methodFooterText('/mylist') })
+    .setFooter({ text: methodFooterText('/mylist — notes sync with dashboard') })
     .setTimestamp();
+}
+
+export function buildArrivalsEmbed(casinos: Casino[]): EmbedBuilder {
+  const lines = casinos.slice(0, 12).map((c, i) => {
+    const when = c.updatedAt
+      ? `<t:${Math.floor(new Date(c.updatedAt).getTime() / 1000)}:R>`
+      : 'recently';
+    return `\`${String(i + 1).padStart(2, ' ')}\` **${c.name}** ⭐ ${c.rating.toFixed(1)} — approved ${when}`;
+  });
+  return applyBrandEmbed(
+    new EmbedBuilder()
+      .setColor(BRAND.gold)
+      .setTitle('✨ New Arrivals — Recently Approved')
+      .setDescription(
+        lines.join('\n') ||
+          'No recent approvals yet. Admins approve discoveries on the dashboard.',
+      )
+      .setFooter({ text: methodFooterText('/new on dashboard') }),
+    '/new',
+  );
+}
+
+export function buildInsightsEmbed(insights: {
+  pendingCount: number;
+  openReports: number;
+  catalogGrowth30d: number;
+  discoveryLast7d: { runs: number; added: number; rejected: number };
+}): EmbedBuilder {
+  const d = insights.discoveryLast7d;
+  return applyBrandEmbed(
+    new EmbedBuilder()
+      .setColor(BRAND.cyan)
+      .setTitle('📊 Admin Insights')
+      .addFields(
+        { name: '⏳ Pending review', value: `${insights.pendingCount}`, inline: true },
+        { name: '📋 Open reports', value: `${insights.openReports}`, inline: true },
+        { name: '📈 Catalog +30d', value: `${insights.catalogGrowth30d}`, inline: true },
+        { name: '🔍 Discovery 7d', value: `${d.runs} runs`, inline: true },
+        { name: 'Added / Rejected', value: `+${d.added} / ${d.rejected}`, inline: true },
+      )
+      .setDescription('Full charts and CSV export on dashboard → **Insights**.'),
+    '/insights',
+  );
+}
+
+export function buildReportsEmbed(reports: { url: string; reason?: string; reportedBy: string }[]): EmbedBuilder {
+  const lines = reports.slice(0, 10).map((r) => {
+    const reason = r.reason ? ` — ${truncate(r.reason, 60)}` : '';
+    return `• ${r.url}${reason}\n  _by ${r.reportedBy}_`;
+  });
+  return new EmbedBuilder()
+    .setColor(0xf59e0b)
+    .setTitle(`🚩 Open Reports (${reports.length})`)
+    .setDescription(lines.join('\n') || 'No open reports.')
+    .setFooter({ text: methodFooterText('Review on dashboard → Review Queue → Ban review') })
+    .setTimestamp();
+}
+
+export function buildStatusEmbed(opts: {
+  botConnected: boolean;
+  botTag: string | null;
+  verifiedCasinos: number;
+  totalCasinos: number;
+  pendingReview: number;
+  blockedSites: number;
+  uptimeSec: number;
+}): EmbedBuilder {
+  const uptimeMin = Math.floor(opts.uptimeSec / 60);
+  const uptimeH = Math.floor(uptimeMin / 60);
+  const uptime = uptimeH > 0 ? `${uptimeH}h ${uptimeMin % 60}m` : `${uptimeMin}m`;
+  return applyBrandEmbed(
+    new EmbedBuilder()
+      .setColor(opts.botConnected ? ACCENT_GREEN : 0xef4444)
+      .setTitle('🟢 Service Status')
+      .addFields(
+        { name: 'Discord bot', value: opts.botConnected ? `Online (${opts.botTag ?? 'ready'})` : 'Offline', inline: true },
+        { name: 'API uptime', value: uptime, inline: true },
+        { name: 'Search', value: 'Browser + free engines', inline: true },
+        { name: 'Verified', value: `${opts.verifiedCasinos}`, inline: true },
+        { name: 'Total DB', value: `${opts.totalCasinos}`, inline: true },
+        { name: 'Pending', value: `${opts.pendingReview}`, inline: true },
+        { name: 'Blocked', value: `${opts.blockedSites}`, inline: true },
+      )
+      .setDescription(`Dashboard: ${sitePage('/status')}`),
+    '/status',
+  );
 }
 
 export function buildStatsEmbed(stats: {
@@ -618,14 +709,15 @@ export function buildHelpEmbed(): EmbedBuilder {
         value:
           '`/search` · `/random` · `/casino`\n' +
           '`/similar` · `/similar search_web:true`\n' +
-          '`/compare` · `/featured` · `/recent` · `/tiers`',
+          '`/compare` · `/featured` · `/recent` · `/new`\n' +
+          '`/random` · `/activity` · `/status` · `/guides`',
         inline: true,
       },
       {
         name: '🏷️ Filters',
         value:
           '`/nophone` · `/slots` · `/live` · `/vpn`\n' +
-          '`/fish` · `/bingo` · `/new` · `/redeem`',
+          '`/fish` · `/bingo` · `/redeem` · `/tagged`',
         inline: true,
       },
       {
@@ -638,17 +730,21 @@ export function buildHelpEmbed(): EmbedBuilder {
       },
       {
         name: '❤️ Personal',
-        value: '`/mylist` · `/favorite`',
+        value: '`/mylist` · `/favorite` (+ optional `note`)',
         inline: true,
       },
       {
         name: '🌐 Website',
-        value: '`/website` · `/about` · `/tools` · `/tiers` · `/legal`',
+        value: '`/website` · `/about` · `/tools` · `/guides` · `/legal`',
         inline: true,
       },
       {
         name: '⚙️ Admin',
-        value: '`/discover` · `/pending` · `/approve` · `/block`',
+        value:
+          '`/discover` · `/pending` · `/reports`\n' +
+          '`/approve` · `/approveall` · `/reject`\n' +
+          '`/promotereport` · `/blockreport` · `/reporthistory`\n' +
+          '`/unlist` · `/revalidate` · `/insights`',
         inline: true,
       },
     )

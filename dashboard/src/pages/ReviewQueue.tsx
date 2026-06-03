@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { CheckCircle, RefreshCw } from 'lucide-react';
+import { CheckCircle, RefreshCw, Search } from 'lucide-react';
 import { api } from '../api';
 import type { Casino, SiteReport } from '../types';
 import PageHeader from '../components/PageHeader';
@@ -28,6 +28,7 @@ export default function ReviewQueue() {
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [pendingFilter, setPendingFilter] = useState('');
 
   const load = () => {
     setLoading(true);
@@ -52,7 +53,10 @@ export default function ReviewQueue() {
   useEffect(() => { load(); }, []);
 
   useEffect(() => {
-    const id = setInterval(() => load(), 20_000);
+    const tick = () => {
+      if (document.visibilityState === 'visible') load();
+    };
+    const id = setInterval(tick, 20_000);
     return () => clearInterval(id);
   }, [tab]);
 
@@ -68,13 +72,29 @@ export default function ReviewQueue() {
   if (!user.isAdmin) return <Navigate to="/dashboard" replace />;
 
   const approve = async (id: string) => {
-    await api.approveCasino(id);
-    load();
+    setBusyId(id);
+    setError('');
+    try {
+      await api.approveCasino(id);
+      load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Approve failed');
+    } finally {
+      setBusyId(null);
+    }
   };
 
   const reject = async (id: string) => {
-    await api.rejectCasino(id);
-    load();
+    setBusyId(id);
+    setError('');
+    try {
+      await api.rejectCasino(id);
+      load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Reject failed');
+    } finally {
+      setBusyId(null);
+    }
   };
 
   const recheck = async (id: string) => {
@@ -97,6 +117,12 @@ export default function ReviewQueue() {
       setBusyId(null);
     }
   };
+
+  const pendingFiltered = pending.filter((c) => {
+    const q = pendingFilter.trim().toLowerCase();
+    if (!q) return true;
+    return c.name.toLowerCase().includes(q) || c.url.toLowerCase().includes(q);
+  });
 
   const tabs: { id: Tab; label: string; count?: number }[] = [
     { id: 'discoveries', label: 'Discoveries', count: pending.length },
@@ -153,6 +179,25 @@ export default function ReviewQueue() {
             Approve all ({pending.length})
           </button>
         )}
+        {tab === 'discoveries' && pending.length > 1 && (
+          <button
+            type="button"
+            className="btn-secondary text-sm text-red-400/90"
+            onClick={async () => {
+              if (!confirm(`Reject all ${pending.length} pending casinos? This cannot be undone.`)) return;
+              setError('');
+              try {
+                await Promise.all(pending.map((c) => api.rejectCasino(c.id)));
+                load();
+                setNotice(`Rejected ${pending.length} pending casino(s).`);
+              } catch (e) {
+                setError(e instanceof Error ? e.message : 'Bulk reject failed');
+              }
+            }}
+          >
+            Reject all
+          </button>
+        )}
         <button onClick={load} className="btn-secondary flex items-center gap-2 text-sm ml-auto">
           <RefreshCw className="w-4 h-4" /> Refresh
         </button>
@@ -184,14 +229,27 @@ export default function ReviewQueue() {
         <div className="glass-glow p-8 text-center text-gray-500">No closed reports yet.</div>
       )}
 
+      {tab === 'discoveries' && pending.length > 0 && (
+        <div className="relative mb-4 max-w-md">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-600" />
+          <input
+            className="input-field pl-9 text-sm"
+            placeholder="Filter pending by name or URL…"
+            value={pendingFilter}
+            onChange={(e) => setPendingFilter(e.target.value)}
+          />
+        </div>
+      )}
+
       {tab === 'discoveries' && (
         <div className="space-y-3">
-          {pending.map((casino) => (
+          {pendingFiltered.map((casino) => (
             <PendingCasinoRow
               key={casino.id}
               casino={casino}
-              onApprove={() => approve(casino.id)}
-              onReject={() => reject(casino.id)}
+              busy={busyId === casino.id}
+              onApprove={() => void approve(casino.id)}
+              onReject={() => void reject(casino.id)}
             />
           ))}
         </div>

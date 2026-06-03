@@ -954,6 +954,57 @@ export function getAdminInsights(): AdminInsights {
   };
 }
 
+export interface PublicFeedItem {
+  type: 'approval' | 'discovery';
+  at: string;
+  title: string;
+  detail: string;
+  casinoId?: string;
+  casinoSlug?: string;
+}
+
+export function getPublicFeed(limit = 10): PublicFeedItem[] {
+  const items: PublicFeedItem[] = [];
+  for (const c of getRecentlyApprovedCasinos(Math.min(limit, 8))) {
+    items.push({
+      type: 'approval',
+      at: c.updatedAt,
+      title: c.name,
+      detail: 'Approved to catalog',
+      casinoId: c.id,
+      casinoSlug: c.urlNormalized || c.id,
+    });
+  }
+  for (const r of getDiscoveryHistory(5)) {
+    items.push({
+      type: 'discovery',
+      at: r.ranAt,
+      title: `${r.mode} discovery scan`,
+      detail: `+${r.added} queued · ${r.rejected} rejected`,
+    });
+  }
+  return items
+    .sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime())
+    .slice(0, limit);
+}
+
+export function exportVerifiedCasinosCsv(): string {
+  const rows = searchCasinos({ catalogOnly: true, limit: 500 });
+  const escape = (v: string) => `"${v.replace(/"/g, '""')}"`;
+  const lines = [
+    'name,url,rating,features,signup_requirements,last_checked',
+    ...rows.map((c) => [
+      escape(c.name),
+      escape(c.url),
+      String(c.rating),
+      escape(c.features.join(';')),
+      escape(c.signupRequirements.join(';')),
+      escape(c.lastCheckedAt ?? ''),
+    ].join(',')),
+  ];
+  return lines.join('\n');
+}
+
 export function exportPendingCasinosCsv(): string {
   const rows = getPendingCasinos();
   const escape = (v: string) => `"${v.replace(/"/g, '""')}"`;

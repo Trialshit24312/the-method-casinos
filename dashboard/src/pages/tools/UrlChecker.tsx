@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { ShieldCheck, ShieldAlert, Search, ExternalLink, AlertTriangle, Flag, Clock } from 'lucide-react';
 import PageHeader from '../../components/PageHeader';
@@ -10,9 +10,11 @@ import { BLOCK_REASON_LABELS } from '../../types';
 import { SCAM_WARNING_SIGNS, SWEEPS_RESEARCH } from '../../lib/generators';
 
 import { usePageTitle } from '../../hooks/usePageTitle';
+import { useAuth } from '../../context/AuthContext';
 
 export default function UrlCheckerPage() {
   usePageTitle('URL Checker — The Method Casinos');
+  const { user } = useAuth();
   const [searchParams] = useSearchParams();
   const [url, setUrl] = useState('');
   const [loading, setLoading] = useState(false);
@@ -119,6 +121,11 @@ export default function UrlCheckerPage() {
                 </div>
                 <p className="text-white font-medium">{result.casino.name}</p>
                 <p className="text-sm text-gray-400 mt-1">Found by discovery — not yet in the public verified catalog.</p>
+                {user?.isAdmin && (
+                  <Link to="/review?tab=discoveries" className="text-sm text-glow hover:underline mt-2 inline-block">
+                    Open review queue →
+                  </Link>
+                )}
               </div>
             ) : result.casino ? (
               <div className={`p-5 rounded-xl border ${result.safe ? 'bg-emerald-500/10 border-emerald-500/30' : 'bg-amber-500/10 border-amber-500/30'}`}>
@@ -128,10 +135,18 @@ export default function UrlCheckerPage() {
                 </div>
                 <p className="text-white font-medium">{result.casino.name}</p>
                 <p className="text-sm text-gray-500 mt-1">Rating: {result.casino.rating.toFixed(1)}/5</p>
-                <a href={result.casino.url} target="_blank" rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1 text-sm text-[#00aeef] mt-3 hover:underline">
-                  Visit site <ExternalLink className="w-3 h-3" />
-                </a>
+                <div className="flex flex-wrap gap-3 mt-3 text-sm">
+                  <a href={result.casino.url} target="_blank" rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 text-[#00aeef] hover:underline">
+                    Visit site <ExternalLink className="w-3 h-3" />
+                  </a>
+                  <Link to={`/casinos/${result.casino.urlNormalized ?? result.casino.id}`} className="text-glow hover:underline">
+                    Catalog profile →
+                  </Link>
+                  <Link to={`/similar?casino=${result.casino.id}`} className="text-glow hover:underline">
+                    Find similar →
+                  </Link>
+                </div>
               </div>
             ) : (
               <div className="p-5 rounded-xl bg-amber-500/10 border border-amber-500/30">

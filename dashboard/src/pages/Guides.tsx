@@ -1,7 +1,8 @@
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { BookOpen, Mail, ShieldCheck, Ban, Radar, Dices, KeyRound, AlertTriangle, Sparkles } from 'lucide-react';
+import { BookOpen, Mail, ShieldCheck, Ban, Radar, Dices, KeyRound, AlertTriangle, Sparkles, Heart, Scale, Shuffle } from 'lucide-react';
 import PageHeader from '../components/PageHeader';
+import { usePageTitle } from '../hooks/usePageTitle';
 
 const GUIDES = [
   {
@@ -84,10 +85,14 @@ const QUICK_LINKS = [
   { to: '/tools/password', label: 'Password Gen', icon: KeyRound },
   { to: '/blocked', label: 'Blocked Sites', icon: Ban },
   { to: '/casinos', label: 'Casinos', icon: Dices },
+  { to: '/random', label: 'Random Pick', icon: Shuffle },
+  { to: '/compare', label: 'Compare', icon: Scale },
+  { to: '/mylist', label: 'My List', icon: Heart },
   { to: '/discovery', label: 'Discovery', icon: Radar },
 ];
 
 export default function GuidesPage() {
+  usePageTitle('Guides — The Method Casinos');
   return (
     <div className="p-8 max-w-5xl mx-auto">
       <PageHeader

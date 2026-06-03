@@ -22,6 +22,7 @@ import CasinoDetail from './pages/CasinoDetail';
 import MyList from './pages/MyList';
 import LegalHub from './pages/LegalHub';
 import Compare from './pages/Compare';
+import RandomPick from './pages/RandomPick';
 import Status from './pages/Status';
 import Pricing from './pages/Pricing';
 import NewArrivals from './pages/NewArrivals';
@@ -79,6 +80,7 @@ export default function App() {
           <Route path="/mylist" element={<MyList />} />
           <Route path="/similar" element={<SimilarCasinos />} />
           <Route path="/compare" element={<Compare />} />
+          <Route path="/random" element={<RandomPick />} />
           <Route path="/status" element={<Status />} />
           <Route path="/assistant" element={<Navigate to="/similar" replace />} />
           <Route path="/blocked" element={<BlockedSites />} />

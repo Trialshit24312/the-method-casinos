@@ -4,6 +4,7 @@ import { AnimatePresence } from 'framer-motion';
 import {
   LayoutDashboard,
   Dices,
+  Shuffle,
   Radar,
   LogOut,
   Mail,
@@ -35,6 +36,7 @@ import UserAvatar from './UserAvatar';
 import { discordInviteUrl } from '../lib/site';
 import { api } from '../api';
 import ReportSiteModal from './ReportSiteModal';
+import ShortcutsHelp from './ShortcutsHelp';
 
 const mainNav = [
   { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
@@ -43,6 +45,7 @@ const mainNav = [
   { to: '/mylist', icon: Heart, label: 'My List' },
   { to: '/similar', icon: Sparkles, label: 'Similar Casinos' },
   { to: '/compare', icon: Scale, label: 'Compare' },
+  { to: '/random', icon: Shuffle, label: 'Random' },
   { to: '/pricing', icon: Crown, label: 'Membership' },
   { to: '/blocked', icon: Ban, label: 'Blocked Sites' },
 ];
@@ -261,6 +264,7 @@ export default function Layout() {
           )}
         </header>
         <ReportSiteModal open={reportOpen} onClose={() => setReportOpen(false)} />
+        <ShortcutsHelp />
         <div className="flex-1 relative z-10 p-1">
           <AnimatePresence mode="wait">
             <PageTransition key={location.pathname}>

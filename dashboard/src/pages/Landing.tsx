@@ -22,6 +22,7 @@ export default function Landing() {
   const [stats, setStats] = useState<Stats | null>(null);
   const [featured, setFeatured] = useState<Casino[]>([]);
   const [featuredLoading, setFeaturedLoading] = useState(true);
+  const [newArrivals, setNewArrivals] = useState<Casino[]>([]);
   const discordInvite = discordInviteUrl();
 
   useEffect(() => {
@@ -31,6 +32,7 @@ export default function Landing() {
       .then(setFeatured)
       .catch(() => {})
       .finally(() => setFeaturedLoading(false));
+    api.getNewArrivals(6).then(setNewArrivals).catch(() => {});
   }, []);
 
   return (
@@ -57,6 +59,9 @@ export default function Landing() {
             </Link>
             <Link to="/similar" className="text-sm text-gray-400 hover:text-glow transition-colors hidden sm:inline">
               Similar
+            </Link>
+            <Link to="/random" className="text-sm text-gray-400 hover:text-white transition-colors hidden sm:inline">
+              Random
             </Link>
             <Link to="/pricing" className="text-sm text-gray-400 hover:text-brand-light transition-colors hidden sm:inline">
               Membership
@@ -148,6 +153,27 @@ export default function Landing() {
           </motion.div>
         )}
 
+        {newArrivals.length > 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.28 }}
+            className="mb-16 px-2"
+          >
+            <CasinoCarousel
+              title="New arrivals"
+              subtitle="Recently approved for the public catalog"
+              casinos={newArrivals}
+              icon={<Zap className="w-5 h-5 text-glow" />}
+              action={
+                <Link to="/new" className="text-sm text-glow hover:underline flex items-center gap-1">
+                  View all <ArrowRight className="w-3.5 h-3.5" />
+                </Link>
+              }
+            />
+          </motion.div>
+        )}
+
         {featuredLoading ? (
           <div className="mb-16 px-2">
             <CarouselSkeleton title="Featured casinos" cards={3} />
@@ -198,6 +224,8 @@ export default function Landing() {
             {[
               { to: '/casinos', title: 'Casino catalog', desc: 'Filter by features — slots, VPN, email-only, redeem options.', icon: Dices, color: 'from-[#b87333]/20 to-transparent' },
               { to: '/similar', title: 'Similar Casinos', desc: 'Match from catalog or search DuckDuckGo, Bing & Brave for alike sites.', icon: Sparkles, color: 'from-[#00aeef]/20 to-transparent' },
+              { to: '/random', title: 'Random pick', desc: 'Roll a verified casino with filters — same as Discord /random.', icon: Zap, color: 'from-glow/20 to-transparent' },
+              { to: '/new', title: 'New arrivals', desc: 'Recently approved operators added to the verified catalog.', icon: Star, color: 'from-emerald-500/15 to-transparent' },
               { to: '/tools', title: 'Signup tools', desc: 'Email, phone, password generators and URL checker.', icon: Wrench, color: 'from-[#b87333]/15 to-transparent' },
               { to: '/tools/checker', title: 'URL safety', desc: 'Instant blocklist + catalog lookup before you click.', icon: ShieldCheck, color: 'from-emerald-500/15 to-transparent' },
               { to: '/blocked', title: 'Blocklist', desc: 'Known scam and phishing URLs — never sign up here.', icon: Globe, color: 'from-red-500/15 to-transparent' },

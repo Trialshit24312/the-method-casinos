@@ -6,6 +6,7 @@ import { api } from '../api';
 import type { Casino, SimilarCasinoMatch, SimilarWebDiscoveryResult } from '../types';
 import { FEATURE_LABELS, FEATURE_COLORS } from '../types';
 import PageHeader from '../components/PageHeader';
+import { usePageTitle } from '../hooks/usePageTitle';
 
 function MatchCard({ match, index }: { match: SimilarCasinoMatch; index: number }) {
   const pct = match.matchPercent;
@@ -89,6 +90,7 @@ function CandidateRow({ c }: { c: SimilarWebDiscoveryResult['candidates'][0] }) 
 }
 
 export default function SimilarCasinosPage() {
+  usePageTitle('Similar Casinos — The Method');
   const [searchParams, setSearchParams] = useSearchParams();
   const [allCasinos, setAllCasinos] = useState<Casino[]>([]);
   const [query, setQuery] = useState('');

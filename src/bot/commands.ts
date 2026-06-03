@@ -7,7 +7,38 @@ import {
 } from 'discord.js';
 import type { Command } from './command-types.js';
 export type { Command } from './command-types.js';
-import { searchCasinos, getRandomCasino, getStats, getAllCasinos, getCasinoById, searchBlockedSites, addBlockedSite, getCasinoByUrl, getBlockedSiteByUrl, isUrlBlocked, findSimilarCasinosByQuery, getPendingCasinos, addSiteReport, approveCasino, rejectCasino, getOpenSiteReports, dismissSiteReport, getUserFavorites, addUserFavorite, removeUserFavorite } from '../database/index.js';
+import {
+  searchCasinos,
+  getRandomCasino,
+  getStats,
+  getAllCasinos,
+  getCasinoById,
+  searchBlockedSites,
+  addBlockedSite,
+  getCasinoByUrl,
+  getBlockedSiteByUrl,
+  isUrlBlocked,
+  findSimilarCasinosByQuery,
+  getPendingCasinos,
+  addSiteReport,
+  approveCasino,
+  rejectCasino,
+  getOpenSiteReports,
+  dismissSiteReport,
+  getUserFavorites,
+  addUserFavorite,
+  removeUserFavorite,
+  setUserFavoriteNote,
+  getRecentlyApprovedCasinos,
+  getAdminInsights,
+  approveAllPendingCasinos,
+  unlistCasino,
+  getKnownHosts,
+  markSiteReportReviewed,
+  getClosedSiteReports,
+} from '../database/index.js';
+import { saveDiscoveryCandidateForReview } from '../discovery/engine.js';
+import { revalidateCasinoById } from '../discovery/revalidate.js';
 import { runDiscovery } from '../discovery/engine.js';
 import {
   buildCasinoEmbed,
@@ -22,6 +53,9 @@ import {
   buildSimilarButtons,
   buildCompareEmbed,
   buildMyListEmbed,
+  buildArrivalsEmbed,
+  buildInsightsEmbed,
+  buildReportsEmbed,
   buildUrlCheckEmbed,
   parseFeatureChoices,
   handleCasinoAutocomplete,
@@ -279,7 +313,7 @@ export const commands: Command[] = [
     async execute(interaction) {
       await interaction.deferReply({ ephemeral: true });
       const favorites = getUserFavorites(interaction.user.id);
-      await interaction.editReply({ embeds: [buildMyListEmbed(favorites.map((f) => f.casino))] });
+      await interaction.editReply({ embeds: [buildMyListEmbed(favorites)] });
     },
   },
 
@@ -292,12 +326,16 @@ export const commands: Command[] = [
       )
       .addBooleanOption((o) =>
         o.setName('remove').setDescription('Remove from list instead of adding').setRequired(false),
+      )
+      .addStringOption((o) =>
+        o.setName('note').setDescription('Personal note (saved with casino; max 500 chars)').setRequired(false),
       ),
 
     async execute(interaction) {
       await interaction.deferReply({ ephemeral: true });
       const name = interaction.options.getString('name', true);
       const remove = interaction.options.getBoolean('remove') ?? false;
+      const note = interaction.options.getString('note');
       const result = findSimilarCasinosByQuery(name, 1);
 
       if (!result) {
@@ -315,7 +353,13 @@ export const commands: Command[] = [
       }
 
       addUserFavorite(interaction.user.id, casino.id);
-      await interaction.editReply({ content: `❤️ Saved **${casino.name}** to your list. Use \`/mylist\` to view.` });
+      if (note?.trim()) {
+        setUserFavoriteNote(interaction.user.id, casino.id, note.trim());
+      }
+      const noteMsg = note?.trim() ? ' Note saved.' : '';
+      await interaction.editReply({
+        content: `❤️ Saved **${casino.name}** to your list.${noteMsg} Use \`/mylist\` to view.`,
+      });
     },
 
     async autocomplete(interaction) {
@@ -496,12 +540,24 @@ export const commands: Command[] = [
   {
     data: new SlashCommandBuilder()
       .setName('new')
-      .setDescription('List newly tagged sweepstakes casinos'),
+      .setDescription('Recently approved casinos (matches dashboard New Arrivals)'),
+
+    async execute(interaction) {
+      await interaction.deferReply();
+      const casinos = getRecentlyApprovedCasinos(15);
+      await interaction.editReply({ embeds: [buildArrivalsEmbed(casinos)] });
+    },
+  },
+
+  {
+    data: new SlashCommandBuilder()
+      .setName('tagged')
+      .setDescription('Casinos tagged as newly discovered (new_casino feature)'),
 
     async execute(interaction) {
       await interaction.deferReply();
       const results = searchCasinos({ features: ['new_casino'], catalogOnly: true, limit: 25 });
-      const embed = buildListEmbed(results, 'New Casinos', 'Recently discovered or new casinos ✨');
+      const embed = buildListEmbed(results, 'Tagged New Casinos', 'Operators with the new_casino feature tag ✨');
       await interaction.editReply({ embeds: [embed] });
     },
   },
@@ -770,6 +826,248 @@ export const commands: Command[] = [
         return;
       }
       await handleCasinoAutocomplete(interaction, getPendingCasinos());
+    },
+  },
+
+  {
+    data: new SlashCommandBuilder()
+      .setName('insights')
+      .setDescription('Admin backlog and discovery stats (admin only)'),
+
+    async execute(interaction) {
+      if (!isAdmin(interaction.user.id)) {
+        await interaction.reply({ content: '❌ Admin only command.', ephemeral: true });
+        return;
+      }
+      await interaction.deferReply({ ephemeral: true });
+      const insights = getAdminInsights();
+      await interaction.editReply({ embeds: [buildInsightsEmbed(insights)] });
+    },
+  },
+
+  {
+    data: new SlashCommandBuilder()
+      .setName('reports')
+      .setDescription('List open user/discovery reports (admin only)'),
+
+    async execute(interaction) {
+      if (!isAdmin(interaction.user.id)) {
+        await interaction.reply({ content: '❌ Admin only command.', ephemeral: true });
+        return;
+      }
+      await interaction.deferReply({ ephemeral: true });
+      const reports = getOpenSiteReports();
+      await interaction.editReply({
+        embeds: [buildReportsEmbed(reports.map((r) => ({
+          url: r.url,
+          reason: r.reason,
+          reportedBy: r.reportedBy,
+        })))],
+      });
+    },
+  },
+
+  {
+    data: new SlashCommandBuilder()
+      .setName('unlist')
+      .setDescription('Remove a casino from the public catalog (admin only)')
+      .addStringOption((o) =>
+        o.setName('name').setDescription('Casino name').setRequired(true).setAutocomplete(true),
+      ),
+
+    async execute(interaction) {
+      if (!isAdmin(interaction.user.id)) {
+        await interaction.reply({ content: '❌ Admin only command.', ephemeral: true });
+        return;
+      }
+      const name = interaction.options.getString('name', true);
+      const match = searchCasinos({ query: name, catalogOnly: true, limit: 1 });
+      if (!match.length) {
+        await interaction.reply({ content: `❌ No catalog casino matching "${name}".`, ephemeral: true });
+        return;
+      }
+      const ok = unlistCasino(match[0].id);
+      await interaction.reply({
+        content: ok
+          ? `📤 **${match[0].name}** removed from the public catalog.`
+          : '❌ Unlist failed.',
+        ephemeral: true,
+      });
+    },
+
+    async autocomplete(interaction) {
+      if (!isAdmin(interaction.user.id)) {
+        await interaction.respond([]);
+        return;
+      }
+      await handleCasinoAutocomplete(interaction, getAllCasinos(true));
+    },
+  },
+
+  {
+    data: new SlashCommandBuilder()
+      .setName('revalidate')
+      .setDescription('Re-check a casino homepage health (admin only)')
+      .addStringOption((o) =>
+        o.setName('name').setDescription('Casino name').setRequired(true).setAutocomplete(true),
+      ),
+
+    async execute(interaction) {
+      if (!isAdmin(interaction.user.id)) {
+        await interaction.reply({ content: '❌ Admin only command.', ephemeral: true });
+        return;
+      }
+      const name = interaction.options.getString('name', true);
+      const match = searchCasinos({ query: name, catalogOnly: true, limit: 1 });
+      if (!match.length) {
+        await interaction.reply({ content: `❌ No catalog casino matching "${name}".`, ephemeral: true });
+        return;
+      }
+      await interaction.deferReply({ ephemeral: true });
+      const result = await revalidateCasinoById(match[0].id);
+      await interaction.editReply({
+        content: result.ok
+          ? `✅ **${result.name}** passed homepage revalidation.`
+          : `⚠️ **${result.name}** failed: ${result.reason ?? 'check failed'}`,
+      });
+    },
+
+    async autocomplete(interaction) {
+      if (!isAdmin(interaction.user.id)) {
+        await interaction.respond([]);
+        return;
+      }
+      await handleCasinoAutocomplete(interaction, getAllCasinos(true));
+    },
+  },
+
+  {
+    data: new SlashCommandBuilder()
+      .setName('blockreport')
+      .setDescription('Block a reported URL and close the report (admin only)')
+      .addStringOption((o) =>
+        o.setName('url').setDescription('Reported URL (partial match OK)').setRequired(true),
+      ),
+
+    async execute(interaction) {
+      if (!isAdmin(interaction.user.id)) {
+        await interaction.reply({ content: '❌ Admin only command.', ephemeral: true });
+        return;
+      }
+      const raw = interaction.options.getString('url', true);
+      const reports = getOpenSiteReports();
+      const match = reports.find((r) =>
+        r.url.includes(raw) || raw.includes(r.url.replace(/^https?:\/\//, '')),
+      );
+      if (!match) {
+        await interaction.reply({ content: '❌ No open report matching that URL.', ephemeral: true });
+        return;
+      }
+      const site = addBlockedSite({
+        name: match.url.replace(/^https?:\/\//, '').slice(0, 60),
+        url: match.url,
+        reason: 'scam',
+        severity: 'high',
+        description: match.reason ?? 'Blocked from report review',
+        reportedBy: match.reportedBy,
+        removeCasino: true,
+      });
+      markSiteReportReviewed(match.id, interaction.user.tag);
+      await interaction.reply({
+        content: site
+          ? `⛔ Blocked **${match.url}** and closed the report.`
+          : `⚠️ Report closed but blocklist entry may already exist for ${match.url}.`,
+        ephemeral: true,
+      });
+    },
+  },
+
+  {
+    data: new SlashCommandBuilder()
+      .setName('reporthistory')
+      .setDescription('Recently closed site reports (admin only)'),
+
+    async execute(interaction) {
+      if (!isAdmin(interaction.user.id)) {
+        await interaction.reply({ content: '❌ Admin only command.', ephemeral: true });
+        return;
+      }
+      await interaction.deferReply({ ephemeral: true });
+      const closed = getClosedSiteReports(12);
+      if (!closed.length) {
+        await interaction.editReply({ content: 'No closed reports yet.' });
+        return;
+      }
+      const lines = closed.map((r) =>
+        `• ${r.url}${r.reason ? ` — ${r.reason.slice(0, 40)}` : ''}`,
+      );
+      await interaction.editReply({
+        content: `**Recent closed reports (${closed.length})**\n${lines.join('\n')}`,
+      });
+    },
+  },
+
+  {
+    data: new SlashCommandBuilder()
+      .setName('promotereport')
+      .setDescription('Promote a ban-review URL to pending discovery (admin only)')
+      .addStringOption((o) =>
+        o.setName('url').setDescription('Reported URL (partial match OK)').setRequired(true),
+      ),
+
+    async execute(interaction) {
+      if (!isAdmin(interaction.user.id)) {
+        await interaction.reply({ content: '❌ Admin only command.', ephemeral: true });
+        return;
+      }
+      const raw = interaction.options.getString('url', true);
+      const reports = getOpenSiteReports();
+      const match = reports.find((r) =>
+        r.url.includes(raw) || raw.includes(r.url.replace(/^https?:\/\//, '')),
+      );
+      if (!match) {
+        await interaction.reply({ content: '❌ No open report matching that URL.', ephemeral: true });
+        return;
+      }
+      const known = new Set(getKnownHosts());
+      const saved = saveDiscoveryCandidateForReview(match.url, 'promoted from ban review', known);
+      if (!saved) {
+        await interaction.reply({
+          content: '❌ Already in catalog, blocked, or not an operator URL.',
+          ephemeral: true,
+        });
+        return;
+      }
+      dismissSiteReport(match.id, interaction.user.tag);
+      await interaction.reply({
+        content: `✅ Promoted **${saved.name}** to pending review.\nApprove with \`/approve\` or the dashboard Review Queue.`,
+        ephemeral: true,
+      });
+    },
+  },
+
+  {
+    data: new SlashCommandBuilder()
+      .setName('approveall')
+      .setDescription('Approve up to 50 pending casinos for the catalog (admin only)')
+      .addIntegerOption((o) =>
+        o.setName('limit').setDescription('Max to approve (default 50)').setRequired(false).setMinValue(1).setMaxValue(50),
+      ),
+
+    async execute(interaction) {
+      if (!isAdmin(interaction.user.id)) {
+        await interaction.reply({ content: '❌ Admin only command.', ephemeral: true });
+        return;
+      }
+      const limit = interaction.options.getInteger('limit') ?? 50;
+      await interaction.deferReply({ ephemeral: true });
+      const result = approveAllPendingCasinos(interaction.user.tag, limit);
+      const remaining = getPendingCasinos().length;
+      await interaction.editReply({
+        content: result.approved > 0
+          ? `✅ Approved **${result.approved}** casino(s) for the public catalog.${remaining > 0 ? ` ${remaining} still pending.` : ''}`
+          : 'No pending casinos to approve.',
+      });
     },
   },
 
