@@ -16,7 +16,7 @@ export default function NotFound() {
         title="Page not found"
         description="That route doesn't exist — head back to the catalog or dashboard."
         action={
-          <div className="flex flex-wrap justify-center gap-3">
+          <div className="flex flex-wrap justify-center gap-3 animate-stagger">
             <Link to="/" className="btn-primary text-sm">Home</Link>
             <Link to="/casinos" className="btn-glow text-sm">Browse casinos</Link>
             <Link to="/dashboard" className="btn-secondary text-sm">Dashboard</Link>

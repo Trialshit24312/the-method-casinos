@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Sparkles, Star, ExternalLink, Dices, Globe, CheckCircle, XCircle, MinusCircle } from 'lucide-react';
+import { Sparkles, Star, ExternalLink, Dices, Globe, CheckCircle, XCircle, MinusCircle, Heart, Scale } from 'lucide-react';
 import { api } from '../api';
 import type { Casino, SimilarCasinoMatch, SimilarWebDiscoveryResult } from '../types';
 import { FEATURE_LABELS, FEATURE_COLORS } from '../types';
@@ -11,10 +11,24 @@ import EmptyState from '../components/EmptyState';
 import Breadcrumb from '../components/Breadcrumb';
 import ErrorBanner from '../components/ErrorBanner';
 import SimilarMatchesSkeleton from '../components/SimilarMatchesSkeleton';
+import RecentlyViewed from '../components/RecentlyViewed';
+import NoticeBanner from '../components/NoticeBanner';
 import { usePageTitle } from '../hooks/usePageTitle';
 import { useAuth } from '../context/AuthContext';
+import { useCasinoFavorites } from '../hooks/useCasinoFavorites';
+import { useTimedNotice } from '../hooks/useTimedNotice';
 
-function MatchCard({ match }: { match: SimilarCasinoMatch }) {
+function MatchCard({
+  match,
+  sourceId,
+  isFavorited,
+  onToggleFavorite,
+}: {
+  match: SimilarCasinoMatch;
+  sourceId: string;
+  isFavorited: boolean;
+  onToggleFavorite: () => void;
+}) {
   const pct = match.matchPercent;
   const ringColor = pct >= 75 ? 'text-emerald-400' : pct >= 50 ? 'text-glow' : 'text-brand-light';
 
@@ -22,7 +36,11 @@ function MatchCard({ match }: { match: SimilarCasinoMatch }) {
     <div className="glass-glow p-5 border-glow/15 hover:border-glow/35 transition-all card-shine">
       <div className="flex items-start justify-between gap-3 mb-3">
         <div>
-          <h3 className="font-display font-semibold text-lg text-white">{match.casino.name}</h3>
+          <h3 className="font-display font-semibold text-lg text-white">
+            <Link to={`/casinos/${match.casino.urlNormalized ?? match.casino.id}`} className="hover:text-glow transition-colors">
+              {match.casino.name}
+            </Link>
+          </h3>
           <div className="flex items-center gap-1 text-brand-light text-sm mt-0.5">
             <Star className="w-3.5 h-3.5 fill-current" />
             {match.casino.rating.toFixed(1)}
@@ -62,6 +80,25 @@ function MatchCard({ match }: { match: SimilarCasinoMatch }) {
           <ExternalLink className="w-3.5 h-3.5" /> Visit
         </a>
         <Link
+          to={`/compare?a=${encodeURIComponent(sourceId)}&b=${encodeURIComponent(match.casino.id)}`}
+          className="btn-secondary text-sm flex items-center gap-1 px-3"
+          title="Compare with source casino"
+        >
+          <Scale className="w-3.5 h-3.5" />
+        </Link>
+        <button
+          type="button"
+          onClick={onToggleFavorite}
+          className={`p-2 rounded-xl border transition-colors ${
+            isFavorited
+              ? 'border-brand/40 bg-brand/10 text-brand-light'
+              : 'border-surface-border text-gray-500 hover:text-brand-light hover:border-brand/30'
+          }`}
+          title={isFavorited ? 'Remove from My List' : 'Save to My List'}
+        >
+          <Heart className={`w-4 h-4 ${isFavorited ? 'fill-current' : ''}`} />
+        </button>
+        <Link
           to={`/similar?casino=${match.casino.id}`}
           className="btn-secondary text-sm flex items-center gap-1 px-3"
           title="Find casinos like this one"
@@ -93,6 +130,8 @@ function CandidateRow({ c }: { c: SimilarWebDiscoveryResult['candidates'][0] }) 
 export default function SimilarCasinosPage() {
   usePageTitle('Similar Casinos — The Method');
   const { user } = useAuth();
+  const { isFavorited, toggleFavorite } = useCasinoFavorites();
+  const { message: favNotice, show: showFavNotice } = useTimedNotice(3000);
   const [searchParams, setSearchParams] = useSearchParams();
   const [allCasinos, setAllCasinos] = useState<Casino[]>([]);
   const [catalogError, setCatalogError] = useState('');
@@ -177,6 +216,10 @@ export default function SimilarCasinosPage() {
         subtitle="Pick a casino — match from catalog, or search the web from your browser (no API keys) for more operators like it"
       />
 
+      <RecentlyViewed />
+
+      {favNotice && <NoticeBanner message={favNotice} variant="success" />}
+
       <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="glass-glow p-6 mb-8 border-glow/20">
         <CasinoCombobox
           label="Find casinos like..."
@@ -192,7 +235,7 @@ export default function SimilarCasinosPage() {
         {!selectedId && allCasinos.length > 0 && (
           <div className="mt-4">
             <p className="text-xs text-gray-600 mb-2">Popular picks</p>
-            <div className="flex flex-wrap gap-2">
+            <div className="flex flex-wrap gap-2 animate-stagger">
               {allCasinos.slice(0, 8).map((c) => (
                 <button
                   key={c.id}
@@ -274,7 +317,17 @@ export default function SimilarCasinosPage() {
           ) : (
             <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-4 animate-stagger">
               {matches.map((m) => (
-                <MatchCard key={m.casino.id} match={m} />
+                <MatchCard
+                  key={m.casino.id}
+                  match={m}
+                  sourceId={selected.id}
+                  isFavorited={isFavorited(m.casino.id)}
+                  onToggleFavorite={() => {
+                    void toggleFavorite(m.casino)
+                      .then((added) => showFavNotice(added ? 'Saved to My List' : 'Removed from My List'))
+                      .catch((e) => showFavNotice(e instanceof Error ? e.message : 'Could not update My List'));
+                  }}
+                />
               ))}
             </div>
           )}
@@ -284,7 +337,7 @@ export default function SimilarCasinosPage() {
       {!selected && !loading && (
         <EmptyState
           icon={Sparkles}
-          title="Pick a casino to compare"
+          title="Pick a casino to explore"
           description="We match from the verified catalog, or search DuckDuckGo, Bing & Brave for new operators like it. 100% free, no API keys."
         />
       )}

@@ -10,9 +10,13 @@ interface Props {
   casinos: Casino[];
   icon?: React.ReactNode;
   action?: React.ReactNode;
+  isFavorited?: (casinoId: string) => boolean;
+  onToggleFavorite?: (casino: Casino) => void;
 }
 
-export default function CasinoCarousel({ title, subtitle, casinos, icon, action }: Props) {
+export default function CasinoCarousel({
+  title, subtitle, casinos, icon, action, isFavorited, onToggleFavorite,
+}: Props) {
   const trackRef = useRef<HTMLDivElement>(null);
 
   const scroll = (dir: -1 | 1) => {
@@ -28,7 +32,7 @@ export default function CasinoCarousel({ title, subtitle, casinos, icon, action 
       className="mb-10"
     >
       <div className="flex items-end justify-between gap-4 mb-4">
-        <div>
+        <div className="section-heading">
           <h2 className="font-display font-semibold text-lg text-white flex items-center gap-2">
             {icon}
             {title}
@@ -63,7 +67,12 @@ export default function CasinoCarousel({ title, subtitle, casinos, icon, action 
       >
         {casinos.map((casino, i) => (
           <div key={casino.id} className="snap-start shrink-0 w-[min(100%,320px)]">
-            <CasinoCard casino={casino} index={i} />
+            <CasinoCard
+              casino={casino}
+              index={i}
+              favorited={isFavorited?.(casino.id)}
+              onToggleFavorite={onToggleFavorite ? () => onToggleFavorite(casino) : undefined}
+            />
           </div>
         ))}
       </div>

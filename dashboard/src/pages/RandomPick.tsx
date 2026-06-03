@@ -3,6 +3,8 @@ import { motion } from 'framer-motion';
 import { Dices, RefreshCw, Scale, Sparkles } from 'lucide-react';
 import RandomPickSkeleton from '../components/RandomPickSkeleton';
 import QuickLinkRow from '../components/QuickLinkRow';
+import RecentlyViewed from '../components/RecentlyViewed';
+import NoticeBanner from '../components/NoticeBanner';
 import { api } from '../api';
 import type { Casino, CasinoFeature } from '../types';
 import PageHeader from '../components/PageHeader';
@@ -11,6 +13,8 @@ import EmptyState from '../components/EmptyState';
 import Breadcrumb from '../components/Breadcrumb';
 import ErrorBanner from '../components/ErrorBanner';
 import { usePageTitle } from '../hooks/usePageTitle';
+import { useCasinoFavorites } from '../hooks/useCasinoFavorites';
+import { useTimedNotice } from '../hooks/useTimedNotice';
 
 const FILTER_CHIPS: { label: string; noPhone?: boolean; features?: CasinoFeature[] }[] = [
   { label: 'Any verified' },
@@ -23,6 +27,8 @@ const FILTER_CHIPS: { label: string; noPhone?: boolean; features?: CasinoFeature
 
 export default function RandomPick() {
   usePageTitle('Random Casino — The Method');
+  const { isFavorited, toggleFavorite } = useCasinoFavorites();
+  const { message: favNotice, show: showFavNotice } = useTimedNotice(3000);
   const [pick, setPick] = useState<Casino | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -52,6 +58,13 @@ export default function RandomPick() {
     }
   };
 
+  const handleToggleFavorite = () => {
+    if (!pick) return;
+    void toggleFavorite(pick)
+      .then((added) => showFavNotice(added ? 'Saved to My List' : 'Removed from My List'))
+      .catch((e) => showFavNotice(e instanceof Error ? e.message : 'Could not update My List'));
+  };
+
   return (
     <div className="page-container-narrow">
       <Breadcrumb items={[{ label: 'Catalog', to: '/casinos' }, { label: 'Random pick' }]} />
@@ -61,7 +74,11 @@ export default function RandomPick() {
         subtitle="Same engine as Discord /random — spin the catalog with optional filters"
       />
 
-      <div className="flex flex-wrap gap-2 mb-6">
+      <RecentlyViewed />
+
+      {favNotice && <NoticeBanner message={favNotice} variant="success" />}
+
+      <div className="flex flex-wrap gap-2 mb-6 animate-stagger">
         {FILTER_CHIPS.map((chip, i) => (
           <button
             key={chip.label}
@@ -91,7 +108,12 @@ export default function RandomPick() {
       {pick && !loading && (
         <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="space-y-4">
           <p className="text-xs text-gray-500 uppercase tracking-wide">Your pick</p>
-          <CasinoCard casino={pick} index={0} />
+          <CasinoCard
+            casino={pick}
+            index={0}
+            favorited={isFavorited(pick.id)}
+            onToggleFavorite={handleToggleFavorite}
+          />
           <QuickLinkRow
             links={[
               { to: `/casinos/${pick.urlNormalized ?? pick.id}`, label: 'Full profile' },

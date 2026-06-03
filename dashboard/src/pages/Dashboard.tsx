@@ -34,10 +34,15 @@ import ActivityFeed from '../components/ActivityFeed';
 import RecentlyViewed from '../components/RecentlyViewed';
 import { usePageTitle } from '../hooks/usePageTitle';
 import ErrorBanner from '../components/ErrorBanner';
+import { useCasinoFavorites } from '../hooks/useCasinoFavorites';
+import { useTimedNotice } from '../hooks/useTimedNotice';
+import NoticeBanner from '../components/NoticeBanner';
 
 export default function DashboardPage() {
   usePageTitle('Dashboard — The Method Casinos');
   const { user } = useAuth();
+  const { isFavorited, toggleFavorite } = useCasinoFavorites();
+  const { message: favNotice, show: showFavNotice } = useTimedNotice(3000);
   const [stats, setStats] = useState<Stats | null>(null);
   const [statsLoading, setStatsLoading] = useState(true);
   const [statsError, setStatsError] = useState(false);
@@ -77,6 +82,12 @@ export default function DashboardPage() {
 
   const greeting = user ? `Welcome, ${user.username}` : 'The Method Casinos';
 
+  const handleToggleFavorite = (casino: Casino) => {
+    void toggleFavorite(casino)
+      .then((added) => showFavNotice(added ? 'Saved to My List' : 'Removed from My List'))
+      .catch((e) => showFavNotice(e instanceof Error ? e.message : 'Could not update My List'));
+  };
+
   return (
     <div className="page-container">
       <PageHeader
@@ -89,6 +100,8 @@ export default function DashboardPage() {
       </motion.div>
 
       <RecentlyViewed />
+
+      {favNotice && <NoticeBanner message={favNotice} variant="success" />}
 
       {user?.isAdmin && stats && (stats.pendingReview > 0 || (stats.openReports ?? 0) > 0 || (stats.failedHealthCasinos ?? 0) > 0) && (
         <motion.div
@@ -167,6 +180,8 @@ export default function DashboardPage() {
             casinos={featured}
             icon={<Star className="w-5 h-5 text-brand-light" />}
             action={<Link to="/casinos" className="text-sm text-glow hover:underline">View all</Link>}
+            isFavorited={isFavorited}
+            onToggleFavorite={handleToggleFavorite}
           />
 
           <CasinoCarousel
@@ -175,6 +190,8 @@ export default function DashboardPage() {
             casinos={recent}
             icon={<Clock className="w-5 h-5 text-glow" />}
             action={<Link to="/new" className="text-sm text-glow hover:underline">All new arrivals</Link>}
+            isFavorited={isFavorited}
+            onToggleFavorite={handleToggleFavorite}
           />
 
           <ActivityFeed />
@@ -187,7 +204,7 @@ export default function DashboardPage() {
         transition={{ delay: 0.2 }}
         className="glass-glow p-6 md:p-8"
       >
-        <h2 className="font-display font-semibold text-lg mb-5 text-white">Quick Start</h2>
+        <h2 className="section-heading font-display font-semibold text-lg mb-5 text-white">Quick Start</h2>
         <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-4 animate-stagger">
           {[
             { title: 'New Arrivals', desc: 'Recently approved operators added to the catalog.', path: '/new', icon: Clock },

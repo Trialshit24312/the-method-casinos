@@ -22,8 +22,10 @@ export default function PublicLayout() {
   const location = useLocation();
 
   return (
-    <div className="min-h-screen flex flex-col app-background relative">
-      <div className="absolute inset-0 app-background-grid pointer-events-none opacity-30" />
+    <div className="min-h-screen flex flex-col app-background relative overflow-hidden">
+      <div className="hero-orb w-[420px] h-[420px] bg-glow/12 -top-40 -left-24 pointer-events-none" style={{ animationDelay: '0s' }} />
+      <div className="hero-orb w-[320px] h-[320px] bg-brand/10 top-1/2 -right-28 pointer-events-none" style={{ animationDelay: '-3s' }} />
+      <div className="absolute inset-0 app-background-grid pointer-events-none opacity-40" />
       <header className="sticky top-0 z-20 border-b border-surface-border px-4 sm:px-6 py-3 bg-surface-raised/80 backdrop-blur-xl relative">
         <div className="flex items-center gap-3">
           <MobileNav items={publicNavItems} />

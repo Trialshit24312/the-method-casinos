@@ -46,7 +46,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   const refresh = useCallback(async () => {
-    const cached = readCachedUser();
     for (let attempt = 0; attempt < 4; attempt++) {
       try {
         const { user: u } = await api.getMe();
@@ -62,10 +61,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           await new Promise((resolve) => setTimeout(resolve, 1000 * (attempt + 1)));
           continue;
         }
-        if (!cached) {
-          setUser(null);
-          writeCachedUser(null);
-        }
+        setUser(null);
+        writeCachedUser(null);
       }
     }
     setLoading(false);

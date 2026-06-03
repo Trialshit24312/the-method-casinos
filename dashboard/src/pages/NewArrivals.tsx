@@ -9,10 +9,10 @@ import Breadcrumb from '../components/Breadcrumb';
 import ErrorBanner from '../components/ErrorBanner';
 import CasinoCard from '../components/CasinoCard';
 import CatalogGridSkeleton from '../components/CatalogGridSkeleton';
+import NoticeBanner from '../components/NoticeBanner';
 import { usePageTitle } from '../hooks/usePageTitle';
-
-import { readGuestFavorites, toggleGuestFavorite } from '../lib/guest-favorites';
-import { useAuth } from '../context/AuthContext';
+import { useCasinoFavorites } from '../hooks/useCasinoFavorites';
+import { useTimedNotice } from '../hooks/useTimedNotice';
 
 function formatAdded(iso: string): string {
   const diff = Date.now() - new Date(iso).getTime();
@@ -25,27 +25,11 @@ function formatAdded(iso: string): string {
 
 export default function NewArrivals() {
   usePageTitle('New Arrivals — The Method Casinos');
-  const { user } = useAuth();
+  const { isFavorited, toggleFavorite } = useCasinoFavorites();
+  const { message: favNotice, show: showFavNotice } = useTimedNotice(3000);
   const [casinos, setCasinos] = useState<Casino[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [guestFavoriteIds, setGuestFavoriteIds] = useState(
-    () => new Set(readGuestFavorites().map((c) => c.id)),
-  );
-  const [favoriteIds, setFavoriteIds] = useState<Set<string>>(new Set());
-
-  useEffect(() => {
-    if (!user) return;
-    api.getFavorites()
-      .then((favs) => setFavoriteIds(new Set(favs.map((f) => f.casino.id))))
-      .catch(() => setFavoriteIds(new Set()));
-  }, [user]);
-
-  useEffect(() => {
-    const refresh = () => setGuestFavoriteIds(new Set(readGuestFavorites().map((c) => c.id)));
-    window.addEventListener('method-guest-favorites', refresh);
-    return () => window.removeEventListener('method-guest-favorites', refresh);
-  }, []);
 
   const load = () => {
     setLoading(true);
@@ -73,6 +57,8 @@ export default function NewArrivals() {
       />
 
       {error && <ErrorBanner message={error} onRetry={load} />}
+
+      {favNotice && <NoticeBanner message={favNotice} variant="success" />}
 
       {loading ? (
         <CatalogGridSkeleton count={6} />
@@ -102,24 +88,11 @@ export default function NewArrivals() {
                 <CasinoCard
                   casino={casino}
                   index={i}
-                  favorited={user ? favoriteIds.has(casino.id) : guestFavoriteIds.has(casino.id)}
+                  favorited={isFavorited(casino.id)}
                   onToggleFavorite={() => {
-                    if (user) {
-                      void (favoriteIds.has(casino.id)
-                        ? api.removeFavorite(casino.id)
-                        : api.addFavorite(casino.id)
-                      ).then(() => {
-                        setFavoriteIds((prev) => {
-                          const next = new Set(prev);
-                          if (next.has(casino.id)) next.delete(casino.id);
-                          else next.add(casino.id);
-                          return next;
-                        });
-                      });
-                    } else {
-                      toggleGuestFavorite(casino);
-                      setGuestFavoriteIds(new Set(readGuestFavorites().map((c) => c.id)));
-                    }
+                    void toggleFavorite(casino)
+                      .then((added) => showFavNotice(added ? 'Saved to My List' : 'Removed from My List'))
+                      .catch((e) => showFavNotice(e instanceof Error ? e.message : 'Could not update My List'));
                   }}
                 />
               </div>

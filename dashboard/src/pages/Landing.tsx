@@ -16,6 +16,7 @@ import MobileNav from '../components/MobileNav';
 import ActivityFeed from '../components/ActivityFeed';
 import PricingTiers from '../components/PricingTiers';
 import { usePageTitle } from '../hooks/usePageTitle';
+import { useCasinoFavorites } from '../hooks/useCasinoFavorites';
 
 const fadeUp = {
   initial: { opacity: 0, y: 24 },
@@ -44,6 +45,7 @@ export default function Landing() {
   const [heroQuery, setHeroQuery] = useState('');
   const navigate = useNavigate();
   const discordInvite = discordInviteUrl();
+  const { isFavorited, toggleFavorite } = useCasinoFavorites();
 
   useEffect(() => {
     api.getStats()
@@ -224,6 +226,8 @@ export default function Landing() {
                   View all <ArrowRight className="w-3.5 h-3.5" />
                 </Link>
               }
+              isFavorited={isFavorited}
+              onToggleFavorite={(c) => { void toggleFavorite(c); }}
             />
           </motion.div>
         )}
@@ -254,6 +258,8 @@ export default function Landing() {
                   Browse all <ArrowRight className="w-3.5 h-3.5" />
                 </Link>
               }
+              isFavorited={isFavorited}
+              onToggleFavorite={(c) => { void toggleFavorite(c); }}
             />
           </motion.div>
         )}

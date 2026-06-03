@@ -22,6 +22,7 @@ import QuickLinkRow from '../components/QuickLinkRow';
 import { FEATURE_LABELS, FEATURE_COLORS, vpnLabel, formatTrackableValue } from '../types';
 import { formatLastChecked, isCatalogStale } from '../lib/freshness';
 import { isGuestFavorite, toggleGuestFavorite } from '../lib/guest-favorites';
+import { copyToClipboard } from '../lib/copy-to-clipboard';
 
 export default function CasinoDetail() {
   const { slug } = useParams<{ slug: string }>();
@@ -52,7 +53,7 @@ export default function CasinoDetail() {
         const sim = await api.getSimilar({ casinoId: c.id, limit: 6 }).catch(() => null);
         setSimilar(sim);
       })
-      .catch((e) => setError(e.message))
+      .catch((e) => setError(e instanceof Error ? e.message : 'Failed to load casino'))
       .finally(() => setLoading(false));
   }, [slug, user]);
 
@@ -64,14 +65,18 @@ export default function CasinoDetail() {
       showFavMsg(added ? 'Added to My List (local)' : 'Removed from My List');
       return;
     }
-    if (favorited) {
-      await api.removeFavorite(casino.id);
-      setFavorited(false);
-      showFavMsg('Removed from My List');
-    } else {
-      await api.addFavorite(casino.id);
-      setFavorited(true);
-      showFavMsg('Added to My List');
+    try {
+      if (favorited) {
+        await api.removeFavorite(casino.id);
+        setFavorited(false);
+        showFavMsg('Removed from My List');
+      } else {
+        await api.addFavorite(casino.id);
+        setFavorited(true);
+        showFavMsg('Added to My List');
+      }
+    } catch {
+      showFavMsg('Could not update My List — try again');
     }
   };
 
@@ -88,14 +93,14 @@ export default function CasinoDetail() {
         /* fall through to copy */
       }
     }
-    await navigator.clipboard.writeText(url);
-    showCopyMsg('Profile link copied');
+    const ok = await copyToClipboard(url);
+    showCopyMsg(ok ? 'Profile link copied' : 'Could not copy link');
   };
 
   const copySiteUrl = async () => {
     if (!casino) return;
-    await navigator.clipboard.writeText(casino.url);
-    showCopyMsg('Casino URL copied');
+    const ok = await copyToClipboard(casino.url);
+    showCopyMsg(ok ? 'Casino URL copied' : 'Could not copy URL');
   };
 
   const copySignupKit = async () => {
@@ -113,8 +118,8 @@ export default function CasinoDetail() {
       `URL safety check: ${checker}`,
       `Temp email tools: ${emailTools}`,
     ].filter((line) => line !== '').join('\n');
-    await navigator.clipboard.writeText(lines);
-    showCopyMsg('Signup kit copied to clipboard');
+    const ok = await copyToClipboard(lines);
+    showCopyMsg(ok ? 'Signup kit copied to clipboard' : 'Could not copy signup kit');
   };
 
   if (loading) {

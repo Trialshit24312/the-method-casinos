@@ -54,7 +54,7 @@ export default function ReviewQueue() {
         setHealthIssues(h);
         setReportHistory(hist);
       })
-      .catch((e) => setError(e.message))
+      .catch((e) => setError(e instanceof Error ? e.message : 'Failed to load'))
       .finally(() => setLoading(false));
   };
 

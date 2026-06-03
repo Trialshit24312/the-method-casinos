@@ -39,6 +39,7 @@ import { api } from '../api';
 import ReportSiteModal from './ReportSiteModal';
 import ShortcutsHelp from './ShortcutsHelp';
 import BackToTop from './BackToTop';
+import { readGuestFavorites } from '../lib/guest-favorites';
 
 const mainNav = [
   { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
@@ -80,10 +81,12 @@ function NavSection({
   title,
   items,
   notifyTotal = 0,
+  myListCount = 0,
 }: {
   title: string;
   items: (typeof mainNav)[number][];
   notifyTotal?: number;
+  myListCount?: number;
 }) {
   const { user } = useAuth();
   if (!items.length) return null;
@@ -112,6 +115,11 @@ function NavSection({
                 {notifyTotal}
               </span>
             )}
+            {item.to === '/mylist' && myListCount > 0 && (
+              <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-brand/20 text-brand-light">
+                {myListCount}
+              </span>
+            )}
           </NavLink>
         ))}
       </div>
@@ -125,6 +133,22 @@ export default function Layout() {
   const discordInvite = discordInviteUrl();
   const [notifyTotal, setNotifyTotal] = useState(0);
   const [reportOpen, setReportOpen] = useState(false);
+  const [myListCount, setMyListCount] = useState(0);
+
+  useEffect(() => {
+    const refresh = () => {
+      if (user) {
+        api.getFavorites()
+          .then((f) => setMyListCount(f.length))
+          .catch(() => setMyListCount(0));
+      } else {
+        setMyListCount(readGuestFavorites().length);
+      }
+    };
+    refresh();
+    window.addEventListener('method-guest-favorites', refresh);
+    return () => window.removeEventListener('method-guest-favorites', refresh);
+  }, [user]);
 
   useEffect(() => {
     window.scrollTo(0, 0);
@@ -158,7 +182,7 @@ export default function Layout() {
         </div>
 
         <nav className="flex-1 p-3 overflow-y-auto">
-          <NavSection title="Main" items={mainNav} />
+          <NavSection title="Main" items={mainNav} myListCount={myListCount} />
           {user?.isAdmin && <NavSection title="Admin" items={adminNav} notifyTotal={notifyTotal} />}
           <NavSection title="Tools" items={toolsNav} />
           <NavSection title="Legal" items={legalNav} />

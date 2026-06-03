@@ -41,17 +41,24 @@ export async function mergeGuestFavoritesIntoAccount(
   const guest = readGuestFavorites();
   if (!guest.length) return 0;
 
+  const remaining: Casino[] = [];
   let merged = 0;
+
   for (const casino of guest) {
     try {
       await addFavorite(casino.id);
       merged += 1;
     } catch {
-      /* may already exist on server */
+      /* network error or duplicate — keep locally until confirmed */
+      remaining.push(casino);
     }
   }
 
-  localStorage.removeItem(STORAGE_KEY);
+  if (remaining.length === 0) {
+    localStorage.removeItem(STORAGE_KEY);
+  } else {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(remaining));
+  }
   window.dispatchEvent(new Event('method-guest-favorites'));
 
   if (merged > 0) {

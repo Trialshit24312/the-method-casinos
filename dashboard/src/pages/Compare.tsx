@@ -12,8 +12,10 @@ import Breadcrumb from '../components/Breadcrumb';
 import ErrorBanner from '../components/ErrorBanner';
 import NoticeBanner from '../components/NoticeBanner';
 import CompareSkeleton from '../components/CompareSkeleton';
+import RecentlyViewed from '../components/RecentlyViewed';
 import { useTimedNotice } from '../hooks/useTimedNotice';
 import { usePageTitle } from '../hooks/usePageTitle';
+import { copyToClipboard } from '../lib/copy-to-clipboard';
 
 export default function ComparePage() {
   usePageTitle('Compare Casinos — The Method');
@@ -74,8 +76,22 @@ export default function ComparePage() {
   const share = () => {
     if (!a || !b) return;
     const url = `${window.location.origin}${window.location.pathname}?a=${encodeURIComponent(a)}&b=${encodeURIComponent(b)}`;
-    void navigator.clipboard.writeText(url);
-    showShareMsg('Link copied — share this comparison');
+    void copyToClipboard(url).then((ok) => {
+      showShareMsg(ok ? 'Link copied — share this comparison' : 'Could not copy link — copy from the address bar');
+    });
+  };
+
+  const retryCompare = () => {
+    if (!a || !b || a === b) return;
+    setLoading(true);
+    setError('');
+    api.compareCasinos(a, b)
+      .then(setResult)
+      .catch((e) => {
+        setError(e instanceof Error ? e.message : 'Compare failed');
+        setResult(null);
+      })
+      .finally(() => setLoading(false));
   };
 
   const swap = () => {
@@ -105,6 +121,8 @@ export default function ComparePage() {
         }
       />
 
+      <RecentlyViewed />
+
       {shareMsg && <NoticeBanner message={shareMsg} variant="success" />}
       {catalogError && <ErrorBanner message={catalogError} onRetry={loadCatalog} variant="warning" />}
 
@@ -116,7 +134,7 @@ export default function ComparePage() {
       {!a && !b && casinos.length > 0 && (
         <div className="mb-8">
           <p className="text-xs text-gray-600 mb-2">Quick pick — choose casino A</p>
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap gap-2 animate-stagger">
             {[...casinos].sort((x, y) => y.rating - x.rating).slice(0, 8).map((c) => (
               <button
                 key={c.id}
@@ -134,7 +152,7 @@ export default function ComparePage() {
       {a && !b && casinos.length > 1 && (
         <div className="mb-8">
           <p className="text-xs text-gray-600 mb-2">Now pick casino B</p>
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap gap-2 animate-stagger">
             {[...casinos]
               .filter((c) => c.id !== a)
               .sort((x, y) => y.rating - x.rating)
@@ -158,7 +176,7 @@ export default function ComparePage() {
       )}
 
       {loading && <CompareSkeleton />}
-      {error && <ErrorBanner message={error} variant="warning" />}
+      {error && <ErrorBanner message={error} onRetry={retryCompare} variant="warning" />}
 
       {!loading && !result && !a && !b && (
         <EmptyState
@@ -224,7 +242,7 @@ export default function ComparePage() {
 
           {result.sharedFeatures.length > 0 && (
             <div>
-              <p className="text-xs uppercase text-gray-500 mb-2">Shared features</p>
+              <p className="section-heading text-xs uppercase text-gray-500 mb-2 pl-3">Shared features</p>
               <div className="flex flex-wrap gap-2">
                 {result.sharedFeatures.map((f) => (
                   <span key={f} className={`text-xs px-2 py-1 rounded-full border ${FEATURE_COLORS[f] ?? 'bg-white/5 text-gray-400'}`}>

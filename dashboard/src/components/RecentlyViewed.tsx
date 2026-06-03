@@ -26,8 +26,8 @@ export default function RecentlyViewed({ className = '' }: { className?: string 
       animate={{ opacity: 1, y: 0 }}
       className={`glass-glow p-5 mb-8 border-glow/10 ${className}`}
     >
-      <h2 className="font-display font-semibold text-sm mb-3 text-white flex items-center gap-2">
-        <History className="w-4 h-4 text-glow" />
+      <h2 className="section-heading font-display font-semibold text-sm mb-3 text-white flex items-center gap-2">
+        <History className="w-4 h-4 text-glow shrink-0" />
         Recently viewed
       </h2>
       <div className="flex flex-wrap gap-2">
