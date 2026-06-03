@@ -2,7 +2,7 @@ import Database from 'better-sqlite3';
 import { nanoid } from 'nanoid';
 import path from 'path';
 import fs from 'fs';
-import type { Casino, CasinoInput, SearchFilters, Stats, CasinoFeature, BlockedSite, BlockedSiteInput, ReviewStatus, SiteReport, SiteReportInput, CatalogHealthStatus } from '../shared/types.js';
+import type { Casino, CasinoInput, SearchFilters, Stats, CasinoFeature, BlockedSite, BlockedSiteInput, BlockReason, ReviewStatus, SiteReport, SiteReportInput, CatalogHealthStatus } from '../shared/types.js';
 import { normalizeUrl, ensureHttps, casinoHostKey, toCasinoRootUrl, isValidCasinoHost } from '../shared/utils.js';
 import { resolveRating } from '../shared/rating.js';
 import { normalizeTrackables } from '../shared/trackables.js';
@@ -11,6 +11,7 @@ import { STALE_CATALOG_DAYS } from '../shared/freshness.js';
 import { VERIFIED_CASINO_SEEDS } from '../shared/verified-casinos.js';
 import { getDataDir, getDbPath, maybeMigrateLegacyDatabase } from '../shared/data-path.js';
 import { logPersistenceStatus } from '../shared/persistence.js';
+import { notifyDatabaseChanged } from '../shared/remote-db-sync.js';
 import type { DiscoveryLiveStats, DiscoveryProgressEvent, DiscoveryResult } from '../shared/types.js';
 
 let db: Database.Database;
@@ -427,6 +428,7 @@ export function addCasino(input: CasinoInput): Casino | null {
   });
 
   db.pragma('wal_checkpoint(PASSIVE)');
+  notifyDatabaseChanged();
 
   return casino;
 }
@@ -733,6 +735,7 @@ export function approveCasino(id: string, approvedBy?: string): Casino | null {
       health_status = 'ok', health_note = ''
     WHERE id = @id
   `).run({ id, now, approvedBy: approvedBy ?? null });
+  notifyDatabaseChanged();
   return getCasinoById(id);
 }
 
@@ -743,14 +746,17 @@ export function approveAllPendingCasinos(approvedBy?: string, limit = 50): { app
     const approved = approveCasino(casino.id, approvedBy);
     if (approved) ids.push(approved.id);
   }
+  if (ids.length > 0) notifyDatabaseChanged();
   return { approved: ids.length, ids };
 }
 
 export function rejectCasino(id: string): boolean {
   const existing = getCasinoById(id);
   if (!existing) return false;
+  banRejectedDiscovery(existing.url, 'admin rejected', 'admin');
   markDiscoverySeen(existing.url, 'rejected', 'admin rejected');
   const result = db.prepare('DELETE FROM casinos WHERE id = ?').run(id);
+  if (result.changes > 0) notifyDatabaseChanged();
   return result.changes > 0;
 }
 
@@ -1254,29 +1260,61 @@ export function addSiteReport(input: SiteReportInput): SiteReport {
   return report;
 }
 
-/** Queue a discovery rejection for admin ban review (open site report). */
-export function queueDiscoveryBanReview(url: string, reason: string): SiteReport | null {
+function discoveryRejectToBlockReason(reason: string): BlockReason {
+  const lower = reason.toLowerCase();
+  if (lower.includes('phishing')) return 'phishing';
+  if (lower.includes('malware')) return 'malware';
+  if (lower.includes('scam')) return 'scam';
+  if (lower.includes('spam')) return 'spam';
+  if (lower.includes('news') || lower.includes('media')) return 'spam';
+  if (lower.includes('adult')) return 'other';
+  if (lower.includes('generic') || lower.includes('non-casino') || lower.includes('not a casino')) {
+    return 'fake_casino';
+  }
+  return 'fake_casino';
+}
+
+/** Auto-ban a rejected discovery URL (blocklist + remove pending catalog row). */
+export function banRejectedDiscovery(
+  url: string,
+  reason: string,
+  reportedBy = 'discovery',
+): BlockedSite | null {
   try {
     const root = toCasinoRootUrl(ensureHttps(url));
-    if (isUrlBlocked(root)) return null;
+    const existingBlock = getBlockedSiteByUrl(root);
+    if (existingBlock) return existingBlock;
 
     const catalog = getCasinoByUrl(root);
     if (catalog?.active && catalog.reviewStatus === 'approved') return null;
 
     const host = casinoHostKey(root);
-    const pending = db.prepare(`
-      SELECT id FROM casinos WHERE url_normalized = ? AND review_status = 'pending' AND active = 1
-    `).get(host) as { id: string } | undefined;
-    if (pending) return null;
+    const brand = host.split('.')[0] ?? host;
+    const name = brand.charAt(0).toUpperCase() + brand.slice(1);
 
-    return addSiteReport({
+    const site = addBlockedSite({
+      name,
       url: root,
-      reason: `[Ban review] ${reason}`,
-      reportedBy: 'discovery',
-    });
+      reason: discoveryRejectToBlockReason(reason),
+      severity: 'high',
+      description: `Rejected discovery: ${reason}`,
+      reportedBy,
+      removeCasino: true,
+    }) ?? getBlockedSiteByUrl(root);
+
+    if (site) {
+      markDiscoverySeen(root, 'blocked', reason);
+      notifyDatabaseChanged();
+    }
+    return site;
   } catch {
     return null;
   }
+}
+
+/** @deprecated Alias — discovery rejections are banned immediately, not queued for review. */
+export function queueDiscoveryBanReview(url: string, reason: string): BlockedSite | null {
+  return banRejectedDiscovery(url, reason, 'discovery');
 }
 
 export function getOpenSiteReports(): SiteReport[] {

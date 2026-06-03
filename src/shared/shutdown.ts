@@ -2,7 +2,7 @@ import type { Server } from 'http';
 import type { Client } from 'discord.js';
 import { pauseDiscoveryForShutdown } from '../discovery/shutdown-pause.js';
 import { getDatabase } from '../database/index.js';
-import { uploadRemoteDatabase } from './remote-db-sync.js';
+import { persistDatabaseNow } from './remote-db-sync.js';
 
 let httpServer: Server | null = null;
 let botClient: Client | null = null;
@@ -25,8 +25,8 @@ export function setupGracefulShutdown(): void {
     pauseDiscoveryForShutdown();
 
     try {
-      getDatabase().pragma('wal_checkpoint(TRUNCATE)');
-      await uploadRemoteDatabase();
+      getDatabase();
+      await persistDatabaseNow();
     } catch {
       /* db not initialized */
     }

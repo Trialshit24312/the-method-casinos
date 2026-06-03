@@ -7,7 +7,7 @@ import {
   addCasino,
   markDiscoverySeen,
   getAllCasinos,
-  queueDiscoveryBanReview,
+  banRejectedDiscovery,
 } from '../database/index.js';
 import { casinoHostKey, toCasinoRootUrl, isValidCasinoHost } from '../shared/utils.js';
 import { rankSimilarCasinos, type SimilarCasinoMatch } from '../shared/similarity.js';
@@ -177,7 +177,7 @@ async function analyzeSimilarUrl(
       }
       markDiscoverySeen(root, 'rejected', 'fetch failed');
       if (!isSoftDiscoveryReject('fetch failed')) {
-        queueDiscoveryBanReview(root, 'fetch failed');
+        banRejectedDiscovery(root, 'fetch failed');
       }
       return { name: h, url: root, status: 'rejected', reason: 'fetch failed' };
     }
@@ -195,7 +195,7 @@ async function analyzeSimilarUrl(
     }
     markDiscoverySeen(root, 'rejected', reason);
     if (!isSoftDiscoveryReject(reason)) {
-      queueDiscoveryBanReview(root, reason);
+      banRejectedDiscovery(root, reason);
     }
     const { title, metaDesc, bodyText } = clientHtml
       ? parsePageSignals(clientHtml, root, h)

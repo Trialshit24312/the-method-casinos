@@ -61,7 +61,9 @@ services:
       - key: REMOTE_DB_SYNC
         value: "true"
       - key: REMOTE_DB_SYNC_INTERVAL_MINUTES
-        value: "15"
+        value: "3"
+      - key: REMOTE_DB_SYNC_DEBOUNCE_SEC
+        value: "8"
       - key: S3_ENDPOINT
         sync: false
       - key: S3_BUCKET

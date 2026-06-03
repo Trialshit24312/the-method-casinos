@@ -101,20 +101,47 @@ export async function uploadRemoteDatabase(): Promise<void> {
   console.log(`☁️  Uploaded database to s3://${bucket}/${key} (${body.length} bytes)`);
 }
 
+let debouncedUploadTimer: ReturnType<typeof setTimeout> | null = null;
+let uploadInFlight = false;
+
+/** Call after any SQLite write — uploads to R2 within a few seconds (survives Render restarts). */
+export function notifyDatabaseChanged(): void {
+  if (!isRemoteDbSyncEnabled()) return;
+  if (debouncedUploadTimer) clearTimeout(debouncedUploadTimer);
+  const sec = parseFloat(process.env.REMOTE_DB_SYNC_DEBOUNCE_SEC ?? '8');
+  const delay = (Number.isFinite(sec) && sec > 0 ? sec : 8) * 1000;
+  debouncedUploadTimer = setTimeout(() => {
+    debouncedUploadTimer = null;
+    void persistDatabaseNow();
+  }, delay);
+}
+
+/** Force checkpoint + upload now (discovery complete, shutdown, etc.). */
+export async function persistDatabaseNow(): Promise<boolean> {
+  if (!isRemoteDbSyncEnabled()) return false;
+  if (uploadInFlight) return false;
+  uploadInFlight = true;
+  try {
+    const { getDatabase } = await import('../database/index.js');
+    getDatabase().pragma('wal_checkpoint(TRUNCATE)');
+    await uploadRemoteDatabase();
+    return true;
+  } catch (err) {
+    console.warn('Remote DB persist failed:', err instanceof Error ? err.message : err);
+    return false;
+  } finally {
+    uploadInFlight = false;
+  }
+}
+
 export function scheduleRemoteDbSync(): void {
   if (!isRemoteDbSyncEnabled()) return;
 
-  const minutes = parseFloat(process.env.REMOTE_DB_SYNC_INTERVAL_MINUTES ?? '15');
+  const minutes = parseFloat(process.env.REMOTE_DB_SYNC_INTERVAL_MINUTES ?? '3');
   const ms = (Number.isFinite(minutes) && minutes > 0 ? minutes : 15) * 60 * 1000;
 
   const run = async () => {
-    try {
-      const { getDatabase } = await import('../database/index.js');
-      getDatabase().pragma('wal_checkpoint(TRUNCATE)');
-      await uploadRemoteDatabase();
-    } catch (err) {
-      console.warn('Remote DB sync failed:', err instanceof Error ? err.message : err);
-    }
+    await persistDatabaseNow();
   };
 
   console.log(`⏱️  Remote DB sync every ${minutes}m (S3-compatible storage)`);

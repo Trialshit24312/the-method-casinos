@@ -5,7 +5,7 @@ import {
   isUrlBlocked,
   markDiscoverySeen,
   logDiscovery,
-  queueDiscoveryBanReview,
+  banRejectedDiscovery,
   getAllCasinos,
   touchLastCheckedAt,
   saveDiscoverySession,
@@ -36,6 +36,7 @@ import {
   isSoftDiscoveryReject,
 } from './engine.js';
 import { notifyDiscoveryComplete } from '../shared/notify.js';
+import { persistDatabaseNow } from '../shared/remote-db-sync.js';
 
 type ProgressPublisher = (event: DiscoveryProgressEvent) => void;
 
@@ -241,8 +242,10 @@ function recordRejection(state: DiscoverySessionState, root: string, host: strin
     }
   }
 
-  queueDiscoveryBanReview(root, reason);
-  publish(onProgress, { type: 'url_rejected', url: host, reason });
+  const banned = banRejectedDiscovery(root, reason);
+  publish(onProgress, banned
+    ? { type: 'url_blocked', url: root }
+    : { type: 'url_rejected', url: host, reason });
 }
 
 function knownSet(state: DiscoverySessionState): Set<string> {
@@ -375,6 +378,7 @@ function finishSession(state: DiscoverySessionState, onProgress?: ProgressPublis
   finishDiscoveryLive(result);
   clearDiscoverySession();
   endDiscoveryRun();
+  void persistDatabaseNow();
   void notifyDiscoveryComplete(result);
   return result;
 }
@@ -494,20 +498,40 @@ async function runClientDiscoveryStepInner(
     const siteUrl = state.listSiteUrls[state.listSiteIndex++]!;
     state.sourcesChecked++;
     publish(onProgress, { type: 'url_scanning', url: `${new URL(siteUrl).hostname} (list site)` });
-    let linksQueued = 0;
+    let savedCount = 0;
+    let queuedCount = 0;
     const html = await fetchPage(siteUrl);
     if (html) {
+      const known = knownSet(state);
       for (const link of extractOperatorLinksFromListPage(html, siteUrl)) {
-        if (enqueue(state, link, onProgress)) linksQueued++;
+        const savedPending = saveDiscoveryCandidateForReview(link, 'from sweepstakes list site', known);
+        if (savedPending) {
+          savedCount++;
+          state.added++;
+          state.found++;
+          state.knownHosts = [...getKnownHosts()];
+          known.add(casinoHostKey(savedPending.url));
+          state.addedCasinos.push(savedPending);
+          publish(onProgress, {
+            type: 'url_added',
+            url: savedPending.url,
+            name: savedPending.name,
+            needsReview: true,
+            reviewNote: 'Listed on roundup site',
+          });
+        } else if (enqueue(state, link, onProgress)) {
+          queuedCount++;
+        }
       }
     } else if (!state.browserCrawlUrls.includes(siteUrl)) {
       state.browserCrawlUrls.push(siteUrl);
     }
+    if (savedCount > 0) void persistDatabaseNow();
     publish(onProgress, {
       type: 'crawl_summary',
       crawled: state.listSiteIndex,
-      linksQueued,
-      label: `List site ${new URL(siteUrl).hostname} → ${linksQueued} casinos queued`,
+      linksQueued: savedCount + queuedCount,
+      label: `List site ${new URL(siteUrl).hostname} → ${savedCount} saved, ${queuedCount} queued`,
     });
     saveDiscoverySession(state);
     emitProgress(state, onProgress);
@@ -678,13 +702,34 @@ async function processOneUrl(state: DiscoverySessionState, onProgress?: Progress
   if (isSweepstakesDirectoryUrl(root)) {
     state.webAnalyzes++;
     publish(onProgress, { type: 'url_scanning', url: `${host} (list page)` });
-    const linksQueued = await mineOperatorsFromDirectoryPage(root, fetchPage, (url) => enqueue(state, url, onProgress));
+    const known = knownSet(state);
+    const mined = await mineOperatorsFromDirectoryPage(root, fetchPage, (url) => {
+      const savedPending = saveDiscoveryCandidateForReview(url, 'from sweepstakes list site', known);
+      if (savedPending) {
+        state.added++;
+        state.found++;
+        state.knownHosts = [...getKnownHosts()];
+        known.add(casinoHostKey(savedPending.url));
+        state.addedCasinos.push(savedPending);
+        publish(onProgress, {
+          type: 'url_added',
+          url: savedPending.url,
+          name: savedPending.name,
+          needsReview: true,
+          reviewNote: 'Listed on roundup site',
+        });
+        return 'saved';
+      }
+      if (enqueue(state, url, onProgress)) return 'queued';
+      return 'skipped';
+    });
     state.sourcesChecked++;
+    if (mined.saved > 0) void persistDatabaseNow();
     publish(onProgress, {
       type: 'crawl_summary',
       crawled: 1,
-      linksQueued,
-      label: `Mined sweepstakes list ${host} → ${linksQueued} operators queued`,
+      linksQueued: mined.saved + mined.queued,
+      label: `Mined sweepstakes list ${host} → ${mined.saved} saved, ${mined.queued} queued`,
     });
     return;
   }

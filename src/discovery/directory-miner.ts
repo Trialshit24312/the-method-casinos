@@ -5,6 +5,8 @@ import { resolveSearchRedirect } from './free-search.js';
 
 const URL_IN_TEXT_REGEX = /https?:\/\/(?:www\.)?[a-z0-9][-a-z0-9]{0,62}\.[a-z]{2,24}(?:\/[^\s"'<>]*)?/gi;
 
+export type ListOperatorResult = 'saved' | 'queued' | 'skipped';
+
 /** Pull operator roots from list/directory HTML — looser than SERP link rules. */
 export function extractOperatorLinksFromListPage(html: string, baseUrl: string): string[] {
   const links = new Set<string>();
@@ -37,38 +39,45 @@ export function extractOperatorLinksFromListPage(html: string, baseUrl: string):
   return [...links];
 }
 
-/** Fetch a list site and queue every sweepstakes operator link found on the page. */
+/** Fetch a list site — save each operator immediately via handleOperator (not just queue). */
 export async function mineOperatorsFromDirectoryPage(
   pageUrl: string,
   fetchHtml: (url: string) => Promise<string | null>,
-  enqueue: (url: string) => boolean,
-): Promise<number> {
+  handleOperator: (url: string) => ListOperatorResult,
+): Promise<{ saved: number; queued: number; skipped: number }> {
   const html = await fetchHtml(pageUrl);
-  if (!html) return 0;
+  if (!html) return { saved: 0, queued: 0, skipped: 0 };
 
   const links = extractOperatorLinksFromListPage(html, pageUrl);
+  let saved = 0;
   let queued = 0;
+  let skipped = 0;
   for (const link of links) {
-    if (enqueue(link)) queued++;
+    const result = handleOperator(link);
+    if (result === 'saved') saved++;
+    else if (result === 'queued') queued++;
+    else skipped++;
   }
-  return queued;
+  return { saved, queued, skipped };
 }
 
 export async function mineAllListSites(
   urls: string[],
   fetchHtml: (url: string) => Promise<string | null>,
-  enqueue: (url: string) => boolean,
-  onPage?: (siteUrl: string, linksQueued: number) => void,
-): Promise<{ sitesCrawled: number; linksQueued: number }> {
+  handleOperator: (url: string) => ListOperatorResult,
+  onPage?: (siteUrl: string, saved: number, queued: number) => void,
+): Promise<{ sitesCrawled: number; saved: number; queued: number }> {
   let sitesCrawled = 0;
-  let linksQueued = 0;
+  let saved = 0;
+  let queued = 0;
 
   for (const siteUrl of urls) {
-    const n = await mineOperatorsFromDirectoryPage(siteUrl, fetchHtml, enqueue);
+    const result = await mineOperatorsFromDirectoryPage(siteUrl, fetchHtml, handleOperator);
     sitesCrawled++;
-    linksQueued += n;
-    onPage?.(siteUrl, n);
+    saved += result.saved;
+    queued += result.queued;
+    onPage?.(siteUrl, result.saved, result.queued);
   }
 
-  return { sitesCrawled, linksQueued };
+  return { sitesCrawled, saved, queued };
 }

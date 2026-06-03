@@ -10,7 +10,7 @@ import {
   markDiscoverySeen,
   getAllCasinos,
   touchLastCheckedAt,
-  queueDiscoveryBanReview,
+  banRejectedDiscovery,
   setCasinoHealth,
 } from '../database/index.js';
 import { casinoHostKey, toCasinoRootUrl, isValidCasinoHost } from '../shared/utils.js';
@@ -24,7 +24,8 @@ import {
 import { getVerifiedCuratedDiscoveries } from '../shared/verified-casinos.js';
 import { buildSearchQueries, SEARCH_PAGES_DEEP, SEARCH_PAGES_QUICK } from './queries.js';
 import { collectFreeSearchLinks, extractCasinoUrlsFromHtml } from './free-search.js';
-import { mineOperatorsFromDirectoryPage, mineAllListSites } from './directory-miner.js';
+import { mineOperatorsFromDirectoryPage, mineAllListSites, type ListOperatorResult } from './directory-miner.js';
+import { persistDatabaseNow } from '../shared/remote-db-sync.js';
 import { isSweepstakesDirectoryUrl } from './filters.js';
 import { getSweepstakesListSiteUrls, isListSiteDiscoveryEnabled, isWebSearchDiscoveryEnabled } from './list-sources.js';
 import { beginDiscoveryRun, endDiscoveryRun, throwIfCancelled } from './run-state.js';
@@ -398,8 +399,10 @@ export async function runDiscovery(deep = false, onProgress?: DiscoveryProgressC
       }
     }
 
-    queueDiscoveryBanReview(root, rejectReason);
-    onProgress?.({ type: 'url_rejected', url: host, reason: rejectReason });
+    const banned = banRejectedDiscovery(root, rejectReason);
+    onProgress?.(banned
+      ? { type: 'url_blocked', url: root }
+      : { type: 'url_rejected', url: host, reason: rejectReason });
   };
 
   const enqueue = (url: string): boolean => {
@@ -449,28 +452,48 @@ export async function runDiscovery(deep = false, onProgress?: DiscoveryProgressC
   }
   emitProgress();
 
+  const handleListOperator = (url: string): ListOperatorResult => {
+    const savedPending = saveDiscoveryCandidateForReview(url, 'from sweepstakes list site', knownHosts);
+    if (savedPending) {
+      added++;
+      found++;
+      addedCasinos.push(savedPending);
+      onProgress?.({
+        type: 'url_added',
+        url: savedPending.url,
+        name: savedPending.name,
+        needsReview: true,
+        reviewNote: 'Listed on roundup site',
+      });
+      return 'saved';
+    }
+    if (enqueue(url)) return 'queued';
+    return 'skipped';
+  };
+
   if (isListSiteDiscoveryEnabled()) {
     const listUrls = getSweepstakesListSiteUrls(deep);
-    setPhase('lists', `Crawling ${listUrls.length} sweepstakes list sites for casino links…`);
-    const { sitesCrawled, linksQueued } = await mineAllListSites(
+    setPhase('lists', `Crawling ${listUrls.length} sweepstakes list sites — saving casinos to database…`);
+    const { sitesCrawled, saved: listSaved, queued: listQueued } = await mineAllListSites(
       listUrls,
       fetchPage,
-      enqueue,
-      (siteUrl, n) => {
+      handleListOperator,
+      (siteUrl, saved, queued) => {
         onProgress?.({
           type: 'crawl_summary',
           crawled: 1,
-          linksQueued: n,
-          label: `List site ${new URL(siteUrl).hostname} → ${n} casinos queued`,
+          linksQueued: saved + queued,
+          label: `List site ${new URL(siteUrl).hostname} → ${saved} saved, ${queued} queued`,
         });
       },
     );
     sourcesChecked += sitesCrawled;
+    await persistDatabaseNow();
     onProgress?.({
       type: 'crawl_summary',
       crawled: sitesCrawled,
-      linksQueued,
-      label: `List sites done: ${linksQueued} operators queued from ${sitesCrawled} pages`,
+      linksQueued: listSaved + listQueued,
+      label: `List sites done: ${listSaved} saved to Review Queue, ${listQueued} queued for scan`,
     });
     emitProgress();
 
@@ -565,13 +588,13 @@ export async function runDiscovery(deep = false, onProgress?: DiscoveryProgressC
       if (isSweepstakesDirectoryUrl(root)) {
         webAnalyzes++;
         onProgress?.({ type: 'url_scanning', url: `${host} (list page)` });
-        const linksQueued = await mineOperatorsFromDirectoryPage(root, fetchPage, enqueue);
+        const mined = await mineOperatorsFromDirectoryPage(root, fetchPage, handleListOperator);
         sourcesChecked++;
         onProgress?.({
           type: 'crawl_summary',
           crawled: 1,
-          linksQueued,
-          label: `Mined sweepstakes list ${host} → ${linksQueued} operators queued`,
+          linksQueued: mined.saved + mined.queued,
+          label: `Mined list ${host} → ${mined.saved} saved, ${mined.queued} queued`,
         });
         processed++;
         await sleep(config.delayMs / 2);
@@ -645,6 +668,7 @@ export async function runDiscovery(deep = false, onProgress?: DiscoveryProgressC
     addedCasinos: addedCasinos.slice(0, 50),
   };
   onProgress?.({ type: 'complete', result });
+  await persistDatabaseNow();
   void notifyDiscoveryComplete(result);
   return result;
   } catch (err) {
