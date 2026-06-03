@@ -14,6 +14,7 @@ export default function ComparePage() {
   usePageTitle('Compare Casinos — The Method');
   const [searchParams, setSearchParams] = useSearchParams();
   const [casinos, setCasinos] = useState<Casino[]>([]);
+  const [catalogError, setCatalogError] = useState('');
   const [a, setA] = useState(searchParams.get('a') ?? '');
   const [b, setB] = useState(searchParams.get('b') ?? '');
   const [result, setResult] = useState<CasinoCompareResult | null>(null);
@@ -22,7 +23,9 @@ export default function ComparePage() {
   const [shareMsg, setShareMsg] = useState('');
 
   useEffect(() => {
-    api.getCasinos().then(setCasinos).catch(console.error);
+    api.getCasinos()
+      .then(setCasinos)
+      .catch(() => setCatalogError('Could not load casino catalog for comparison.'));
   }, []);
 
   useEffect(() => {
@@ -93,6 +96,7 @@ export default function ComparePage() {
       />
 
       {shareMsg && <p className="text-emerald-400 text-sm mb-4">{shareMsg}</p>}
+      {catalogError && <p className="text-amber-400 text-sm mb-4">{catalogError}</p>}
 
       <div className="grid md:grid-cols-2 gap-4 mb-8">
         <CasinoCombobox label="Casino A" casinos={casinos} value={a} onChange={setA} />

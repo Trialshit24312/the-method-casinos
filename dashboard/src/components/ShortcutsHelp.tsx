@@ -5,7 +5,7 @@ const SHORTCUTS = [
   { keys: 'Ctrl + K', desc: 'Focus global search' },
   { keys: '?', desc: 'Show this shortcuts panel' },
   { keys: 'Esc', desc: 'Close menus / dialogs' },
-  { keys: '/', desc: 'Jump to catalog search (from dashboard)' },
+  { keys: '/', desc: 'Focus catalog search' },
 ];
 
 export default function ShortcutsHelp() {

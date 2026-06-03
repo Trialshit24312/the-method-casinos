@@ -35,6 +35,13 @@ export default function GlobalSearch() {
         setOpen(true);
         document.getElementById('global-search-input')?.focus();
       }
+      if (e.key === '/' && !e.ctrlKey && !e.metaKey) {
+        const tag = (e.target as HTMLElement)?.tagName;
+        if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+        e.preventDefault();
+        setOpen(true);
+        document.getElementById('global-search-input')?.focus();
+      }
       if (e.key === 'Escape') setOpen(false);
     };
     window.addEventListener('keydown', onKey);
@@ -64,7 +71,7 @@ export default function GlobalSearch() {
           onChange={(e) => setQ(e.target.value)}
           onFocus={() => setOpen(true)}
           onBlur={() => setTimeout(() => setOpen(false), 150)}
-          placeholder="Search casinos… (Ctrl+K)"
+          placeholder="Search casinos… (Ctrl+K or /)"
           className="w-full pl-9 pr-3 py-2 text-sm rounded-lg bg-surface-overlay/80 border border-surface-border
                      text-gray-200 placeholder-gray-600 focus:border-glow/40 focus:outline-none focus:ring-1 focus:ring-glow/30"
         />

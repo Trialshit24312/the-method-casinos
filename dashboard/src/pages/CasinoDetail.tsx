@@ -10,6 +10,9 @@ import type { Casino, SimilarCasinosResult } from '../types';
 import PageHeader from '../components/PageHeader';
 import CasinoCarousel from '../components/CasinoCarousel';
 import { useAuth } from '../context/AuthContext';
+import { usePageTitle } from '../hooks/usePageTitle';
+import { pushRecentlyViewed } from '../lib/recently-viewed';
+import Breadcrumb from '../components/Breadcrumb';
 import { FEATURE_LABELS, FEATURE_COLORS, vpnLabel, formatTrackableValue } from '../types';
 import { formatLastChecked, isCatalogStale } from '../lib/freshness';
 
@@ -24,6 +27,8 @@ export default function CasinoDetail() {
   const [reportOpen, setReportOpen] = useState(false);
   const [copyMsg, setCopyMsg] = useState('');
 
+  usePageTitle(casino ? `${casino.name} — The Method Casinos` : 'Casino — The Method Casinos');
+
   useEffect(() => {
     if (!slug) return;
     setLoading(true);
@@ -34,7 +39,8 @@ export default function CasinoDetail() {
       .then(async ([c, favs]) => {
         setCasino(c);
         setFavorited(favs.some((f) => f.casino.id === c.id));
-        document.title = `${c.name} — The Method Casinos`;
+        pushRecentlyViewed(c);
+        window.dispatchEvent(new Event('method-recent-view'));
         const sim = await api.getSimilar({ casinoId: c.id, limit: 6 }).catch(() => null);
         setSimilar(sim);
       })
@@ -100,8 +106,18 @@ export default function CasinoDetail() {
 
   if (loading) {
     return (
-      <div className="p-8 flex justify-center">
-        <div className="w-8 h-8 border-2 border-glow border-t-transparent rounded-full animate-spin" />
+      <div className="p-6 md:p-8 max-w-5xl mx-auto">
+        <div className="h-4 w-48 bg-white/5 rounded animate-pulse mb-6" />
+        <div className="glass-glow p-8 animate-pulse space-y-4">
+          <div className="h-8 w-2/3 bg-white/10 rounded" />
+          <div className="h-4 w-full bg-white/5 rounded" />
+          <div className="h-4 w-5/6 bg-white/5 rounded" />
+          <div className="flex gap-2 pt-4">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <div key={i} className="h-9 w-24 bg-white/5 rounded-lg" />
+            ))}
+          </div>
+        </div>
       </div>
     );
   }
@@ -120,7 +136,13 @@ export default function CasinoDetail() {
   }
 
   return (
-    <div className="p-8 max-w-5xl mx-auto">
+    <div className="p-6 md:p-8 max-w-5xl mx-auto">
+      <Breadcrumb
+        items={[
+          { label: 'Catalog', to: '/casinos' },
+          { label: casino.name },
+        ]}
+      />
       <PageHeader
         title={casino.name}
         subtitle={casino.url.replace(/^https?:\/\//, '')}
@@ -134,7 +156,7 @@ export default function CasinoDetail() {
         </div>
       )}
 
-      <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="glass-glow p-6 mb-8">
+      <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="glass-glow p-6 mb-8 border-glow/15">
         <div className="flex flex-wrap items-start justify-between gap-4 mb-4">
           <div className="flex items-center gap-3 flex-wrap">
             <div className="flex items-center gap-1 text-accent-gold">

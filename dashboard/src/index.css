@@ -118,6 +118,14 @@
     @apply bg-surface-muted border border-surface-border rounded-lg;
   }
 
+  .modal-overlay {
+    @apply fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm;
+  }
+
+  .modal-panel {
+    @apply glass-glow w-full relative border-gradient;
+  }
+
   .input-field {
     @apply w-full px-4 py-2.5 rounded-xl text-gray-100 placeholder-gray-500 transition-all duration-200;
     background: rgba(255, 255, 255, 0.04);

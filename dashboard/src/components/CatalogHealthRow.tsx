@@ -14,7 +14,7 @@ export default function CatalogHealthRow({ casino, onRecheck, onUnlist, busy }: 
   const stale = isCatalogStale(casino.lastCheckedAt);
 
   return (
-    <div className={`glass p-4 flex flex-wrap items-start justify-between gap-3 ${failed ? 'border-red-500/25' : 'border-orange-500/20'}`}>
+    <div className={`glass-glow p-4 flex flex-wrap items-start justify-between gap-3 border-gradient ${failed ? 'border-red-500/25' : 'border-orange-500/20'}`}>
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2 flex-wrap mb-1">
           <h3 className="font-medium text-white">{casino.name}</h3>

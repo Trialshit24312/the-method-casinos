@@ -8,6 +8,7 @@ import { api } from '../api';
 import type { DiscoveryResult, DiscoveryProgressEvent, DiscoveryLiveStats, Stats, DiscoveryHistoryEntry } from '../types';
 import PageHeader from '../components/PageHeader';
 import { useAuth } from '../context/AuthContext';
+import { usePageTitle } from '../hooks/usePageTitle';
 
 function formatDuration(ms: number): string {
   const mins = Math.floor(ms / 60000);
@@ -121,6 +122,7 @@ const emptyStats = (): DiscoveryLiveStats => ({
 });
 
 export default function DiscoveryPage() {
+  usePageTitle('Discovery — The Method Casinos');
   const { user } = useAuth();
   const [running, setRunning] = useState(false);
   const [deepRunning, setDeepRunning] = useState(false);

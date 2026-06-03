@@ -95,6 +95,7 @@ export default function SimilarCasinosPage() {
   const { user } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
   const [allCasinos, setAllCasinos] = useState<Casino[]>([]);
+  const [catalogError, setCatalogError] = useState('');
   const [query, setQuery] = useState('');
   const [selected, setSelected] = useState<Casino | null>(null);
   const [matches, setMatches] = useState<SimilarCasinoMatch[]>([]);
@@ -122,7 +123,9 @@ export default function SimilarCasinosPage() {
   }, [setSearchParams]);
 
   useEffect(() => {
-    api.getCasinos().then(setAllCasinos).catch(console.error);
+    api.getCasinos()
+      .then(setAllCasinos)
+      .catch(() => setCatalogError('Could not load casino catalog.'));
   }, []);
 
   useEffect(() => {
@@ -217,6 +220,9 @@ export default function SimilarCasinosPage() {
 
       {error && (
         <div className="mb-6 p-4 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400 text-sm">{error}</div>
+      )}
+      {catalogError && (
+        <div className="mb-6 p-4 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-300 text-sm">{catalogError}</div>
       )}
 
       {loading && (

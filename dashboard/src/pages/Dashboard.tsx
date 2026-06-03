@@ -30,6 +30,7 @@ import CarouselSkeleton from '../components/CarouselSkeleton';
 import StatsSkeleton from '../components/StatsSkeleton';
 import { useAuth } from '../context/AuthContext';
 import ActivityFeed from '../components/ActivityFeed';
+import RecentlyViewed from '../components/RecentlyViewed';
 import { usePageTitle } from '../hooks/usePageTitle';
 
 export default function DashboardPage() {
@@ -72,6 +73,8 @@ export default function DashboardPage() {
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mb-8">
         <FeatureStrip compact />
       </motion.div>
+
+      <RecentlyViewed />
 
       {user?.isAdmin && stats && (stats.pendingReview > 0 || (stats.openReports ?? 0) > 0 || (stats.failedHealthCasinos ?? 0) > 0) && (
         <motion.div

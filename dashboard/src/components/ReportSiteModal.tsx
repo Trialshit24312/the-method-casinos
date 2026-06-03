@@ -22,6 +22,15 @@ export default function ReportSiteModal({ open, onClose, initialUrl = '' }: Prop
     }
   }, [open, initialUrl]);
 
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [open, onClose]);
+
   if (!open) return null;
 
   const submit = async () => {
@@ -42,8 +51,8 @@ export default function ReportSiteModal({ open, onClose, initialUrl = '' }: Prop
   };
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/70" role="dialog" aria-modal>
-      <div className="glass-glow w-full max-w-md p-6 relative">
+    <div className="modal-overlay" role="dialog" aria-modal aria-labelledby="report-modal-title">
+      <div className="modal-panel max-w-md p-6">
         <button
           type="button"
           onClick={onClose}
@@ -54,7 +63,7 @@ export default function ReportSiteModal({ open, onClose, initialUrl = '' }: Prop
         </button>
         <div className="flex items-center gap-2 text-amber-400 mb-3">
           <Flag className="w-5 h-5" />
-          <h2 className="font-display font-semibold text-lg text-white">Report a site</h2>
+          <h2 id="report-modal-title" className="font-display font-semibold text-lg text-white">Report a site</h2>
         </div>
         <p className="text-xs text-gray-500 mb-4">
           Flag scams, phishing, or misleading sweepstakes sites. Reports go to the admin review queue.
@@ -64,6 +73,7 @@ export default function ReportSiteModal({ open, onClose, initialUrl = '' }: Prop
           placeholder="https://suspicious-site.com"
           value={url}
           onChange={(e) => setUrl(e.target.value)}
+          onKeyDown={(e) => e.key === 'Enter' && void submit()}
         />
         <textarea
           className="input-field w-full mb-4 min-h-[80px]"
