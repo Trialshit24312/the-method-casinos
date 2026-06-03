@@ -5,6 +5,7 @@ import { getPublicSiteUrl } from '../shared/site.js';
 import { setBotClient, setBotReady } from './state.js';
 import { registerBotForShutdown } from '../shared/shutdown.js';
 import { BRAND_MOTTO } from './brand.js';
+import { initDiscordLiveFeed } from '../shared/discord-live-feed.js';
 
 function buildActivities(): { name: string; type: ActivityType }[] {
   const stats = getStats();
@@ -42,6 +43,8 @@ export async function startBot(): Promise<Client> {
     };
     setActivity();
     setInterval(setActivity, 45_000);
+
+    initDiscordLiveFeed();
 
     if (process.env.DISCORD_CLIENT_ID) {
       try {

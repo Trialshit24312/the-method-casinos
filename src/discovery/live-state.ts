@@ -7,6 +7,7 @@ import {
   resetDiscoveryLiveStorage,
   updateDiscoveryLiveStorage,
 } from '../database/index.js';
+import { projectDiscoveryEvent } from '../shared/discord-live-feed.js';
 
 export type { DiscoveryLiveSnapshot };
 
@@ -20,6 +21,7 @@ export function beginDiscoveryLive(mode: 'quick' | 'deep'): void {
 
 export function pushDiscoveryLiveEvent(event: DiscoveryProgressEvent): void {
   if (event.type === 'heartbeat') return;
+  projectDiscoveryEvent(event);
 
   if (event.type === 'progress') {
     updateDiscoveryLiveStorage({ stats: event.stats });

@@ -11,6 +11,10 @@ export function setBotReady(ready: boolean): void {
   botReady = ready;
 }
 
+export function getBotClient(): Client | null {
+  return botClient;
+}
+
 export function getBotHealth(): { connected: boolean; tag: string | null } {
   return {
     connected: botReady && Boolean(botClient?.isReady()),

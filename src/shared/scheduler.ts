@@ -3,8 +3,10 @@ import path from 'path';
 import { isDiscoveryRunning } from '../discovery/run-state.js';
 import { isDiscoveryLiveActive } from '../discovery/live-state.js';
 import { runDiscovery } from '../discovery/engine.js';
+import { startContinuousDiscovery, isContinuousDiscoveryEnabled } from '../discovery/continuous.js';
 import { runRevalidationBatch } from '../discovery/revalidate.js';
 import { getBackupDir, getDbPath } from '../shared/data-path.js';
+import { initDiscordLiveFeed } from './discord-live-feed.js';
 
 const DB_PATH = getDbPath();
 const BACKUP_DIR = getBackupDir();
@@ -27,6 +29,8 @@ function runDbBackup(): void {
 }
 
 export function scheduleBackgroundJobs(): void {
+  initDiscordLiveFeed();
+
   const revalidateHours = parseFloat(process.env.REVALIDATE_INTERVAL_HOURS ?? '');
   if (Number.isFinite(revalidateHours) && revalidateHours > 0) {
     const ms = revalidateHours * 60 * 60 * 1000;
@@ -41,8 +45,10 @@ export function scheduleBackgroundJobs(): void {
     console.log(`⏱️  Catalog revalidation every ${revalidateHours}h (batch ${limit})`);
   }
 
+  startContinuousDiscovery();
+
   const discoveryHours = parseFloat(process.env.DISCOVERY_SCHEDULE_HOURS ?? '');
-  if (Number.isFinite(discoveryHours) && discoveryHours > 0) {
+  if (!isContinuousDiscoveryEnabled() && Number.isFinite(discoveryHours) && discoveryHours > 0) {
     const ms = discoveryHours * 60 * 60 * 1000;
     const deep = process.env.DISCOVERY_SCHEDULE_DEEP === 'true';
     setInterval(() => {

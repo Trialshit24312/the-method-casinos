@@ -1,5 +1,6 @@
 import fetch from 'node-fetch';
 import type { RevalidateResult } from '../discovery/revalidate.js';
+import { projectPublicFeedItem } from './discord-live-feed.js';
 
 export async function notifyDiscordWebhook(payload: {
   title: string;
@@ -46,6 +47,12 @@ export async function notifySiteReport(report: {
 }
 
 export async function notifyCasinoApproved(casino: { name: string; url: string }, approvedBy: string): Promise<void> {
+  projectPublicFeedItem({
+    type: 'approval',
+    at: new Date().toISOString(),
+    title: casino.name,
+    detail: `Approved by ${approvedBy}`,
+  });
   await notifyDiscordWebhook({
     title: 'Casino approved',
     description: [
@@ -67,6 +74,12 @@ export async function notifyDiscoveryComplete(result: {
 }): Promise<void> {
   const mins = Math.round(result.durationMs / 60000);
   const lines = result.addedCasinos.slice(0, 8).map((c) => `• ${c.name} — ${c.url}`).join('\n');
+  projectPublicFeedItem({
+    type: 'discovery',
+    at: new Date().toISOString(),
+    title: `${result.mode} discovery scan`,
+    detail: `+${result.added} queued · ${result.rejected} rejected`,
+  });
   await notifyDiscordWebhook({
     title: `Discovery ${result.mode} scan complete`,
     description: [

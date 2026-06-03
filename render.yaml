@@ -42,13 +42,21 @@ services:
         sync: false
       - key: DISCORD_WEBHOOK_URL
         sync: false
+      - key: DISCORD_LIVE_FEED
+        value: "true"
+      - key: DISCORD_FEED_CHANNEL_ID
+        sync: false
+      - key: DISCORD_LIVE_FEED_PIN
+        value: "true"
       - key: REVALIDATE_INTERVAL_HOURS
         value: "168"
       - key: SESSION_MAX_AGE_DAYS
         value: "30"
       - key: DATA_DIR
         value: /opt/render/project/src/data
-      - key: DISCOVERY_SCHEDULE_HOURS
-        value: "168"
+      - key: DISCOVERY_CONTINUOUS
+        value: "true"
+      - key: DISCOVERY_CONTINUOUS_COOLDOWN_SEC
+        value: "90"
       - key: DB_BACKUP_INTERVAL_HOURS
         value: "24"

@@ -5,6 +5,7 @@ import { getBotHealth } from '../bot/state.js';
 import { buildAboutEmbed, buildFeaturedEmbed, buildRecentEmbed, buildStatusEmbed, buildTiersEmbed } from './embeds.js';
 import { brandButtonRow } from './brand.js';
 import { getPublicSiteUrl, sitePage } from '../shared/site.js';
+import { isDiscordLiveFeedEnabled } from '../shared/discord-live-feed.js';
 
 function linkRow(): ActionRowBuilder<ButtonBuilder> {
   const row = new ActionRowBuilder<ButtonBuilder>();
@@ -100,9 +101,13 @@ export const extraCommands: Command[] = [
         const icon = item.type === 'approval' ? '✅' : '🔍';
         return `${icon} **${item.title}** — ${item.detail} (${when})`;
       });
+      const feedHint = isDiscordLiveFeedEnabled()
+        ? (process.env.DISCORD_FEED_CHANNEL_ID
+          ? '\n\nLive discovery stream is posting in your configured **feed channel**.'
+          : '\n\nLive discovery stream is posting via **DISCORD_WEBHOOK_URL**.')
+        : '\n\nSet **DISCORD_FEED_CHANNEL_ID** + **DISCORD_LIVE_FEED=1** on Render to mirror the dashboard live log.';
       await interaction.reply({
-        content: `**Recent activity**\n${lines.join('\n')}\n\nFull feed on dashboard → /dashboard`,
-        ephemeral: true,
+        content: `**Recent activity**\n${lines.join('\n')}\n\nDashboard feed → ${sitePage('/dashboard')}${feedHint}`,
       });
     },
   },
