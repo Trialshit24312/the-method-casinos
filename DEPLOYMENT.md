@@ -182,7 +182,8 @@ If the dashboard is on `pages.dev` and API on `onrender.com`, cross-site cookies
 
 **Free plan:** use R2 (§2b), not a Render disk.
 
-1. **`REMOTE_DB_SYNC=true`** and all **`S3_*`** vars set on the web service.
+1. **Delete `DATA_DIR`** if it is set to `/var/data` — free tier cannot write there and the app will crash.
+2. **`REMOTE_DB_SYNC=true`** and all **`S3_*`** vars set on the web service.
 2. **Logs on boot:** `☁️  Restored database from s3://...` or upload messages every 15m.
 3. **`/health`** → `persistence.remoteDbSync: true` and `diskLikelyPersistent: true`.
 4. After approving casinos, wait for the next sync (or redeploy once to force upload on shutdown).

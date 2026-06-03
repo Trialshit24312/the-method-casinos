@@ -29,15 +29,23 @@ describe('data path resolution', () => {
     expect(resolveDataDir()).toBe(path.resolve(dir));
   });
 
-  it('prefers /var/data on Render when present', async () => {
+  it('falls back to cwd/data on Render when /var/data is not writable', async () => {
     saveEnv(['DATA_DIR', 'RENDER', 'NODE_ENV']);
     delete process.env.DATA_DIR;
     process.env.RENDER = 'true';
 
-    const { resolveDataDir, PREFERRED_RENDER_DATA_DIR } = await import('../src/shared/data-path.js');
-    const exists = fs.existsSync(PREFERRED_RENDER_DATA_DIR);
-    expect(resolveDataDir()).toBe(
-      exists ? PREFERRED_RENDER_DATA_DIR : PREFERRED_RENDER_DATA_DIR,
-    );
+    const { resolveDataDir } = await import('../src/shared/data-path.js');
+    const dir = resolveDataDir();
+    expect(dir).toBe(path.resolve(path.join(process.cwd(), 'data')));
+  });
+
+  it('ignores non-writable DATA_DIR', async () => {
+    saveEnv(['DATA_DIR', 'RENDER', 'NODE_ENV']);
+    process.env.DATA_DIR = '/var/data';
+    process.env.RENDER = 'true';
+
+    const { resolveDataDir } = await import('../src/shared/data-path.js');
+    const dir = resolveDataDir();
+    expect(dir).not.toBe('/var/data');
   });
 });
