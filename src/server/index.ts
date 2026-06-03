@@ -49,6 +49,14 @@ import { requireAuth, requireAdmin, exchangeCode, getDiscordAuthUrl, getAvatarUr
 import type { CasinoFeature, CasinoInput, BlockedSiteInput, DiscoveryResult } from '../shared/types.js';
 import { getAllowedCorsOrigins, getDiscordRedirectUri, getOAuthSetupInfo } from '../shared/site.js';
 import { applySecurityMiddleware } from './middleware.js';
+import rateLimit from 'express-rate-limit';
+import {
+  beginDiscoveryLive,
+  finishDiscoveryLive,
+  getDiscoveryLiveSnapshot,
+  isDiscoveryLiveActive,
+  pushDiscoveryLiveEvent,
+} from '../discovery/live-state.js';
 import { SqliteSessionStore } from './session-store.js';
 import { getBotHealth } from '../bot/state.js';
 import { registerHttpServer } from '../shared/shutdown.js';
@@ -475,15 +483,25 @@ export function createServer(): express.Application {
     res.json({ cancelled: cancelDiscoveryRun() });
   });
 
+  app.get('/api/discover/live', requireAuth, requireAdmin, (req, res) => {
+    const since = Math.max(0, parseInt(String(req.query.since ?? '0'), 10) || 0);
+    res.json(getDiscoveryLiveSnapshot(since));
+  });
+
+  const discoverStartLimit = rateLimit({
+    windowMs: 60 * 60 * 1000,
+    max: 6,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { error: 'Discovery rate limit — wait before starting another scan' },
+  });
+
   app.get('/api/discovery/history', requireAuth, requireAdmin, (req, res) => {
     const limit = Math.min(50, Math.max(1, parseInt(String(req.query.limit ?? '15'), 10) || 15));
     res.json(getDiscoveryHistory(limit));
   });
 
-  app.post('/api/discover', requireAuth, requireAdmin, async (req, res) => {
-    req.setTimeout(35 * 60 * 1000);
-    res.setTimeout(35 * 60 * 1000);
-
+  app.post('/api/discover', discoverStartLimit, requireAuth, requireAdmin, async (req, res) => {
     const deep = Boolean(req.body?.deep);
     const stream = req.query.stream === '1' || Boolean(req.body?.stream);
 
@@ -503,51 +521,41 @@ export function createServer(): express.Application {
 
     try {
       if (stream) {
-        res.setHeader('Content-Type', 'application/x-ndjson; charset=utf-8');
-        res.setHeader('Cache-Control', 'no-cache, no-transform');
-        res.setHeader('Connection', 'keep-alive');
-        res.setHeader('X-Accel-Buffering', 'no');
-        res.flushHeaders();
-
-        let completed = false;
-        const writeEvent = (event: { type: string; result?: DiscoveryResult }) => {
-          if (res.writableEnded) return;
-          try {
-            res.write(`${JSON.stringify(event)}\n`);
-            (res as typeof res & { flush?: () => void }).flush?.();
-          } catch {
-            /* client disconnected */
-          }
-          if (event.type === 'complete') completed = true;
-        };
-
-        try {
-          await runDiscovery(deep, writeEvent);
-        } catch (err) {
-          const msg = err instanceof Error ? err.message : 'Discovery failed';
-          if (!completed) {
-            writeEvent({ type: 'complete', result: emptyDiscoveryResult([msg]) });
-          }
-        } finally {
-          if (!completed && !res.writableEnded) {
-            writeEvent({
-              type: 'complete',
-              result: emptyDiscoveryResult(['Connection closed before scan finished — partial progress may be lost']),
-            });
-          }
-          if (!res.writableEnded) res.end();
+        if (isDiscoveryRunning() || isDiscoveryLiveActive()) {
+          res.status(409).json({ error: 'Discovery scan already running' });
+          return;
         }
+
+        const mode = deep ? 'deep' : 'quick';
+        beginDiscoveryLive(mode);
+
+        void (async () => {
+          try {
+            const result = await runDiscovery(deep, pushDiscoveryLiveEvent);
+            if (!getDiscoveryLiveSnapshot().result) {
+              finishDiscoveryLive(result);
+            }
+          } catch (err) {
+            const msg = err instanceof Error ? err.message : 'Discovery failed';
+            finishDiscoveryLive(emptyDiscoveryResult([msg]));
+          }
+        })();
+
+        res.status(202).json({ started: true, mode });
         return;
       }
 
+      if (isDiscoveryRunning() || isDiscoveryLiveActive()) {
+        res.status(409).json({ error: 'Discovery scan already running' });
+        return;
+      }
+
+      req.setTimeout(35 * 60 * 1000);
+      res.setTimeout(35 * 60 * 1000);
       const result = await runDiscovery(deep);
       res.json(result);
     } catch (err) {
-      if (stream && !res.headersSent) {
-        res.status(500).json({ error: err instanceof Error ? err.message : 'Discovery failed' });
-      } else if (!stream) {
-        res.status(500).json({ error: err instanceof Error ? err.message : 'Discovery failed' });
-      }
+      res.status(500).json({ error: err instanceof Error ? err.message : 'Discovery failed' });
     }
   });
 

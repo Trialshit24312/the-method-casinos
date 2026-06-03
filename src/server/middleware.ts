@@ -16,14 +16,6 @@ export function applySecurityMiddleware(app: Express): void {
     message: { error: 'Too many auth attempts — try again later' },
   }));
 
-  app.use('/api/discover', rateLimit({
-    windowMs: 60 * 60 * 1000,
-    max: 6,
-    standardHeaders: true,
-    legacyHeaders: false,
-    message: { error: 'Discovery rate limit — wait before starting another scan' },
-  }));
-
   app.use('/api/check', rateLimit({
     windowMs: 60 * 1000,
     max: 30,

@@ -194,6 +194,17 @@ export type DiscoveryProgressEvent =
   | { type: 'heartbeat'; ts: number }
   | { type: 'complete'; result: DiscoveryResult };
 
+export interface DiscoveryLiveSnapshot {
+  running: boolean;
+  mode: 'quick' | 'deep' | null;
+  startedAt: number | null;
+  phaseLabel: string;
+  stats: DiscoveryLiveStats | null;
+  events: Array<DiscoveryProgressEvent & { seq: number }>;
+  lastSeq: number;
+  result: DiscoveryResult | null;
+}
+
 export interface SiteReport {
   id: string;
   url: string;

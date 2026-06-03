@@ -149,6 +149,52 @@ export default function DiscoveryPage() {
     setActivityLog((prev) => [...prev.slice(-249), { ...entry, id: logIdRef.current }]);
   };
 
+  useEffect(() => {
+    if (!user?.isAdmin) return;
+
+    let cancelled = false;
+
+    void (async () => {
+      try {
+        const snap = await api.getDiscoveryLive(0);
+        if (cancelled || !snap.running) return;
+
+        const deep = snap.mode === 'deep';
+        if (deep) setDeepRunning(true);
+        else setRunning(true);
+        if (snap.stats) setLiveStats(snap.stats);
+        if (snap.phaseLabel) setPhaseLabel(snap.phaseLabel);
+
+        for (const raw of snap.events) {
+          const { seq: _seq, ...event } = raw;
+          pushLog(event as DiscoveryProgressEvent);
+        }
+
+        abortRef.current = new AbortController();
+        const res = await api.discoverStream(deep, pushLog, abortRef.current.signal, snap.lastSeq + 1);
+        if (!cancelled) setResult(res);
+      } catch (err) {
+        if (cancelled) return;
+        if (err instanceof Error && err.name === 'AbortError') {
+          setError('Scan cancelled.');
+        } else if (err instanceof Error) {
+          setError(err.message);
+        }
+      } finally {
+        if (!cancelled) {
+          setRunning(false);
+          setDeepRunning(false);
+          abortRef.current = null;
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- resume once on admin mount
+  }, [user?.isAdmin]);
+
   const cancelScan = () => {
     abortRef.current?.abort();
     void api.cancelDiscovery().catch(() => {});
@@ -168,8 +214,8 @@ export default function DiscoveryPage() {
     try {
       const res = await api.discoverStream(deep, pushLog, abortRef.current.signal);
       setResult(res);
-      if (res.errors.some((e) => e.includes('partial') || e.includes('Connection closed'))) {
-        setError('Scan ended early — partial results shown below.');
+      if (res.errors.length > 0) {
+        setError(res.errors.join(' '));
       }
     } catch (err) {
       if (err instanceof Error && err.name === 'AbortError') {

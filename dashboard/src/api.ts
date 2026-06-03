@@ -1,4 +1,4 @@
-import type { Casino, Stats, User, DiscoveryResult, DiscoveryProgressEvent, DiscoveryLiveStats, BlockedSite, BlockReason, BlockSeverity, UrlCheckResult, SimilarCasinosResult, SimilarWebDiscoveryResult, SiteReport, DiscoveryHistoryEntry, CasinoCompareResult } from './types';
+import type { Casino, Stats, User, DiscoveryResult, DiscoveryProgressEvent, DiscoveryLiveSnapshot, BlockedSite, BlockReason, BlockSeverity, UrlCheckResult, SimilarCasinosResult, SimilarWebDiscoveryResult, SiteReport, DiscoveryHistoryEntry, CasinoCompareResult } from './types';
 
 import { apiBaseUrl } from './lib/site';
 
@@ -57,73 +57,62 @@ export const api = {
     deep: boolean,
     onEvent: (event: DiscoveryProgressEvent) => void,
     signal?: AbortSignal,
+    sinceSeq = 0,
   ): Promise<DiscoveryResult> => {
-    const res = await fetch(`${API}/api/discover?stream=1`, {
-      method: 'POST',
-      credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ deep, stream: true }),
-      signal,
-    });
+    if (sinceSeq === 0) {
+      const res = await fetch(`${API}/api/discover?stream=1`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ deep, stream: true }),
+        signal,
+      });
 
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({ error: res.statusText }));
-      throw new Error(err.error || 'Discovery failed');
+      if (res.status !== 409 && !res.ok) {
+        const err = await res.json().catch(() => ({ error: res.statusText }));
+        throw new Error(err.error || 'Discovery failed');
+      }
+
+      if (res.status === 202) {
+        await res.json().catch(() => ({}));
+      }
     }
 
-    const reader = res.body?.getReader();
-    if (!reader) throw new Error('No response stream');
-
-    const decoder = new TextDecoder();
-    let buffer = '';
-    let finalResult: DiscoveryResult | null = null;
-    const streamState = { lastProgress: null as DiscoveryLiveStats | null };
-
-    const parseLine = (line: string) => {
-      if (!line.trim()) return;
-      try {
-        const event = JSON.parse(line) as DiscoveryProgressEvent;
-        if (event.type === 'heartbeat') return;
-        if (event.type === 'progress') streamState.lastProgress = event.stats;
-        onEvent(event);
-        if (event.type === 'complete') finalResult = event.result;
-      } catch {
-        /* skip malformed chunk */
-      }
-    };
+    let cursor = sinceSeq;
 
     while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      buffer += decoder.decode(value, { stream: true });
-      const lines = buffer.split('\n');
-      buffer = lines.pop() ?? '';
-      for (const line of lines) parseLine(line);
+      if (signal?.aborted) {
+        await fetch(`${API}/api/discover/cancel`, {
+          method: 'POST',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+        }).catch(() => {});
+        throw new DOMException('Aborted', 'AbortError');
+      }
+
+      const snap = await request<DiscoveryLiveSnapshot>(`/api/discover/live?since=${cursor}`);
+
+      for (const raw of snap.events) {
+        const { seq, ...event } = raw;
+        onEvent(event as DiscoveryProgressEvent);
+        cursor = seq + 1;
+      }
+
+      if (snap.stats) {
+        onEvent({ type: 'progress', stats: snap.stats });
+      }
+
+      if (snap.result) return snap.result;
+
+      if (!snap.running) {
+        throw new Error('Discovery ended unexpectedly — try again');
+      }
+
+      await new Promise((resolve) => setTimeout(resolve, 1500));
     }
-
-    if (buffer.trim()) parseLine(buffer);
-
-    if (finalResult) return finalResult;
-
-    const partial = streamState.lastProgress;
-    if (partial) {
-      return {
-        scanned: partial.scanned,
-        found: partial.added + partial.rejected + partial.skipped,
-        added: partial.added,
-        skipped: partial.skipped,
-        blocked: partial.blocked,
-        rejected: partial.rejected,
-        durationMs: 0,
-        sourcesChecked: partial.sourcesChecked,
-        errors: ['Connection closed before final summary — showing partial results'],
-        mode: deep ? 'deep' : 'quick',
-        addedCasinos: [],
-      };
-    }
-
-    throw new Error('Discovery stream ended without result — try again or use Quick Scan');
   },
+  getDiscoveryLive: (since = 0) =>
+    request<DiscoveryLiveSnapshot>(`/api/discover/live?since=${since}`),
   getBlockedSites: (q?: string) =>
     request<BlockedSite[]>(q ? `/api/blocked?q=${encodeURIComponent(q)}` : '/api/blocked'),
   checkUrl: (url: string) =>
