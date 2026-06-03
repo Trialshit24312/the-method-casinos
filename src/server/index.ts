@@ -352,8 +352,8 @@ export function createServer(): express.Application {
       res.status(404).json({ error: 'Not found or approval did not apply' });
       return;
     }
-    const { persistDatabaseNow } = await import('../shared/remote-db-sync.js');
-    await persistDatabaseNow();
+    const { commitCatalogWriteAndWait } = await import('../shared/catalog-persist.js');
+    await commitCatalogWriteAndWait('api-approve');
     void notifyCasinoApproved(approved, req.session.user?.username ?? 'admin');
     res.json(approved);
   });
@@ -579,7 +579,7 @@ export function createServer(): express.Application {
   });
 
   // Protected routes
-  app.post('/api/casinos', requireAuth, requireAdmin, (req, res) => {
+  app.post('/api/casinos', requireAuth, requireAdmin, async (req, res) => {
     const input = req.body as CasinoInput;
     if (!input.name || !input.url) {
       res.status(400).json({ error: 'Name and URL required' });
@@ -595,6 +595,8 @@ export function createServer(): express.Application {
       res.status(409).json({ error: 'Casino already exists (duplicate URL)' });
       return;
     }
+    const { commitCatalogWriteAndWait } = await import('../shared/catalog-persist.js');
+    await commitCatalogWriteAndWait('api-add-casino');
     res.status(201).json(casino);
   });
 

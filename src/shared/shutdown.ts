@@ -2,7 +2,7 @@ import type { Server } from 'http';
 import type { Client } from 'discord.js';
 import { pauseDiscoveryForShutdown } from '../discovery/shutdown-pause.js';
 import { getDatabase } from '../database/index.js';
-import { persistDatabaseNow } from './remote-db-sync.js';
+import { commitCatalogWriteAndWait } from './catalog-persist.js';
 
 let httpServer: Server | null = null;
 let botClient: Client | null = null;
@@ -26,7 +26,7 @@ export function setupGracefulShutdown(): void {
 
     try {
       getDatabase();
-      await persistDatabaseNow();
+      await commitCatalogWriteAndWait('shutdown');
     } catch {
       /* db not initialized */
     }

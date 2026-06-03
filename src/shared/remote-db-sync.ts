@@ -7,6 +7,7 @@ import {
   S3Client,
 } from '@aws-sdk/client-s3';
 import { getDataDir, getDbPath } from './data-path.js';
+import { commitCatalogWrite, writeLocalDbBackup } from './catalog-persist.js';
 
 const DEFAULT_OBJECT_KEY = 'casinos.db';
 
@@ -105,29 +106,21 @@ let debouncedUploadTimer: ReturnType<typeof setTimeout> | null = null;
 let uploadInFlight = false;
 let persistQueued = false;
 
-/** Call after any SQLite write — uploads to R2 within a few seconds (survives Render restarts). */
+/** Every catalog write should call commitCatalogWrite; this aliases it. */
 export function notifyDatabaseChanged(): void {
-  if (!isRemoteDbSyncEnabled()) return;
-  if (debouncedUploadTimer) clearTimeout(debouncedUploadTimer);
-  const sec = parseFloat(process.env.REMOTE_DB_SYNC_DEBOUNCE_SEC ?? '8');
-  const delay = (Number.isFinite(sec) && sec > 0 ? sec : 8) * 1000;
-  debouncedUploadTimer = setTimeout(() => {
-    debouncedUploadTimer = null;
-    void persistDatabaseNow();
-  }, delay);
+  commitCatalogWrite('notifyDatabaseChanged');
 }
 
 /** Force checkpoint + upload now (discovery complete, shutdown, etc.). */
 export async function persistDatabaseNow(): Promise<boolean> {
-  if (!isRemoteDbSyncEnabled()) return false;
   if (uploadInFlight) {
     persistQueued = true;
     return false;
   }
   uploadInFlight = true;
   try {
-    const { getDatabase } = await import('../database/index.js');
-    getDatabase().pragma('wal_checkpoint(TRUNCATE)');
+    writeLocalDbBackup();
+    if (!isRemoteDbSyncEnabled()) return false;
     await uploadRemoteDatabase();
     return true;
   } catch (err) {

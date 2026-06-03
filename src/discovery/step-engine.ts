@@ -37,7 +37,7 @@ import {
   isSoftDiscoveryReject,
 } from './engine.js';
 import { notifyDiscoveryComplete } from '../shared/notify.js';
-import { persistDatabaseNow } from '../shared/remote-db-sync.js';
+import { commitCatalogWriteAndWait } from '../shared/catalog-persist.js';
 
 type ProgressPublisher = (event: DiscoveryProgressEvent) => void;
 
@@ -382,7 +382,7 @@ function finishSession(state: DiscoverySessionState, onProgress?: ProgressPublis
   clearDiscoverySession();
   releaseListSitesForRun(state.discoveryRunId);
   endDiscoveryRun(state.discoveryRunId);
-  void persistDatabaseNow();
+  void commitCatalogWriteAndWait('discovery:client-finish');
   void notifyDiscoveryComplete(result);
   return result;
 }
@@ -545,7 +545,7 @@ async function runClientDiscoveryStepInner(
       state.browserCrawlUrls.push(siteUrl);
     }
     markListSiteCrawled(siteUrl);
-    if (savedCount > 0) void persistDatabaseNow();
+    if (savedCount > 0) void commitCatalogWriteAndWait('discovery:client-list-page');
     publish(onProgress, {
       type: 'crawl_summary',
       crawled: state.listSiteIndex,
@@ -743,7 +743,7 @@ async function processOneUrl(state: DiscoverySessionState, onProgress?: Progress
       return 'skipped';
     });
     state.sourcesChecked++;
-    if (mined.saved > 0) void persistDatabaseNow();
+    if (mined.saved > 0) void commitCatalogWriteAndWait('discovery:client-list-mine');
     publish(onProgress, {
       type: 'crawl_summary',
       crawled: 1,

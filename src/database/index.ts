@@ -11,7 +11,7 @@ import { STALE_CATALOG_DAYS } from '../shared/freshness.js';
 import { VERIFIED_CASINO_SEEDS } from '../shared/verified-casinos.js';
 import { getDataDir, getDbPath, maybeMigrateLegacyDatabase } from '../shared/data-path.js';
 import { logPersistenceStatus } from '../shared/persistence.js';
-import { notifyDatabaseChanged, persistDatabaseNow } from '../shared/remote-db-sync.js';
+import { commitCatalogWrite, commitCatalogWriteAndWait, registerCatalogDatabase } from '../shared/catalog-persist.js';
 import type { DiscoveryLiveStats, DiscoveryProgressEvent, DiscoveryResult } from '../shared/types.js';
 
 let db: Database.Database;
@@ -26,7 +26,9 @@ export function initDatabase(): Database.Database {
   const dbPath = path.join(dataDir, 'casinos.db');
   db = new Database(dbPath);
   db.pragma('journal_mode = WAL');
+  db.pragma('synchronous = FULL');
   db.pragma('foreign_keys = ON');
+  registerCatalogDatabase(() => db);
   logPersistenceStatus();
 
   db.exec(`
@@ -377,11 +379,34 @@ export function addCasino(input: CasinoInput): Casino | null {
 
   if (isUrlBlocked(url)) return null;
 
-  const existing = db.prepare('SELECT id FROM casinos WHERE url_normalized = ?').get(urlNormalized);
-  if (existing) return null;
+  const existingRow = db.prepare('SELECT * FROM casinos WHERE url_normalized = ?').get(urlNormalized) as
+    | Record<string, unknown>
+    | undefined;
+  if (existingRow) {
+    const existing = rowToCasino(existingRow);
+    const wantsPending = (input.reviewStatus ?? (input.verified ? 'approved' : 'pending')) === 'pending';
+    if (wantsPending && existing.reviewStatus === 'pending' && existing.active) {
+      commitCatalogWrite('addCasino:existing-pending');
+      return existing;
+    }
+    return null;
+  }
 
   const hostDuplicate = db.prepare('SELECT url FROM casinos').all() as { url: string }[];
-  if (hostDuplicate.some((row) => casinoHostKey(row.url) === host)) return null;
+  if (hostDuplicate.some((row) => casinoHostKey(row.url) === host)) {
+    const match = hostDuplicate.find((row) => casinoHostKey(row.url) === host);
+    if (match) {
+      const row = db.prepare('SELECT * FROM casinos WHERE url = ?').get(match.url) as Record<string, unknown> | undefined;
+      if (row) {
+        const existing = rowToCasino(row);
+        if (existing.reviewStatus === 'pending' && existing.active) {
+          commitCatalogWrite('addCasino:host-duplicate-pending');
+          return existing;
+        }
+      }
+    }
+    return null;
+  }
 
   const reviewStatus: ReviewStatus = input.reviewStatus
     ?? (input.verified ? 'approved' : 'pending');
@@ -427,8 +452,7 @@ export function addCasino(input: CasinoInput): Casino | null {
     active: casino.active ? 1 : 0,
   });
 
-  db.pragma('wal_checkpoint(PASSIVE)');
-  notifyDatabaseChanged();
+  commitCatalogWrite(`addCasino:${casino.name}`);
 
   return casino;
 }
@@ -490,10 +514,7 @@ export function updateCasino(id: string, input: Partial<CasinoInput>): Casino | 
     updatedAt: updated.updatedAt,
   });
 
-  notifyDatabaseChanged();
-  if (updated.verified && updated.reviewStatus === 'approved') {
-    void persistDatabaseNow();
-  }
+  commitCatalogWrite(`updateCasino:${updated.name}`);
   return updated;
 }
 
@@ -748,11 +769,9 @@ export function approveCasino(id: string, approvedBy?: string): Casino | null {
   if (result.changes === 0) return null;
 
   markDiscoverySeen(existing.url, 'added', 'admin approved');
-  notifyDatabaseChanged();
-  void persistDatabaseNow();
-
   const approved = getCasinoById(id);
   if (!approved?.verified || approved.reviewStatus !== 'approved') return null;
+  commitCatalogWrite(`approveCasino:${approved.name}`);
   return approved;
 }
 
@@ -763,7 +782,7 @@ export async function approveAllPendingCasinos(approvedBy?: string, limit = 50):
     const approved = approveCasino(casino.id, approvedBy);
     if (approved) ids.push(approved.id);
   }
-  if (ids.length > 0) await persistDatabaseNow();
+  if (ids.length > 0) await commitCatalogWriteAndWait('approveAllPending');
   return { approved: ids.length, ids };
 }
 
@@ -773,7 +792,7 @@ export function rejectCasino(id: string): boolean {
   banRejectedDiscovery(existing.url, 'admin rejected', 'admin');
   markDiscoverySeen(existing.url, 'rejected', 'admin rejected');
   const result = db.prepare('DELETE FROM casinos WHERE id = ?').run(id);
-  if (result.changes > 0) notifyDatabaseChanged();
+  if (result.changes > 0) commitCatalogWrite('rejectCasino');
   return result.changes > 0;
 }
 
@@ -1155,6 +1174,7 @@ export function addBlockedSite(input: BlockedSiteInput): BlockedSite | null {
     db.prepare('DELETE FROM casinos WHERE url_normalized = ?').run(urlNormalized);
   }
 
+  commitCatalogWrite(`addBlockedSite:${site.name}`);
   return site;
 }
 
@@ -1321,7 +1341,7 @@ export function banRejectedDiscovery(
 
     if (site) {
       markDiscoverySeen(root, 'blocked', reason);
-      notifyDatabaseChanged();
+      commitCatalogWrite(`banRejectedDiscovery:${host}`);
     }
     return site;
   } catch {

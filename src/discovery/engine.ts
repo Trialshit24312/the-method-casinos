@@ -25,7 +25,7 @@ import { getVerifiedCuratedDiscoveries } from '../shared/verified-casinos.js';
 import { buildSearchQueries, SEARCH_PAGES_DEEP, SEARCH_PAGES_QUICK } from './queries.js';
 import { collectFreeSearchLinks, extractCasinoUrlsFromHtml } from './free-search.js';
 import { mineOperatorsFromDirectoryPage, mineAllListSites, type ListOperatorResult } from './directory-miner.js';
-import { persistDatabaseNow } from '../shared/remote-db-sync.js';
+import { commitCatalogWriteAndWait } from '../shared/catalog-persist.js';
 import { isSweepstakesDirectoryUrl } from './filters.js';
 import { getSweepstakesListSiteUrls, isListSiteDiscoveryEnabled, isWebSearchDiscoveryEnabled } from './list-sources.js';
 import { claimListSitesForRun, markListSiteCrawled, releaseListSitesForRun } from './list-site-coordinator.js';
@@ -515,7 +515,7 @@ export async function runDiscovery(
       },
     );
     sourcesChecked += sitesCrawled;
-    await persistDatabaseNow();
+    await commitCatalogWriteAndWait('discovery:list-sites');
     onProgress?.({
       type: 'crawl_summary',
       crawled: sitesCrawled,
@@ -696,7 +696,7 @@ export async function runDiscovery(
     addedCasinos: addedCasinos.slice(0, 50),
   };
   onProgress?.({ type: 'complete', result });
-  await persistDatabaseNow();
+  await commitCatalogWriteAndWait('discovery:complete');
   void notifyDiscoveryComplete(result);
   return result;
   } catch (err) {
