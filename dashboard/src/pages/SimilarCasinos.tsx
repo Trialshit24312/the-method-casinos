@@ -227,7 +227,7 @@ export default function SimilarCasinosPage() {
 
       {selected && !loading && (
         <>
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mb-6 p-4 rounded-xl bg-[#b87333]/10 border border-[#b87333]/25 flex flex-wrap items-center justify-between gap-3">
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mb-6 p-4 rounded-xl bg-brand/10 border border-brand/25 flex flex-wrap items-center justify-between gap-3">
             <p className="text-sm text-gray-400">
               Showing casinos similar to{' '}
               <span className="text-white font-semibold">{selected.name}</span>

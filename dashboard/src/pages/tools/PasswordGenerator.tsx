@@ -29,12 +29,12 @@ export default function PasswordGeneratorPage() {
   return (
     <div className="p-8 max-w-3xl mx-auto">
       <PageHeader
-        icon={<KeyRound className="w-6 h-6 text-[#d4956a]" />}
+        icon={<KeyRound className="w-6 h-6 text-brand-light" />}
         title="Password Generator"
         subtitle="Create strong unique passwords for every casino account — never reuse passwords"
       />
 
-      <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} className="glass-glow p-6 border-[#b87333]/20">
+      <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} className="glass-glow p-6 border-brand/20">
         <div className="flex items-center gap-2 p-4 rounded-xl bg-surface-muted border border-surface-border mb-6">
           <code className="flex-1 text-lg text-glow font-mono break-all">{password}</code>
           <button onClick={copy} className="p-2 text-gray-400 hover:text-glow shrink-0">
@@ -57,7 +57,7 @@ export default function PasswordGeneratorPage() {
             max={64}
             value={length}
             onChange={(e) => setLength(parseInt(e.target.value))}
-            className="w-full accent-[#b87333]"
+            className="w-full accent-brand"
           />
         </div>
 

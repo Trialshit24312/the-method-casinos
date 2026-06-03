@@ -46,7 +46,7 @@ export default function LegalHub() {
           >
             <Link
               to={doc.to}
-              className="glass-glow p-5 flex items-start gap-4 hover:border-glow/30 transition-colors group"
+              className="glass-glow p-5 flex items-start gap-4 hover:border-glow/30 transition-colors group border-gradient card-shine"
             >
               <doc.icon className="w-8 h-8 text-glow shrink-0 mt-0.5" />
               <div className="flex-1 min-w-0">

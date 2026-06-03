@@ -3,6 +3,7 @@ import { Link, Navigate } from 'react-router-dom';
 import { BarChart3, Download, Radar, ShieldCheck, TrendingUp } from 'lucide-react';
 import { api } from '../api';
 import type { DiscoveryHistoryEntry } from '../types';
+import StatsSkeleton from '../components/StatsSkeleton';
 import PageHeader from '../components/PageHeader';
 import { useAuth } from '../context/AuthContext';
 import { apiBaseUrl } from '../lib/site';
@@ -60,7 +61,7 @@ export default function AdminInsights() {
       />
 
       {error && <p className="text-red-400 text-sm mb-4">{error}</p>}
-      {!data && !error && <p className="text-gray-500">Loading…</p>}
+      {!data && !error && <StatsSkeleton count={4} />}
 
       {data && (
         <>

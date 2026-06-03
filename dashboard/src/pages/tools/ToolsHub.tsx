@@ -13,17 +13,17 @@ import {
 } from '../../lib/generators';
 
 const quickLinks = [
-  { to: '/casinos', icon: Dices, label: 'Casinos', desc: 'Browse & filter database', color: 'text-[#b87333]' },
+  { to: '/casinos', icon: Dices, label: 'Casinos', desc: 'Browse & filter database', color: 'text-brand-light' },
   { to: '/similar', icon: Sparkles, label: 'Similar', desc: 'Find alike casinos', color: 'text-glow' },
   { to: '/random', icon: Shuffle, label: 'Random', desc: 'Roll the catalog', color: 'text-glow' },
   { to: '/compare', icon: Scale, label: 'Compare', desc: 'Side-by-side', color: 'text-glow' },
   { to: '/new', icon: Clock, label: 'New', desc: 'Recent approvals', color: 'text-emerald-400' },
   { to: '/status', icon: ShieldCheck, label: 'Status', desc: 'Service health', color: 'text-emerald-400' },
   { to: '/tools/email', icon: Mail, label: 'Email Tools', desc: '30+ temp mail sites', color: 'text-glow' },
-  { to: '/tools/phone', icon: Phone, label: 'Phone Tools', desc: '20+ SMS receivers', color: 'text-[#d4956a]' },
-  { to: '/tools/password', icon: KeyRound, label: 'Password Gen', desc: 'Strong passwords', color: 'text-[#d4956a]' },
+  { to: '/tools/phone', icon: Phone, label: 'Phone Tools', desc: '20+ SMS receivers', color: 'text-brand-light' },
+  { to: '/tools/password', icon: KeyRound, label: 'Password Gen', desc: 'Strong passwords', color: 'text-brand-light' },
   { to: '/tools/checker', icon: ShieldCheck, label: 'URL Checker', desc: 'Safety check links', color: 'text-emerald-400' },
-  { to: '/guides', icon: BookOpen, label: 'Guides', desc: 'Step-by-step workflows', color: 'text-[#b87333]' },
+  { to: '/guides', icon: BookOpen, label: 'Guides', desc: 'Step-by-step workflows', color: 'text-brand-light' },
   { to: '/blocked', icon: Ban, label: 'Blocked Sites', desc: 'Scam & phishing list', color: 'text-red-400' },
   { to: '/terms', icon: ScrollText, label: 'Terms', desc: 'Legal info', color: 'text-gray-400' },
 ];
@@ -40,8 +40,8 @@ export default function ToolsHub() {
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 mb-10">
         {quickLinks.map((item, i) => (
           <motion.div key={item.to} initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: i * 0.05 }}>
-            <Link to={item.to} className="block p-4 rounded-xl border border-[#2a2a35] bg-[#121218]/80
-              hover:border-glow/40 hover:shadow-[0_0_24px_rgba(0,174,239,0.12)] transition-all h-full text-center group">
+            <Link to={item.to} className="block p-4 rounded-xl border border-surface-border bg-surface-raised/80
+              hover:border-glow/40 hover:shadow-method-glow transition-all h-full text-center group card-shine">
               <item.icon className={`w-6 h-6 mx-auto mb-2 ${item.color} group-hover:scale-110 transition-transform`} />
               <p className="font-medium text-sm text-white">{item.label}</p>
               <p className="text-[10px] text-gray-600 mt-1">{item.desc}</p>
@@ -72,7 +72,7 @@ export default function ToolsHub() {
 
       <div className="grid md:grid-cols-2 gap-6 mb-10">
         <motion.div initial={{ opacity: 0, x: -12 }} animate={{ opacity: 1, x: 0 }} className="glass p-5 flex gap-4">
-          <Lock className="w-8 h-8 text-[#b87333] shrink-0" />
+          <Lock className="w-8 h-8 text-brand-light shrink-0" />
           <div>
             <h4 className="font-semibold text-white mb-1">Security First</h4>
             <p className="text-sm text-gray-500">Use unique passwords per casino. Check breaches before reusing emails.</p>

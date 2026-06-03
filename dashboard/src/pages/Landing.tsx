@@ -11,6 +11,7 @@ import CasinoCarousel from '../components/CasinoCarousel';
 import CarouselSkeleton from '../components/CarouselSkeleton';
 import StatsSkeleton from '../components/StatsSkeleton';
 import BrandLogo from '../components/BrandLogo';
+import BackToTop from '../components/BackToTop';
 import ActivityFeed from '../components/ActivityFeed';
 import PricingTiers from '../components/PricingTiers';
 import { usePageTitle } from '../hooks/usePageTitle';
@@ -234,11 +235,11 @@ export default function Landing() {
           <h2 className="font-display text-lg text-center text-gray-400 mb-6">Explore the platform</h2>
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {[
-              { to: '/casinos', title: 'Casino catalog', desc: 'Filter by features — slots, VPN, email-only, redeem options.', icon: Dices, color: 'from-[#b87333]/20 to-transparent' },
-              { to: '/similar', title: 'Similar Casinos', desc: 'Match from catalog or search DuckDuckGo, Bing & Brave for alike sites.', icon: Sparkles, color: 'from-[#00aeef]/20 to-transparent' },
+              { to: '/casinos', title: 'Casino catalog', desc: 'Filter by features — slots, VPN, email-only, redeem options.', icon: Dices, color: 'from-brand/20 to-transparent' },
+              { to: '/similar', title: 'Similar Casinos', desc: 'Match from catalog or search DuckDuckGo, Bing & Brave for alike sites.', icon: Sparkles, color: 'from-glow/20 to-transparent' },
               { to: '/random', title: 'Random pick', desc: 'Roll a verified casino with filters — same as Discord /random.', icon: Zap, color: 'from-glow/20 to-transparent' },
               { to: '/new', title: 'New arrivals', desc: 'Recently approved operators added to the verified catalog.', icon: Star, color: 'from-emerald-500/15 to-transparent' },
-              { to: '/tools', title: 'Signup tools', desc: 'Email, phone, password generators and URL checker.', icon: Wrench, color: 'from-[#b87333]/15 to-transparent' },
+              { to: '/tools', title: 'Signup tools', desc: 'Email, phone, password generators and URL checker.', icon: Wrench, color: 'from-brand/15 to-transparent' },
               { to: '/tools/checker', title: 'URL safety', desc: 'Instant blocklist + catalog lookup before you click.', icon: ShieldCheck, color: 'from-emerald-500/15 to-transparent' },
               { to: '/blocked', title: 'Blocklist', desc: 'Known scam and phishing URLs — never sign up here.', icon: Globe, color: 'from-red-500/15 to-transparent' },
               { to: '/legal', title: 'Legal Hub', desc: 'Terms, rules, privacy — same as Discord /legal.', icon: Shield, color: 'from-amber-500/10 to-transparent' },
@@ -280,6 +281,7 @@ export default function Landing() {
       </main>
 
       <SiteFooter />
+      <BackToTop />
     </div>
   );
 }

@@ -175,6 +175,11 @@
     box-shadow: 0 0 24px rgba(0, 174, 239, 0.08);
   }
 
+  .feature-pill {
+    @apply flex items-center gap-3 p-3 rounded-xl border border-surface-border bg-surface-raised/60
+           hover:border-glow/30 hover:bg-glow/5 transition-all duration-200 card-shine;
+  }
+
   .hero-orb {
     position: absolute;
     border-radius: 50%;

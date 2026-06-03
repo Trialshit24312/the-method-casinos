@@ -3,6 +3,7 @@ import { NavLink, Link } from 'react-router-dom';
 import { Menu, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import type { LucideIcon } from 'lucide-react';
+import BrandLogo from './BrandLogo';
 
 export interface MobileNavItem {
   to: string;
@@ -48,8 +49,8 @@ export default function MobileNav({ items, footer }: Props) {
               className="fixed inset-y-0 left-0 w-72 z-50 bg-surface-raised border-r border-white/10 flex flex-col lg:hidden shadow-2xl"
             >
               <div className="flex items-center justify-between p-4 border-b border-white/10">
-                <Link to="/" onClick={() => setOpen(false)} className="font-display font-bold tracking-wide text-white">
-                  THE METHOD
+                <Link to="/" onClick={() => setOpen(false)}>
+                  <BrandLogo size="sm" />
                 </Link>
                 <button
                   type="button"

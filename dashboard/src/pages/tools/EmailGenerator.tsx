@@ -129,8 +129,8 @@ export default function EmailGeneratorPage() {
           </div>
         </motion.div>
 
-        <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="glass p-6 space-y-4 border-[#b87333]/20">
-          <h3 className="font-display font-semibold text-[#d4956a]">Signup Identity Pack</h3>
+        <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="glass p-6 space-y-4 border-brand/20">
+          <h3 className="font-display font-semibold text-brand-light">Signup Identity Pack</h3>
           <p className="text-sm text-gray-500">Username + password combos for new casino accounts</p>
           {[
             { label: 'Username', value: username || generateUsername(), icon: User },

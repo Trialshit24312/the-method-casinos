@@ -26,22 +26,22 @@ const SECTION_STYLES: Record<
   string,
   { icon: LucideIcon; accent: string }
 > = {
-  acceptance: { icon: ScrollText, accent: 'from-[#b87333] to-[#d4956a]' },
-  service: { icon: Database, accent: 'from-[#00aeef] to-[#0077aa]' },
+  acceptance: { icon: ScrollText, accent: 'from-brand to-[#d4956a]' },
+  service: { icon: Database, accent: 'from-[#00aeef] to-glow' },
   disclaimer: { icon: AlertTriangle, accent: 'from-amber-500 to-orange-600' },
   responsibilities: { icon: Scale, accent: 'from-violet-500 to-purple-600' },
   data: { icon: Database, accent: 'from-emerald-500 to-teal-600' },
   privacy: { icon: Lock, accent: 'from-sky-500 to-blue-600' },
   tools: { icon: Mail, accent: 'from-[#00aeef] to-cyan-500' },
   blocked: { icon: Ban, accent: 'from-red-500 to-rose-600' },
-  ip: { icon: Shield, accent: 'from-[#b87333] to-[#8b5a2b]' },
+  ip: { icon: Shield, accent: 'from-brand to-[#8b5a2b]' },
   liability: { icon: AlertTriangle, accent: 'from-gray-500 to-slate-600' },
 };
 
 const SECTIONS = TERMS_SECTIONS.map((s) => ({
   ...s,
   icon: SECTION_STYLES[s.id]?.icon ?? ScrollText,
-  accent: SECTION_STYLES[s.id]?.accent ?? 'from-[#b87333] to-[#d4956a]',
+  accent: SECTION_STYLES[s.id]?.accent ?? 'from-brand to-[#d4956a]',
 }));
 
 const TOC = TERMS_TOC;
@@ -61,10 +61,10 @@ export default function TermsPage() {
       <motion.div
         initial={{ opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}
-        className="relative overflow-hidden rounded-2xl border border-[#2a2a35] mb-10"
+        className="relative overflow-hidden rounded-2xl border border-surface-border mb-10"
       >
-        <div className="absolute inset-0 bg-gradient-to-br from-[#b87333]/15 via-transparent to-[#00aeef]/10" />
-        <div className="absolute top-0 right-0 w-64 h-64 bg-[#00aeef]/5 rounded-full blur-3xl" />
+        <div className="absolute inset-0 bg-gradient-to-br from-brand/15 via-transparent to-glow/10" />
+        <div className="absolute top-0 right-0 w-64 h-64 bg-glow/5 rounded-full blur-3xl" />
         <div className="relative p-8 md:p-10">
           <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-6">
             <div>
@@ -78,12 +78,12 @@ export default function TermsPage() {
               <p className="text-gray-400 max-w-xl leading-relaxed">
                 Read before using the dashboard, Discord bot, discovery engine, URL checker,
                 or any generator tools. Questions? See our{' '}
-                <Link to="/rules" className="text-[#00aeef] hover:underline">Community Rules</Link>
+                <Link to="/rules" className="text-glow hover:underline">Community Rules</Link>
                 {' '}and{' '}
-                <Link to="/privacy" className="text-[#00aeef] hover:underline">Privacy Policy</Link>.
+                <Link to="/privacy" className="text-glow hover:underline">Privacy Policy</Link>.
               </p>
             </div>
-            <div className="shrink-0 p-5 rounded-xl bg-[#121218]/80 border border-[#2a2a35] text-center">
+            <div className="shrink-0 p-5 rounded-xl bg-[#121218]/80 border border-surface-border text-center">
               <p className="text-xs text-gray-600 uppercase tracking-wide mb-1">Last Updated</p>
               <p className="text-sm font-medium text-white">{LAST_UPDATED}</p>
               <p className="text-xs text-gray-500 mt-2">Version {LEGAL_VERSION}</p>
@@ -107,7 +107,7 @@ export default function TermsPage() {
                   <a
                     href={`#${item.id}`}
                     className="flex items-center gap-2 px-2 py-1.5 text-sm text-gray-500
-                               hover:text-[#00aeef] hover:bg-[#00aeef]/5 rounded-lg transition-colors"
+                               hover:text-glow hover:bg-glow/5 rounded-lg transition-colors"
                   >
                     <ChevronRight className="w-3 h-3 shrink-0 opacity-50" />
                     {item.label}
@@ -139,7 +139,7 @@ export default function TermsPage() {
               <ul className="space-y-2 pl-0 md:pl-[3.75rem]">
                 {section.bullets.map((b) => (
                   <li key={b} className="text-sm text-gray-500 flex items-start gap-2">
-                    <span className="text-[#00aeef] mt-1 shrink-0">▸</span>
+                    <span className="text-glow mt-1 shrink-0">▸</span>
                     <span>{b}</span>
                   </li>
                 ))}
@@ -152,15 +152,15 @@ export default function TermsPage() {
             id="faq"
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
-            className="glass p-6 border-[#00aeef]/20 scroll-mt-8"
+            className="glass p-6 border-glow/20 scroll-mt-8"
           >
             <div className="flex items-center gap-3 mb-6">
-              <HelpCircle className="w-6 h-6 text-[#00aeef]" />
+              <HelpCircle className="w-6 h-6 text-glow" />
               <h3 className="font-display font-semibold text-lg text-white">Frequently Asked Questions</h3>
             </div>
             <div className="space-y-4">
               {FAQ.map((item) => (
-                <div key={item.q} className="p-4 rounded-xl bg-[#1a1a22] border border-[#2a2a35]">
+                <div key={item.q} className="p-4 rounded-xl bg-surface-muted border border-surface-border">
                   <p className="font-medium text-white text-sm mb-2">{item.q}</p>
                   <p className="text-sm text-gray-500 leading-relaxed">{item.a}</p>
                 </div>
@@ -172,15 +172,15 @@ export default function TermsPage() {
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            className="p-6 rounded-xl border border-[#2a2a35] bg-[#121218]/60 text-center"
+            className="p-6 rounded-xl border border-surface-border bg-[#121218]/60 text-center"
           >
             <p className="text-sm text-gray-500 mb-3">
               By using The Method Casinos, you acknowledge that you have read and agree to these terms.
             </p>
             <div className="flex flex-wrap justify-center gap-4 text-sm">
-              <Link to="/rules" className="text-[#00aeef] hover:underline">Community Rules</Link>
-              <Link to="/guides" className="text-[#00aeef] hover:underline">Guides</Link>
-              <Link to="/blocked" className="text-[#00aeef] hover:underline">Blocked Sites</Link>
+              <Link to="/rules" className="text-glow hover:underline">Community Rules</Link>
+              <Link to="/guides" className="text-glow hover:underline">Guides</Link>
+              <Link to="/blocked" className="text-glow hover:underline">Blocked Sites</Link>
             </div>
           </motion.div>
         </div>

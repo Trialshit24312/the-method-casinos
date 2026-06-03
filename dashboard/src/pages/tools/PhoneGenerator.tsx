@@ -37,7 +37,7 @@ export default function PhoneGeneratorPage() {
   return (
     <div className="p-8 max-w-7xl mx-auto">
       <PageHeader
-        icon={<Phone className="w-6 h-6 text-[#d4956a]" />}
+        icon={<Phone className="w-6 h-6 text-brand-light" />}
         title="Phone & SMS Tools"
         subtitle="20+ working SMS receiver websites — use when a casino requires phone OTP. Prefer email-only sites when possible."
         action={
@@ -70,12 +70,12 @@ export default function PhoneGeneratorPage() {
             href={svc.url}
             target="_blank"
             rel="noopener noreferrer"
-            className="p-4 rounded-xl border border-[#b87333]/30 bg-[#b87333]/5
-                       hover:bg-[#b87333]/10 hover:border-[#b87333]/50 transition-all group"
+            className="p-4 rounded-xl border border-brand/30 bg-brand/5
+                       hover:bg-brand/10 hover:border-brand/50 transition-all group"
           >
             <div className="flex items-center justify-between mb-1">
-              <span className="font-semibold text-white group-hover:text-[#d4956a]">{svc.name}</span>
-              <ExternalLink className="w-3.5 h-3.5 text-gray-600 group-hover:text-[#d4956a]" />
+              <span className="font-semibold text-white group-hover:text-brand-light">{svc.name}</span>
+              <ExternalLink className="w-3.5 h-3.5 text-gray-600 group-hover:text-brand-light" />
             </div>
             <p className="text-xs text-gray-500 line-clamp-2">{svc.description}</p>
           </a>
@@ -96,8 +96,8 @@ export default function PhoneGeneratorPage() {
         searchable
       />
 
-      <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} className="glass-glow p-6 max-w-2xl border-[#b87333]/20">
-        <h3 className="font-display font-semibold mb-2 text-[#d4956a]">Format Generator</h3>
+      <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} className="glass-glow p-6 max-w-2xl border-brand/20">
+        <h3 className="font-display font-semibold mb-2 text-brand-light">Format Generator</h3>
         <p className="text-sm text-gray-500 mb-4">Format only, NOT real SMS lines — use SMS receiver sites above for OTP</p>
         <div className="grid sm:grid-cols-2 gap-3 mb-4">
           <div>
@@ -120,8 +120,8 @@ export default function PhoneGeneratorPage() {
         <div className="space-y-2">
           {phones.map((phone) => (
             <div key={phone} className="flex items-center gap-2 p-3 rounded-lg bg-surface-muted border border-surface-border">
-              <code className="flex-1 text-sm text-[#d4956a] font-mono">{phone}</code>
-              <button onClick={() => copy(phone)} className="p-2 text-gray-400 hover:text-[#d4956a]">
+              <code className="flex-1 text-sm text-brand-light font-mono">{phone}</code>
+              <button onClick={() => copy(phone)} className="p-2 text-gray-400 hover:text-brand-light">
                 {copied === phone ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
               </button>
             </div>

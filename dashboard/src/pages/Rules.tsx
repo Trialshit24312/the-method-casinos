@@ -25,7 +25,7 @@ import {
 import type { LucideIcon } from 'lucide-react';
 
 const CATEGORY_STYLES: Record<string, { icon: LucideIcon; color: string; border: string }> = {
-  standards: { icon: Shield, color: 'text-[#00aeef]', border: 'border-[#00aeef]/30' },
+  standards: { icon: Shield, color: 'text-glow', border: 'border-glow/30' },
   admin: { icon: Lock, color: 'text-[#d4956a]', border: 'border-[#b87333]/30' },
   tags: { icon: Database, color: 'text-emerald-400', border: 'border-emerald-500/30' },
   community: { icon: MessageSquare, color: 'text-violet-400', border: 'border-violet-500/30' },
@@ -51,7 +51,7 @@ export default function RulesPage() {
   return (
     <div className="p-8 max-w-6xl mx-auto">
       <PageHeader
-        icon={<Shield className="w-6 h-6 text-[#00aeef]" />}
+        icon={<Shield className="w-6 h-6 text-glow" />}
         title="Community Rules"
         subtitle="Precision · Strategy · Execution — standards that keep The Method clean and useful"
       />
@@ -60,12 +60,12 @@ export default function RulesPage() {
       <motion.div
         initial={{ opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}
-        className="relative overflow-hidden rounded-2xl border border-[#00aeef]/20 mb-10"
+        className="relative overflow-hidden rounded-2xl border border-glow/20 mb-10"
       >
-        <div className="absolute inset-0 bg-gradient-to-r from-[#00aeef]/10 via-transparent to-[#b87333]/10" />
+        <div className="absolute inset-0 bg-gradient-to-r from-glow/10 via-transparent to-brand/10" />
         <div className="relative p-8 md:p-10 flex flex-col md:flex-row gap-6 items-start">
-          <div className="p-4 rounded-2xl bg-[#00aeef]/10 border border-[#00aeef]/25 shrink-0">
-            <Shield className="w-10 h-10 text-[#00aeef]" />
+          <div className="p-4 rounded-2xl bg-glow/10 border border-glow/25 shrink-0">
+            <Shield className="w-10 h-10 text-glow" />
           </div>
           <div>
             <h2 className="font-display text-2xl font-bold text-white mb-2">The Method Standard</h2>
@@ -81,7 +81,7 @@ export default function RulesPage() {
                 { icon: Wrench, label: 'Tools for good' },
               ].map(({ icon: Icon, label }) => (
                 <span key={label} className="inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full
-                  bg-[#1a1a22] border border-[#2a2a35] text-gray-400">
+                  bg-surface-muted border border-surface-border text-gray-400">
                   <Icon className="w-3 h-3 text-[#b87333]" /> {label}
                 </span>
               ))}
@@ -194,15 +194,15 @@ export default function RulesPage() {
         <h2 className="font-display font-semibold text-lg text-white mb-2">Feature Tag Reference</h2>
         <p className="text-sm text-gray-500 mb-6">
           Use these categories when tagging casinos. Full list available when editing on the{' '}
-          <Link to="/casinos" className="text-[#00aeef] hover:underline">Casinos page</Link>.
+          <Link to="/casinos" className="text-glow hover:underline">Casinos page</Link>.
         </p>
         <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {FEATURE_CATEGORIES.map((cat) => (
-            <div key={cat.label} className="p-4 rounded-xl bg-[#1a1a22] border border-[#2a2a35]">
+            <div key={cat.label} className="p-4 rounded-xl bg-surface-muted border border-surface-border">
               <p className="text-xs uppercase tracking-wide text-[#d4956a] mb-2">{cat.label}</p>
               <div className="flex flex-wrap gap-1">
                 {cat.features.slice(0, 8).map((f) => (
-                  <span key={f} className="text-[10px] px-1.5 py-0.5 rounded bg-[#121218] text-gray-500 border border-[#2a2a35]">
+                  <span key={f} className="text-[10px] px-1.5 py-0.5 rounded bg-[#121218] text-gray-500 border border-surface-border">
                     {FEATURE_LABELS[f]}
                   </span>
                 ))}
@@ -216,15 +216,15 @@ export default function RulesPage() {
       </motion.section>
 
       {/* Footer links */}
-      <div className="p-6 rounded-xl border border-[#2a2a35] bg-[#121218]/60 text-center">
+      <div className="p-6 rounded-xl border border-surface-border bg-[#121218]/60 text-center">
         <p className="text-sm text-gray-500 mb-3">
           Rules work alongside our Terms of Service. By participating, you agree to both.
         </p>
         <div className="flex flex-wrap justify-center gap-4 text-sm">
-          <Link to="/terms" className="text-[#00aeef] hover:underline">Terms of Service</Link>
-          <Link to="/privacy" className="text-[#00aeef] hover:underline">Privacy</Link>
-          <Link to="/guides" className="text-[#00aeef] hover:underline">Guides</Link>
-          <Link to="/blocked" className="text-[#00aeef] hover:underline">Blocked Sites</Link>
+          <Link to="/terms" className="text-glow hover:underline">Terms of Service</Link>
+          <Link to="/privacy" className="text-glow hover:underline">Privacy</Link>
+          <Link to="/guides" className="text-glow hover:underline">Guides</Link>
+          <Link to="/blocked" className="text-glow hover:underline">Blocked Sites</Link>
         </div>
       </div>
     </div>

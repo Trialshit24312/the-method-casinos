@@ -7,6 +7,8 @@ import PendingCasinoRow from '../components/PendingCasinoRow';
 import ReportRow from '../components/ReportRow';
 import CatalogHealthRow from '../components/CatalogHealthRow';
 import EmptyState from '../components/EmptyState';
+import TabPills from '../components/TabPills';
+import StatsSkeleton from '../components/StatsSkeleton';
 import { useAuth } from '../context/AuthContext';
 import { Navigate, Link, useSearchParams } from 'react-router-dom';
 
@@ -140,24 +142,16 @@ export default function ReviewQueue() {
         icon={<CheckCircle className="w-6 h-6 text-glow" />}
       />
 
-      <div className="flex flex-wrap gap-2 mb-6">
-        {tabs.map((t) => (
-          <button
-            key={t.id}
-            type="button"
-            onClick={() => {
-              setTab(t.id);
-              setSearchParams(t.id === 'discoveries' ? {} : { tab: t.id }, { replace: true });
-            }}
-            className={`px-4 py-2 rounded-lg text-sm border transition-colors ${
-              tab === t.id
-                ? 'border-glow/40 bg-glow/10 text-glow'
-                : 'border-surface-border text-gray-400 hover:text-white'
-            }`}
-          >
-            {t.label}{(t.count ?? 0) > 0 && ` (${t.count})`}
-          </button>
-        ))}
+      <div className="flex flex-wrap items-center gap-3 mb-6">
+        <TabPills
+          tabs={tabs}
+          active={tab}
+          onChange={(id) => {
+            setTab(id as Tab);
+            setSearchParams(id === 'discoveries' ? {} : { tab: id }, { replace: true });
+          }}
+        />
+        <div className="flex flex-wrap gap-2 ml-auto">
         {tab === 'discoveries' && pending.length > 0 && (
           <button
             type="button"
@@ -199,14 +193,15 @@ export default function ReviewQueue() {
             Reject all
           </button>
         )}
-        <button onClick={load} className="btn-secondary flex items-center gap-2 text-sm ml-auto">
+        <button onClick={load} className="btn-secondary flex items-center gap-2 text-sm">
           <RefreshCw className="w-4 h-4" /> Refresh
         </button>
+        </div>
       </div>
 
       {notice && <p className="text-emerald-400 text-sm mb-4">{notice}</p>}
       {error && <p className="text-accent-red text-sm mb-4">{error}</p>}
-      {loading && <p className="text-gray-500">Loading…</p>}
+      {loading && <StatsSkeleton count={4} />}
 
       {!loading && tab === 'discoveries' && !pending.length && (
         <EmptyState

@@ -40,7 +40,7 @@ export default function CasinoCarousel({ title, subtitle, casinos, icon, action 
           <button
             type="button"
             onClick={() => scroll(-1)}
-            className="p-2 rounded-xl border border-white/10 bg-white/5 hover:bg-white/10 text-gray-400 hover:text-white transition-colors"
+            className="p-2 rounded-xl border border-surface-border bg-surface-muted/80 hover:border-glow/30 hover:bg-glow/5 text-gray-400 hover:text-glow transition-colors"
             aria-label="Scroll left"
           >
             <ChevronLeft className="w-4 h-4" />
@@ -48,7 +48,7 @@ export default function CasinoCarousel({ title, subtitle, casinos, icon, action 
           <button
             type="button"
             onClick={() => scroll(1)}
-            className="p-2 rounded-xl border border-white/10 bg-white/5 hover:bg-white/10 text-gray-400 hover:text-white transition-colors"
+            className="p-2 rounded-xl border border-surface-border bg-surface-muted/80 hover:border-glow/30 hover:bg-glow/5 text-gray-400 hover:text-glow transition-colors"
             aria-label="Scroll right"
           >
             <ChevronRight className="w-4 h-4" />

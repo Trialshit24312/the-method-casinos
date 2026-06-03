@@ -24,7 +24,7 @@ export default function PrivacyPage() {
       >
         <p className="text-sm text-gray-400">
           Version {LEGAL_VERSION} · Last updated {LEGAL_LAST_UPDATED}. Also see{' '}
-          <Link to="/terms" className="text-[#00aeef] hover:underline">
+          <Link to="/terms" className="text-glow hover:underline">
             Terms of Service
           </Link>
           .
@@ -45,7 +45,7 @@ export default function PrivacyPage() {
             <ul className="space-y-2">
               {section.bullets.map((b) => (
                 <li key={b} className="text-sm text-gray-500 flex items-start gap-2">
-                  <ChevronRight className="w-3 h-3 text-[#00aeef] shrink-0 mt-1" />
+                  <ChevronRight className="w-3 h-3 text-glow shrink-0 mt-1" />
                   <span>{b}</span>
                 </li>
               ))}

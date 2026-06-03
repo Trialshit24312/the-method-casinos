@@ -30,7 +30,7 @@ export default function Pricing() {
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.35 }}
-        className="mt-14 glass-glow p-6 md:p-8"
+        className="mt-14 glass-glow p-6 md:p-8 border-gradient"
       >
         <h2 className="font-display font-semibold text-lg text-white mb-4">How tiers work</h2>
         <div className="grid md:grid-cols-3 gap-6 text-sm text-gray-400">

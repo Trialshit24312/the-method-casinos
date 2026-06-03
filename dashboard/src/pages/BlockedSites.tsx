@@ -5,8 +5,12 @@ import { api } from '../api';
 import type { BlockedSite, BlockReason, BlockSeverity } from '../types';
 import { BLOCK_REASON_LABELS, BLOCK_SEVERITY_COLORS } from '../types';
 import PageHeader from '../components/PageHeader';
+import EmptyState from '../components/EmptyState';
+import StatsSkeleton from '../components/StatsSkeleton';
 import { SCAM_WARNING_SIGNS } from '../lib/generators';
 import { useAuth } from '../context/AuthContext';
+import { usePageTitle } from '../hooks/usePageTitle';
+import { Link } from 'react-router-dom';
 
 const REASONS: BlockReason[] = [
   'scam', 'phishing', 'malware', 'fake_casino', 'no_payout',
@@ -34,10 +38,12 @@ const emptyForm: FormData = {
 };
 
 export default function BlockedSitesPage() {
+  usePageTitle('Blocked Sites — The Method Casinos');
   const { user } = useAuth();
   const [sites, setSites] = useState<BlockedSite[]>([]);
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
   const [modalOpen, setModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<FormData>(emptyForm);
@@ -45,10 +51,11 @@ export default function BlockedSitesPage() {
 
   const load = useCallback(async () => {
     setLoading(true);
+    setLoadError('');
     try {
       setSites(await api.getBlockedSites(search || undefined));
     } catch (e) {
-      console.error(e);
+      setLoadError(e instanceof Error ? e.message : 'Failed to load blocklist');
     } finally {
       setLoading(false);
     }
@@ -149,13 +156,25 @@ export default function BlockedSitesPage() {
         />
       </div>
 
+      {loadError && <p className="text-red-400 text-sm mb-4">{loadError}</p>}
+
+      {!loading && sites.length > 0 && (
+        <p className="text-sm text-gray-500 mb-4">
+          {sites.length} blocked URL{sites.length === 1 ? '' : 's'}
+          {' · '}
+          <Link to="/tools/checker" className="text-glow hover:underline">Check a URL before signup →</Link>
+        </p>
+      )}
+
       {loading ? (
-        <p className="text-gray-500 text-center py-12">Loading blocklist...</p>
+        <StatsSkeleton count={3} />
       ) : sites.length === 0 ? (
-        <div className="glass p-12 text-center">
-          <Ban className="w-12 h-12 text-gray-600 mx-auto mb-4" />
-          <p className="text-gray-500">No blocked sites found.</p>
-        </div>
+        <EmptyState
+          icon={Ban}
+          title={search ? 'No matches' : 'Blocklist is empty'}
+          description={search ? 'Try a different search term.' : 'Known scam and phishing URLs appear here after admin review or discovery rejects.'}
+          action={<Link to="/tools/checker" className="btn-glow text-sm">Open URL checker</Link>}
+        />
       ) : (
         <div className="space-y-3">
           {sites.map((site, i) => (

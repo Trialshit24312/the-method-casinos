@@ -194,7 +194,7 @@ export function passwordStrength(password: string): { score: number; label: stri
   if (score <= 1) return { score, label: 'Weak', color: 'text-red-400' };
   if (score <= 3) return { score, label: 'Fair', color: 'text-amber-400' };
   if (score <= 4) return { score, label: 'Strong', color: 'text-emerald-400' };
-  return { score, label: 'Very Strong', color: 'text-[#00aeef]' };
+  return { score, label: 'Very Strong', color: 'text-glow' };
 }
 
 export const SWEEPS_RESEARCH: WebService[] = [
