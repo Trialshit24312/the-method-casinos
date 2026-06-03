@@ -19,14 +19,11 @@ const BLOCKED_DOMAIN_FRAGMENTS = [
   'chaturbate', 'adult', 'sex.', 'nude', 'hentai', 'cam4.',
   'opera.com', 'microsoft.com', 'google.com/chrome', 'mozilla.org', 'brave.com',
   'github.', 'stackoverflow.', 'wikipedia.',
-  // Affiliate / listicle / news — not operators
-  'deadspin.', 'sweepskings.', 'sweepslounge.', 'playusa.', 'dimers.',
-  'legalsportsreport.', 'ballislife.', 'lines.com', 'next.io', 'sigma.world',
-  'gamingamerica.', 'pantagraph.', 'igamingfuture.', 'rg.org',
-  // Review / bonus / schema / media — not operators
-  'bonus.com', 'bonuses.com', 'bonuses.', 'schema.org', 'w3.org', 'example.com', 'example.org',
-  'hackerone.', 'livescore.', 'vegasinsider.', 'pokerfuse.', 'oddspedia.', 'askgamblers.',
-  'onlinecasino', 'casinobonus', 'playtoday.', 'soo-foo.', 'sweepstate.', 'stakester.',
+  // News / media — not operators (list sites handled via isSweepstakesDirectoryUrl)
+  'schema.org', 'w3.org', 'example.com', 'example.org',
+  'hackerone.', 'livescore.', 'pokerfuse.', 'oddspedia.',
+  'soo-foo.', 'sweepstate.', 'stakester.',
+  'bonus.com', 'bonuses.com', 'bonuses.', 'casinobonus', 'playtoday.',
   'sportsbook', 'draftkings.', 'fanduel.',
   'nj.com', 'al.com', 'silive.', 'mlive.', 'pennlive.', 'cleveland.com',
   'syracuse.com', 'masslive.', 'oregonlive.', 'chicagotribune.',
@@ -72,6 +69,32 @@ const SWEEPS_KEYWORDS = [
 
 const STRONG_HOSTNAME_MARKERS = ['casino', 'sweep', 'sweeps', 'slots', 'pulsz', 'chumba', 'mcluck', 'vegas', 'coins'];
 
+/** Hosts/paths that publish large sweepstakes casino lists — crawl for outbound operator links only. */
+const DIRECTORY_HOST_FRAGMENTS = [
+  'sweepskings', 'sweepslounge', 'playusa.', 'dimers.', 'legalsportsreport.',
+  'casino.org', 'gambling.com', 'deadspin.', 'oddschecker.',
+  'vegasinsider.', 'askgamblers.', 'onlinecasino', 'playtoday.', 'sigma.world',
+  'next.io', 'ballislife.', 'lines.com',
+  'igamingfuture.', 'gamingamerica.', 'pantagraph.', 'rg.org', 'covers.com',
+  'pokernews.', 'oddspedia.',
+];
+
+const DIRECTORY_PATH_PATTERN =
+  /\/(sweepstakes?|social-casinos?|sweeps?)(-casinos?)?(\/|$)|\/(list|directory|guide|roundup|reviews?)(\/|$)|((all|complete|full|master)[-_]?(list|guide))|sweepstakes?[-_]casinos?[-_]list/i;
+
+export function isSweepstakesDirectoryUrl(url: string): boolean {
+  try {
+    const u = new URL(url.startsWith('http') ? url : `https://${url}`);
+    const host = u.hostname.toLowerCase();
+    const path = `${u.pathname}${u.search}`.toLowerCase();
+    if (DIRECTORY_HOST_FRAGMENTS.some((frag) => host.includes(frag))) return true;
+    if (DIRECTORY_PATH_PATTERN.test(path)) return true;
+    return false;
+  } catch {
+    return false;
+  }
+}
+
 export interface PageValidationResult {
   valid: boolean;
   reason?: string;
@@ -79,6 +102,7 @@ export interface PageValidationResult {
 }
 
 export function isBlockedDomain(url: string): boolean {
+  if (isSweepstakesDirectoryUrl(url)) return false;
   try {
     const host = new URL(url).hostname.toLowerCase();
     return BLOCKED_DOMAIN_FRAGMENTS.some((frag) => host.includes(frag));
@@ -87,8 +111,9 @@ export function isBlockedDomain(url: string): boolean {
   }
 }
 
-/** Queue from search results — operator-shaped hosts only; page validation is later. */
+/** Queue from search results — operators or sweepstakes list pages (mined for links). */
 export function shouldQueueSearchUrl(url: string): boolean {
+  if (isSweepstakesDirectoryUrl(url)) return true;
   if (isBlockedDomain(url)) return false;
   try {
     const root = toCasinoRootUrl(url);

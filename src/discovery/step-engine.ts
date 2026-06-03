@@ -16,10 +16,12 @@ import {
 import { casinoHostKey, toCasinoRootUrl, isValidCasinoHost } from '../shared/utils.js';
 import {
   shouldQueueSearchUrl,
+  isSweepstakesDirectoryUrl,
 } from './filters.js';
 import { getVerifiedCuratedDiscoveries } from '../shared/verified-casinos.js';
 import { buildSearchQueries, SEARCH_PAGES_DEEP, SEARCH_PAGES_QUICK } from './queries.js';
 import { collectFreeSearchLinks, extractCasinoUrlsFromHtml, normalizeSearchLink } from './free-search.js';
+import { mineOperatorsFromDirectoryPage } from './directory-miner.js';
 import { beginDiscoveryRun, endDiscoveryRun, throwIfCancelled } from './run-state.js';
 import { beginDiscoveryLive, pushDiscoveryLiveEvent, finishDiscoveryLive } from './live-state.js';
 import { resumeDiscoveryLiveStorage } from '../database/index.js';
@@ -606,6 +608,20 @@ async function processOneUrl(state: DiscoverySessionState, onProgress?: Progress
       state.addedCasinos.push({ name: curated.name, url: root });
       publish(onProgress, { type: 'url_added', url: root, name: curated.name });
     }
+    return;
+  }
+
+  if (isSweepstakesDirectoryUrl(root)) {
+    state.webAnalyzes++;
+    publish(onProgress, { type: 'url_scanning', url: `${host} (list page)` });
+    const linksQueued = await mineOperatorsFromDirectoryPage(root, fetchPage, (url) => enqueue(state, url, onProgress));
+    state.sourcesChecked++;
+    publish(onProgress, {
+      type: 'crawl_summary',
+      crawled: 1,
+      linksQueued,
+      label: `Mined sweepstakes list ${host} → ${linksQueued} operators queued`,
+    });
     return;
   }
 

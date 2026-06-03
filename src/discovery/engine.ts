@@ -24,6 +24,8 @@ import {
 import { getVerifiedCuratedDiscoveries } from '../shared/verified-casinos.js';
 import { buildSearchQueries, SEARCH_PAGES_DEEP, SEARCH_PAGES_QUICK } from './queries.js';
 import { collectFreeSearchLinks, extractCasinoUrlsFromHtml } from './free-search.js';
+import { mineOperatorsFromDirectoryPage } from './directory-miner.js';
+import { isSweepstakesDirectoryUrl } from './filters.js';
 import { beginDiscoveryRun, endDiscoveryRun, throwIfCancelled } from './run-state.js';
 import { notifyDiscoveryComplete, notifyPendingDiscovery } from '../shared/notify.js';
 
@@ -461,7 +463,7 @@ export async function runDiscovery(deep = false, onProgress?: DiscoveryProgressC
     });
   }
 
-  setPhase('search', `Running ${searchQueries.length} searches via free web search (DDG Lite, DDG, Bing, Brave — ${config.searchPages} pages each)…`);
+  setPhase('search', `Sweepstakes list & operator search — ${searchQueries.length} queries (DDG, Bing, Brave — ${config.searchPages} pages each)…`);
   for (queryIndex = 0; queryIndex < searchQueries.length && timeLeft() > 0; queryIndex++) {
     throwIfCancelled();
     const query = searchQueries[queryIndex];
@@ -521,6 +523,22 @@ export async function runDiscovery(deep = false, onProgress?: DiscoveryProgressC
           addedCasinos.push({ name: curated.name, url: root });
           onProgress?.({ type: 'url_added', url: root, name: curated.name });
         }
+        continue;
+      }
+
+      if (isSweepstakesDirectoryUrl(root)) {
+        webAnalyzes++;
+        onProgress?.({ type: 'url_scanning', url: `${host} (list page)` });
+        const linksQueued = await mineOperatorsFromDirectoryPage(root, fetchPage, enqueue);
+        sourcesChecked++;
+        onProgress?.({
+          type: 'crawl_summary',
+          crawled: 1,
+          linksQueued,
+          label: `Mined sweepstakes list ${host} → ${linksQueued} operators queued`,
+        });
+        processed++;
+        await sleep(config.delayMs / 2);
         continue;
       }
 

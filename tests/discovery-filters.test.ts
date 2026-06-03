@@ -1,11 +1,17 @@
 import { describe, it, expect } from 'vitest';
-import { isDiscoveryCandidateUrl, isBlockedDomain, shouldQueueSearchUrl } from '../src/discovery/filters.js';
+import {
+  isDiscoveryCandidateUrl,
+  isBlockedDomain,
+  shouldQueueSearchUrl,
+  isSweepstakesDirectoryUrl,
+} from '../src/discovery/filters.js';
 
 describe('discovery URL filters', () => {
-  it('blocks review/list sites', () => {
-    expect(isBlockedDomain('https://casino.guru/reviews')).toBe(true);
+  it('blocks junk and allows sweepstakes list pages', () => {
     expect(isBlockedDomain('https://bonus.com/deals')).toBe(true);
     expect(isBlockedDomain('https://schema.org/Casino')).toBe(true);
+    expect(isSweepstakesDirectoryUrl('https://casino.guru/reviews')).toBe(true);
+    expect(isBlockedDomain('https://casino.guru/reviews')).toBe(false);
   });
 
   it('collapses CDN hosts to operator root when checking hints', () => {
@@ -16,5 +22,11 @@ describe('discovery URL filters', () => {
   it('rejects generic .com without casino hints', () => {
     expect(isDiscoveryCandidateUrl('https://bonus.com')).toBe(false);
     expect(shouldQueueSearchUrl('https://bonus.com')).toBe(false);
+  });
+
+  it('allows sweepstakes roundup sites for list mining', () => {
+    expect(isSweepstakesDirectoryUrl('https://www.sweepskings.com/')).toBe(true);
+    expect(isBlockedDomain('https://www.sweepskings.com/best-sites')).toBe(false);
+    expect(shouldQueueSearchUrl('https://www.sweepskings.com/best-sites')).toBe(true);
   });
 });

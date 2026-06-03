@@ -1,83 +1,61 @@
 import { VERIFIED_CASINO_SEEDS } from '../shared/verified-casinos.js';
 
-const NEW_SITE_QUERIES = [
-  '"sweepstakes casino" "gold coins" -review -guide -list -reddit',
-  '"social casino" "sweeps coins" signup -youtube -wiki',
-  'inurl:casino "no purchase necessary" sweeps',
-  'new sweepstakes casino launch usa 2026',
-  '"play for free" "sweep coins" casino site:.us',
-  'undiscovered social casino sweeps coins',
-  '"sweeps cash" redeem casino signup',
-  'latest sweepstakes gaming site launch',
-  'brand new sweeps casino email signup',
-  'new competitor chumba pulsz mcluck casino',
-  'social casino app sweeps coins no phone',
-  'free sweeps coins casino no verification',
-  'sweepstakes casino .us signup bonus',
-  'new sweeps site launch reddit',
-  'unknown social casino sweeps coins',
-  'site:.us "sweeps coins" casino -reddit',
-  '"social casino" redeem prizes .us',
-  'new sweeps casino 2026 launch signup',
+/** Find roundup / directory pages that list dozens or hundreds of sweepstakes casinos. */
+const SWEEPSTAKES_LIST_QUERIES = [
+  'complete list of US sweepstakes casinos',
+  'full list sweepstakes casino sites USA',
+  'all sweepstakes casinos list gold coins',
+  'every social casino sweeps coins list',
+  'sweepstakes casino directory USA 2026',
+  'master list sweepstakes gaming sites',
+  'alphabetical list sweepstakes casinos',
+  'how many sweepstakes casinos complete list',
+  'new sweepstakes casinos list 2026',
+  'all legal US sweepstakes casino brands',
+  'social casino operators list sweeps cash',
+  'sweepstakes casino comparison all sites',
+  'full database sweepstakes casino USA',
+  'sweepstakes casino sites list no purchase',
+  'list of sweepstakes casinos like chumba',
+  'all pulsz mcluck competitors list sweepstakes',
+  'sweepstakes casino roundup list .us',
+  'social casino sites list redeem prizes',
+  'US sweepstakes slots casinos full list',
+  'sweepstakes casino index all operators',
+  'catalog of sweepstakes casinos USA',
+  'sweepstakes gaming sites complete guide list',
+  'best sweepstakes casinos full ranked list',
+  'new social casino launches list sweeps',
+  'sweepstakes casino brands list email signup',
+  'all .us sweepstakes casino websites',
+  'sweepstakes casino list free sweeps coins',
+  'social sweeps casino directory no phone',
+  'online sweepstakes casino list 2026 USA',
+  '"sweepstakes casino" "list" "gold coins"',
+  '"social casino" "list" "sweeps coins"',
+  'inurl:sweepstakes-casinos list',
+  'inurl:social-casinos sweepstakes list USA',
+  'sweepstakes casino wiki list sites',
+  'reddit list of sweepstakes casinos',
+  'sweepstakes casino spreadsheet list sites',
+  'form list sweepstakes casinos signup',
 ];
 
-const OPERATOR_QUERIES = [
-  '"social casino" "sweeps coins" -review -guide -bonus',
-  '"sweepstakes casino" "no purchase necessary" -list -review',
-  'new sweepstakes casino launch site:.us -reddit -youtube',
-  'inurl:casino "gold coins" "sweeps" -review',
-  '"play for free" "sweepstakes" casino signup -guide',
+/** Direct operator discovery — always sweepstakes-scoped. */
+const SWEEPSTAKES_OPERATOR_QUERIES = [
+  'new sweepstakes casino launch site:.us 2026',
+  'undiscovered sweepstakes casino sweeps coins',
+  '"sweepstakes casino" "no purchase necessary" signup',
+  '"social casino" "sweeps coins" site:.us -wikipedia',
+  'brand new sweepstakes casino email signup',
+  'sweepstakes casino .us no phone verification',
+  'new sweeps casino competitor chumba pulsz',
 ];
 
-const BASE_QUERIES = [
-  'sweepstakes casino no phone required 2026',
-  'new social casino sweeps coins list',
-  'free sweeps casino email signup',
-  'best sweepstakes slots casino usa',
-  'sweepstakes casino live dealer',
-  'alternative chumba pulsz new casino',
-  'sweepstakes casino no verification',
-  'social casino gold coins free',
-  'new sweepstakes gaming sites',
-  'no purchase sweepstakes casino',
-  'sweepstakes casino vpn allowed',
-  'free social casino instant play',
-  'sweepstakes poker casino usa',
-  'sweepstakes casino gift card redeem',
-  'low minimum redeem sweepstakes',
-  'wow vegas alternatives sweepstakes',
-  'mcluck pulsz similar casinos',
-  'new sweeps casino launch 2026',
-  'social casino sweeps cash redeem',
-  'play for free sweeps coins casino',
-  'sweepstakes slots no deposit bonus',
-  'fish games sweepstakes casino',
-  'bingo sweepstakes casino online',
-  'pragmatic play sweepstakes casino',
-  'stake.us alternative sweepstakes',
-  'lonestar casino sweepstakes',
-  'texas sweepstakes casino online',
-  'california social casino sweeps',
-  'florida sweepstakes casino legal',
-  'sweepstakes casino app no phone',
+const TOP_OPERATORS = [
+  'chumba', 'pulsz', 'mcluck', 'wow vegas', 'fortune coins', 'luckyland',
+  'stake us', 'modo', 'global poker', 'high 5 casino', 'crowncoins',
 ];
-
-const SUFFIXES = [
-  'signup bonus',
-  'free coins',
-  'promo code',
-  'review',
-  'login',
-  'official site',
-  'new player',
-  'no purchase',
-  'redeem prizes',
-  'daily bonus',
-];
-
-const PREFIXES = ['new', 'best', 'top', 'free', 'legal', 'real', 'trusted', 'popular'];
-
-const ALPHABET = 'abcdefghijklmnopqrstuvwxyz'.split('');
 
 function shuffle<T>(items: T[]): T[] {
   const arr = [...items];
@@ -92,56 +70,32 @@ function uniqueStrings(items: string[]): string[] {
   return [...new Set(items.map((s) => s.trim()).filter(Boolean))];
 }
 
-/** Build a large rotating query list — different order every scan. */
+/** Build sweepstakes-only queries — list pages first, then operators. */
 export function buildSearchQueries(deep: boolean): string[] {
-  const queries: string[] = [...NEW_SITE_QUERIES, ...OPERATOR_QUERIES, ...BASE_QUERIES];
+  const queries: string[] = [...SWEEPSTAKES_LIST_QUERIES, ...SWEEPSTAKES_OPERATOR_QUERIES];
 
-  for (const seed of VERIFIED_CASINO_SEEDS) {
+  for (const op of TOP_OPERATORS) {
+    queries.push(`${op} alternative sweepstakes casino`);
+    queries.push(`sites like ${op} sweepstakes list`);
+  }
+
+  for (const seed of VERIFIED_CASINO_SEEDS.slice(0, deep ? 40 : 18)) {
     const name = seed.name.replace(/\s+casino$/i, '').trim();
-    queries.push(`${name} sweepstakes casino`);
-    queries.push(`${name} sweeps coins`);
-    queries.push(`site:${new URL(seed.url).hostname.replace(/^www\./, '')}`);
+    queries.push(`${name} sweepstakes casino official`);
+    queries.push(`alternatives to ${name} sweepstakes`);
   }
 
-  for (const letter of ALPHABET) {
-    queries.push(`${letter} sweepstakes casino usa`);
-    queries.push(`social casino ${letter} sweeps`);
-  }
-
-  for (const prefix of PREFIXES) {
-    queries.push(`${prefix} sweepstakes casino 2026`);
-    queries.push(`${prefix} social casino sweeps coins`);
-  }
-
-  for (const suffix of SUFFIXES) {
-    queries.push(`sweepstakes casino ${suffix}`);
-    queries.push(`social casino ${suffix}`);
-  }
-
-  const operators = ['chumba', 'pulsz', 'mcluck', 'stake us', 'wow vegas', 'fortune coins', 'luckyland', 'modo'];
-  for (const op of operators) {
-    queries.push(`casinos like ${op}`);
-    queries.push(`${op} competitor sweepstakes`);
-    queries.push(`alternative to ${op} casino`);
-  }
+  const year = String(new Date().getFullYear());
+  queries.push(`new sweepstakes casino list ${year}`);
+  queries.push(`latest sweepstakes casinos added ${year}`);
 
   const shuffled = shuffle(uniqueStrings(queries));
-  const limit = deep ? Math.min(150, shuffled.length) : Math.min(85, shuffled.length);
+  const limit = deep ? 55 : 30;
   const start = Math.floor(Math.random() * Math.max(1, shuffled.length));
   const rotated = [...shuffled.slice(start), ...shuffled.slice(0, start)];
 
-  const monthYear = new Date().toLocaleString('en-US', { month: 'long', year: 'numeric' });
-  const year = String(new Date().getFullYear());
-  const fresh = shuffle([
-    `new sweepstakes casino ${monthYear}`,
-    `latest social casino launch ${year}`,
-    `sweepstakes casino news ${monthYear}`,
-    `brand new sweeps site ${year}`,
-    `undiscovered sweepstakes casino ${year}`,
-  ]);
-
-  return uniqueStrings([...fresh, ...rotated]).slice(0, limit);
+  return rotated.slice(0, limit);
 }
 
-export const SEARCH_PAGES_QUICK = 5;
-export const SEARCH_PAGES_DEEP = 10;
+export const SEARCH_PAGES_QUICK = 6;
+export const SEARCH_PAGES_DEEP = 12;
