@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom';
 import { Sparkles, ShieldCheck, Dices, Wrench, Scale, Crown } from 'lucide-react';
+import BrandLogo from './BrandLogo';
 import { discordInviteUrl, publicSiteUrl } from '../lib/site';
 
 export default function SiteFooter() {
@@ -10,8 +11,8 @@ export default function SiteFooter() {
       <div className="max-w-6xl mx-auto">
         <div className="grid sm:grid-cols-2 md:grid-cols-4 gap-6 mb-8 text-left">
           <div>
-            <p className="font-display font-semibold text-white mb-2 flex items-center gap-2">
-              <img src="/logo.png" alt="" className="w-5 h-5" /> The Method
+            <p className="font-display font-semibold text-white mb-2">
+              <BrandLogo size="sm" showText={false} className="inline-flex align-middle mr-2" /> The Method
             </p>
             <p className="text-xs text-gray-600 leading-relaxed">
               Verified US sweepstakes catalog, free web discovery, and safety tools.

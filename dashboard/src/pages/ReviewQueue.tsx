@@ -1,13 +1,14 @@
 import { useEffect, useState } from 'react';
-import { CheckCircle, RefreshCw, Search } from 'lucide-react';
+import { CheckCircle, RefreshCw, Search, Radar, Flag, Activity, History } from 'lucide-react';
 import { api } from '../api';
 import type { Casino, SiteReport } from '../types';
 import PageHeader from '../components/PageHeader';
 import PendingCasinoRow from '../components/PendingCasinoRow';
 import ReportRow from '../components/ReportRow';
 import CatalogHealthRow from '../components/CatalogHealthRow';
+import EmptyState from '../components/EmptyState';
 import { useAuth } from '../context/AuthContext';
-import { Navigate, useSearchParams } from 'react-router-dom';
+import { Navigate, Link, useSearchParams } from 'react-router-dom';
 
 type Tab = 'discoveries' | 'reports' | 'health' | 'history';
 
@@ -208,25 +209,36 @@ export default function ReviewQueue() {
       {loading && <p className="text-gray-500">Loading…</p>}
 
       {!loading && tab === 'discoveries' && !pending.length && (
-        <div className="glass-glow p-8 text-center text-gray-500">
-          No casinos pending review. Run a discovery scan to find new operators.
-        </div>
+        <EmptyState
+          icon={Radar}
+          title="Queue is clear"
+          description="No casinos pending review. Run a discovery scan to find new operators."
+          action={<Link to="/discovery" className="btn-glow text-sm">Open discovery</Link>}
+        />
       )}
 
       {!loading && tab === 'reports' && !reports.length && (
-        <div className="glass-glow p-8 text-center text-gray-500">
-          No URLs awaiting ban review. Rejected discovery hits and user reports appear here.
-        </div>
+        <EmptyState
+          icon={Flag}
+          title="No ban reviews"
+          description="Rejected discovery hits and user reports appear here for admin review."
+        />
       )}
 
       {!loading && tab === 'health' && !healthIssues.length && (
-        <div className="glass-glow p-8 text-center text-gray-500">
-          All catalog entries are healthy and recently checked.
-        </div>
+        <EmptyState
+          icon={Activity}
+          title="All healthy"
+          description="Every catalog entry passed its latest health check."
+        />
       )}
 
       {!loading && tab === 'history' && !reportHistory.length && (
-        <div className="glass-glow p-8 text-center text-gray-500">No closed reports yet.</div>
+        <EmptyState
+          icon={History}
+          title="No report history"
+          description="Closed user reports will show up here."
+        />
       )}
 
       {tab === 'discoveries' && pending.length > 0 && (

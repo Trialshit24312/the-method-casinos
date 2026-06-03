@@ -191,6 +191,49 @@
     border: 1px solid rgba(0, 174, 239, 0.25);
     color: #5dd4ff;
   }
+
+  .border-gradient {
+    position: relative;
+    border: 1px solid transparent;
+    background-clip: padding-box;
+  }
+
+  .border-gradient::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    padding: 1px;
+    background: linear-gradient(135deg, rgba(184, 115, 51, 0.45), rgba(0, 174, 239, 0.35), rgba(184, 115, 51, 0.2));
+    -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+    pointer-events: none;
+    opacity: 0.55;
+    transition: opacity 0.3s;
+  }
+
+  .border-gradient:hover::before {
+    opacity: 1;
+  }
+
+  .empty-state {
+    @apply glass-glow p-10 md:p-14 text-center;
+  }
+
+  .empty-state-icon {
+    @apply mx-auto mb-4 w-14 h-14 rounded-2xl flex items-center justify-center;
+    background: linear-gradient(135deg, rgba(0, 174, 239, 0.12), rgba(184, 115, 51, 0.1));
+    border: 1px solid rgba(0, 174, 239, 0.2);
+  }
+
+  .btn-primary:focus-visible,
+  .btn-secondary:focus-visible,
+  .btn-glow:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(0, 174, 239, 0.35);
+  }
 }
 
 @layer utilities {
@@ -238,6 +281,18 @@
   .animate-stagger > *:nth-child(4) { animation-delay: 0.2s; }
   .animate-stagger > *:nth-child(5) { animation-delay: 0.25s; }
   .animate-stagger > *:nth-child(6) { animation-delay: 0.3s; }
+
+  @media (prefers-reduced-motion: reduce) {
+    .animate-stagger > *,
+    .hero-orb,
+    .card-shine::after {
+      animation: none !important;
+      transition: none !important;
+    }
+    .glass-glow:hover {
+      transform: none;
+    }
+  }
 }
 
 @keyframes floatOrb {

@@ -9,6 +9,8 @@ import SiteFooter from '../components/SiteFooter';
 import FeatureStrip from '../components/FeatureStrip';
 import CasinoCarousel from '../components/CasinoCarousel';
 import CarouselSkeleton from '../components/CarouselSkeleton';
+import StatsSkeleton from '../components/StatsSkeleton';
+import BrandLogo from '../components/BrandLogo';
 import PricingTiers from '../components/PricingTiers';
 import { usePageTitle } from '../hooks/usePageTitle';
 
@@ -43,15 +45,8 @@ export default function Landing() {
 
       <header className="relative border-b border-white/[0.06] bg-surface-raised/50 backdrop-blur-xl sticky top-0 z-20">
         <div className="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between">
-          <Link to="/" className="flex items-center gap-3 group">
-            <div className="relative">
-              <div className="absolute inset-0 blur-lg bg-glow/25 rounded-full scale-125 opacity-0 group-hover:opacity-100 transition-opacity" />
-              <img src="/logo.png" alt="" className="relative w-10 h-10 drop-shadow-method-glow" />
-            </div>
-            <div>
-              <span className="font-display font-bold tracking-wide block">THE METHOD</span>
-              <span className="tagline">Casinos Hub</span>
-            </div>
+          <Link to="/" className="group">
+            <BrandLogo size="md" />
           </Link>
           <nav className="flex items-center gap-2 sm:gap-4">
             <Link to="/casinos" className="text-sm text-gray-400 hover:text-white transition-colors hidden sm:inline">
@@ -125,7 +120,11 @@ export default function Landing() {
           <FeatureStrip compact />
         </motion.section>
 
-        {stats && (
+        {!stats ? (
+          <div className="mb-16">
+            <StatsSkeleton count={4} />
+          </div>
+        ) : (
           <motion.div
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}

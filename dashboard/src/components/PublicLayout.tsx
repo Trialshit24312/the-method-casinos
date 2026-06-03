@@ -1,13 +1,13 @@
 import { Link, Outlet } from 'react-router-dom';
 import SiteFooter from './SiteFooter';
+import BrandLogo from './BrandLogo';
 
 export default function PublicLayout() {
   return (
     <div className="min-h-screen flex flex-col app-background">
       <header className="border-b border-surface-border px-6 py-4 flex items-center justify-between gap-4">
-        <Link to="/" className="flex items-center gap-3">
-          <img src="/logo.png" alt="" className="w-10 h-10 object-contain" />
-          <span className="font-display font-bold text-white tracking-wide">THE METHOD</span>
+        <Link to="/" className="hover:opacity-90 transition-opacity">
+          <BrandLogo size="md" />
         </Link>
         <nav className="flex flex-wrap gap-4 text-sm">
           <Link to="/terms" className="text-gray-400 hover:text-glow">

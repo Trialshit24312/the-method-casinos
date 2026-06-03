@@ -424,9 +424,9 @@ export default function DiscoveryPage() {
           <textarea
             value={manualUrls}
             onChange={(e) => setManualUrls(e.target.value)}
-            placeholder="https://examplecasino.us&#10;https://newsweeps.com"
+            placeholder={'https://examplecasino.us\nhttps://newsweeps.com'}
             rows={3}
-            className="w-full bg-black/30 border border-white/10 rounded-lg px-3 py-2 text-sm text-gray-200 placeholder:text-gray-600 focus:border-[#00aeef]/50 outline-none"
+            className="w-full bg-black/30 border border-white/10 rounded-lg px-3 py-2 text-sm text-gray-200 placeholder:text-gray-600 focus:border-glow/50 outline-none"
           />
           <div className="flex items-center gap-3 mt-3">
             <button

@@ -1,12 +1,13 @@
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Plus, Search, X, Trash2 } from 'lucide-react';
+import { Plus, Search, X, Trash2, Dices } from 'lucide-react';
 import { api } from '../api';
 import type { Casino, CasinoFeature, Trackable } from '../types';
 import { FEATURE_LABELS, FEATURE_CATEGORIES } from '../types';
 import PageHeader from '../components/PageHeader';
 import CasinoCard from '../components/CasinoCard';
+import EmptyState from '../components/EmptyState';
 import { useAuth } from '../context/AuthContext';
 import { usePageTitle } from '../hooks/usePageTitle';
 import { isCatalogStale } from '../lib/freshness';
@@ -409,16 +410,23 @@ export default function CasinosPage() {
       )}
 
       {!loading && filtered.length === 0 && (
-        <div className="text-center py-20 text-gray-500">
-          <p>No casinos found.</p>
-          {user?.isAdmin && (
-            <p className="text-sm mt-2">
-              <Link to="/discovery" className="text-glow hover:underline">Run discovery</Link>
-              {' · '}
-              <Link to="/review" className="text-glow hover:underline">Review queue</Link>
-            </p>
-          )}
-        </div>
+        <EmptyState
+          icon={Dices}
+          title="No casinos found"
+          description={search || filter || noPhoneOnly || staleOnly
+            ? 'Try clearing filters or broadening your search.'
+            : 'The verified catalog is empty — run discovery or add operators manually.'}
+          action={
+            user?.isAdmin ? (
+              <div className="flex flex-wrap justify-center gap-3">
+                <Link to="/discovery" className="btn-glow text-sm">Run discovery</Link>
+                <Link to="/review" className="btn-secondary text-sm">Review queue</Link>
+              </div>
+            ) : (
+              <Link to="/casinos" className="btn-secondary text-sm">Clear filters</Link>
+            )
+          }
+        />
       )}
 
       <AnimatePresence>

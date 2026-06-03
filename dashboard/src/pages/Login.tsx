@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { api } from '../api';
 import { discordInviteUrl } from '../lib/site';
+import BrandLogo from '../components/BrandLogo';
 
 export default function Login() {
   const [params] = useSearchParams();
@@ -36,32 +37,14 @@ export default function Login() {
           initial={{ scale: 0.8, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
           transition={{ delay: 0.2 }}
-          className="relative mx-auto mb-6 w-28 h-28"
+          className="flex justify-center mb-2"
         >
-          <div className="absolute inset-0 blur-2xl bg-glow/30 rounded-full" />
-          <img src="/logo.png" alt="The Method" className="relative w-full h-full object-contain" />
+          <BrandLogo size="lg" orientation="vertical" />
         </motion.div>
-
-        <motion.h1
+        <motion.p
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.3 }}
-          className="font-display text-2xl font-bold tracking-widest mb-1"
-        >
-          THE METHOD
-        </motion.h1>
-        <motion.p
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
           transition={{ delay: 0.35 }}
-          className="tagline mb-1"
-        >
-          Precision · Strategy · Execution
-        </motion.p>
-        <motion.p
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.4 }}
           className="text-gray-500 text-sm mb-8"
         >
           Sweepstakes casino command center

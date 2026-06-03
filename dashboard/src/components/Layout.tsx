@@ -18,7 +18,6 @@ import {
   ShieldCheck,
   Sparkles,
   Clock,
-  Lock as LockIcon,
   Heart,
   Bell,
   Scale,
@@ -33,6 +32,7 @@ import GlobalSearch from './GlobalSearch';
 import PageTransition from './PageTransition';
 import MobileNav from './MobileNav';
 import UserAvatar from './UserAvatar';
+import BrandLogo from './BrandLogo';
 import { discordInviteUrl } from '../lib/site';
 import { api } from '../api';
 import ReportSiteModal from './ReportSiteModal';
@@ -77,12 +77,10 @@ function NavSection({
   title,
   items,
   notifyTotal = 0,
-  showAdminHint = false,
 }: {
   title: string;
   items: (typeof mainNav)[number][];
   notifyTotal?: number;
-  showAdminHint?: boolean;
 }) {
   const { user } = useAuth();
   if (!items.length) return null;
@@ -90,33 +88,29 @@ function NavSection({
     <div className="mb-4">
       <p className="section-title">{title}</p>
       <div className="space-y-0.5">
-        {items.map((item) => {
-          const needsAdmin = showAdminHint && !user?.isAdmin;
-          return (
-            <NavLink
-              key={item.to}
-              to={needsAdmin ? `/login?next=${encodeURIComponent(item.to)}` : item.to}
-              end={item.to === '/dashboard' || item.to === '/tools'}
-              className={({ isActive }) =>
-                `flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-300 ${
-                  isActive
-                    ? 'nav-item-active text-glow'
-                    : 'text-gray-400 hover:text-gray-100 hover:bg-white/[0.04] border border-transparent'
-                }`
-              }
-            >
-              <item.icon className="w-4 h-4 shrink-0" />
-              <span className="font-medium text-sm flex-1">{item.label}</span>
-              {needsAdmin && <LockIcon className="w-3 h-3 text-gray-600" aria-label="Admin sign-in required" />}
-              {item.to === '/review' && user?.isAdmin && notifyTotal > 0 && (
-                <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-amber-500/20 text-amber-400 flex items-center gap-0.5">
-                  <Bell className="w-2.5 h-2.5" />
-                  {notifyTotal}
-                </span>
-              )}
-            </NavLink>
-          );
-        })}
+        {items.map((item) => (
+          <NavLink
+            key={item.to}
+            to={item.to}
+            end={item.to === '/dashboard' || item.to === '/tools'}
+            className={({ isActive }) =>
+              `flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-300 ${
+                isActive
+                  ? 'nav-item-active text-glow'
+                  : 'text-gray-400 hover:text-gray-100 hover:bg-white/[0.04] border border-transparent'
+              }`
+            }
+          >
+            <item.icon className="w-4 h-4 shrink-0" />
+            <span className="font-medium text-sm flex-1">{item.label}</span>
+            {item.to === '/review' && user?.isAdmin && notifyTotal > 0 && (
+              <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-amber-500/20 text-amber-400 flex items-center gap-0.5">
+                <Bell className="w-2.5 h-2.5" />
+                {notifyTotal}
+              </span>
+            )}
+          </NavLink>
+        ))}
       </div>
     </div>
   );
@@ -151,23 +145,14 @@ export default function Layout() {
     <div className="min-h-screen flex app-background">
       <aside className="hidden lg:flex w-64 border-r border-white/[0.06] flex-col bg-surface-raised/80 backdrop-blur-xl">
         <div className="p-5 border-b border-white/[0.06]">
-          <Link to="/" className="flex flex-col items-center text-center hover:opacity-90 transition-opacity group">
-            <div className="relative mb-3">
-              <div className="absolute inset-0 blur-2xl bg-glow/25 rounded-full scale-125 opacity-60 group-hover:opacity-100 transition-opacity duration-500" />
-              <img
-                src="/logo.png"
-                alt="The Method"
-                className="relative w-[4.5rem] h-[4.5rem] object-contain drop-shadow-method-glow"
-              />
-            </div>
-            <h1 className="font-display font-bold text-lg tracking-[0.12em] text-white">THE METHOD</h1>
-            <p className="tagline mt-1.5">Precision · Strategy · Execution</p>
+          <Link to="/" className="hover:opacity-90 transition-opacity group">
+            <BrandLogo size="lg" orientation="vertical" />
           </Link>
         </div>
 
         <nav className="flex-1 p-3 overflow-y-auto">
           <NavSection title="Main" items={mainNav} />
-          <NavSection title="Admin" items={adminNav} notifyTotal={notifyTotal} showAdminHint />
+          {user?.isAdmin && <NavSection title="Admin" items={adminNav} notifyTotal={notifyTotal} />}
           <NavSection title="Tools" items={toolsNav} />
           <NavSection title="Legal" items={legalNav} />
           {discordInvite && (
@@ -265,7 +250,7 @@ export default function Layout() {
         </header>
         <ReportSiteModal open={reportOpen} onClose={() => setReportOpen(false)} />
         <ShortcutsHelp />
-        <div className="flex-1 relative z-10 p-1">
+        <div className="flex-1 relative z-10 p-6 md:p-8">
           <AnimatePresence mode="wait">
             <PageTransition key={location.pathname}>
               <Outlet />

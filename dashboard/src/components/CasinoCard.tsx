@@ -24,7 +24,7 @@ export default function CasinoCard({
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: index * 0.05 }}
       whileHover={{ y: -2 }}
-      className="glass p-5 group card-shine hover:border-glow/25 transition-all duration-300 border-gradient"
+      className="glass p-5 group card-shine hover:border-glow/25 transition-all duration-300 border-gradient relative"
     >
       <div className="flex items-start justify-between mb-3">
         <div className="flex items-center gap-2 flex-wrap">
@@ -104,7 +104,7 @@ export default function CasinoCard({
           </span>
         ))}
         {casino.features.length > 8 && (
-          <span className="text-xs px-2 py-0.5 rounded-full bg-[#1a1a22] text-gray-500 border border-[#2a2a35]">
+          <span className="text-xs px-2 py-0.5 rounded-full bg-surface-muted text-gray-500 border border-surface-border">
             +{casino.features.length - 8} more
           </span>
         )}
@@ -150,7 +150,7 @@ export default function CasinoCard({
         )}
         <Link
           to={`/similar?casino=${casino.id}`}
-          className="p-2 rounded-lg text-gray-500 hover:text-[#00aeef] hover:bg-[#00aeef]/10 transition-colors"
+          className="p-2 rounded-lg text-gray-500 hover:text-glow hover:bg-glow/10 transition-colors"
           title="Find similar casinos"
         >
           <Sparkles className="w-4 h-4" />

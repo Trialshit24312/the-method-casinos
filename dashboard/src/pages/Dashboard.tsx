@@ -27,6 +27,7 @@ import PageHeader from '../components/PageHeader';
 import StatCard from '../components/StatCard';
 import CasinoCarousel from '../components/CasinoCarousel';
 import CarouselSkeleton from '../components/CarouselSkeleton';
+import StatsSkeleton from '../components/StatsSkeleton';
 import { useAuth } from '../context/AuthContext';
 import ActivityFeed from '../components/ActivityFeed';
 import { usePageTitle } from '../hooks/usePageTitle';
@@ -98,7 +99,9 @@ export default function DashboardPage() {
         </motion.div>
       )}
 
-      {stats && (
+      {!stats ? (
+        <StatsSkeleton count={user?.isAdmin ? 8 : 7} />
+      ) : (
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 md:gap-4 mb-8 animate-stagger">
           <StatCard label="Verified Catalog" value={stats.verifiedCasinos} icon={ShieldCheck} color="bg-emerald-500/20 text-emerald-300" delay={0} />
           {user?.isAdmin && (
