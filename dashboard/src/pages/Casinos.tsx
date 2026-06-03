@@ -15,8 +15,9 @@ import CatalogGridSkeleton from '../components/CatalogGridSkeleton';
 import Breadcrumb from '../components/Breadcrumb';
 import { useAuth } from '../context/AuthContext';
 import { usePageTitle } from '../hooks/usePageTitle';
+import { useCasinoFavorites } from '../hooks/useCasinoFavorites';
+import { useTimedNotice } from '../hooks/useTimedNotice';
 import { isCatalogStale } from '../lib/freshness';
-import { readGuestFavorites, toggleGuestFavorite } from '../lib/guest-favorites';
 
 interface FormData {
   name: string;
@@ -63,6 +64,8 @@ const emptyForm: FormData = {
 
 export default function CasinosPage() {
   const { user } = useAuth();
+  const { isFavorited, toggleFavorite } = useCasinoFavorites();
+  const { message: favNotice, show: showFavNotice } = useTimedNotice(3000);
   const [searchParams, setSearchParams] = useSearchParams();
   usePageTitle('Browse Casinos — The Method');
   const [casinos, setCasinos] = useState<Casino[]>([]);
@@ -82,10 +85,6 @@ export default function CasinosPage() {
   const [showAll, setShowAll] = useState(false);
   const [staleOnly, setStaleOnly] = useState(false);
   const [sort, setSort] = useState<'name' | 'rating' | 'checked'>('rating');
-  const [favoriteIds, setFavoriteIds] = useState<Set<string>>(new Set());
-  const [guestFavoriteIds, setGuestFavoriteIds] = useState(
-    () => new Set(readGuestFavorites().map((c) => c.id)),
-  );
 
   useEffect(() => {
     if (!modalOpen) return;
@@ -140,46 +139,6 @@ export default function CasinosPage() {
     const t = setTimeout(syncUrlParams, 400);
     return () => clearTimeout(t);
   }, [syncUrlParams]);
-
-  useEffect(() => {
-    if (!user) {
-      setFavoriteIds(new Set());
-      return;
-    }
-    api.getFavorites()
-      .then((favs) => setFavoriteIds(new Set(favs.map((f) => f.casino.id))))
-      .catch(() => setFavoriteIds(new Set()));
-  }, [user]);
-
-  useEffect(() => {
-    const refresh = () => setGuestFavoriteIds(new Set(readGuestFavorites().map((c) => c.id)));
-    window.addEventListener('method-guest-favorites', refresh);
-    window.addEventListener('storage', refresh);
-    return () => {
-      window.removeEventListener('method-guest-favorites', refresh);
-      window.removeEventListener('storage', refresh);
-    };
-  }, []);
-
-  const toggleFavorite = async (casinoId: string) => {
-    if (!user) return;
-    if (favoriteIds.has(casinoId)) {
-      await api.removeFavorite(casinoId);
-      setFavoriteIds((prev) => {
-        const next = new Set(prev);
-        next.delete(casinoId);
-        return next;
-      });
-    } else {
-      await api.addFavorite(casinoId);
-      setFavoriteIds((prev) => new Set(prev).add(casinoId));
-    }
-  };
-
-  const toggleGuestFav = (casino: Casino) => {
-    toggleGuestFavorite(casino);
-    setGuestFavoriteIds(new Set(readGuestFavorites().map((c) => c.id)));
-  };
 
   const filtered = useMemo(() => {
     const base = casinos.filter((c) => !staleOnly || isCatalogStale(c.lastCheckedAt));
@@ -461,6 +420,7 @@ export default function CasinosPage() {
       </div>
 
       {blockNotice && <NoticeBanner message={blockNotice} variant="warning" />}
+      {favNotice && <NoticeBanner message={favNotice} variant="success" />}
 
       {loadError && <ErrorBanner message={loadError} onRetry={load} />}
 
@@ -476,8 +436,12 @@ export default function CasinosPage() {
               admin={user?.isAdmin}
               onEdit={openEdit}
               onBlock={handleBlock}
-              favorited={user ? favoriteIds.has(casino.id) : guestFavoriteIds.has(casino.id)}
-              onToggleFavorite={() => (user ? void toggleFavorite(casino.id) : toggleGuestFav(casino))}
+              favorited={isFavorited(casino.id)}
+              onToggleFavorite={() => {
+                void toggleFavorite(casino)
+                  .then((added) => showFavNotice(added ? 'Saved to My List' : 'Removed from My List'))
+                  .catch((e) => showFavNotice(e instanceof Error ? e.message : 'Could not update My List'));
+              }}
             />
           ))}
         </div>

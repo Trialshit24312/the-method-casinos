@@ -4,7 +4,9 @@ import { KeyRound, Copy, Check, RefreshCw } from 'lucide-react';
 import PageHeader from '../../components/PageHeader';
 import ToolsBreadcrumb from '../../components/ToolsBreadcrumb';
 import NoticeBanner from '../../components/NoticeBanner';
-import { useTimedNotice } from '../../hooks/useTimedNotice';import { usePageTitle } from '../../hooks/usePageTitle';
+import { useTimedNotice } from '../../hooks/useTimedNotice';
+import { usePageTitle } from '../../hooks/usePageTitle';
+import { copyToClipboard } from '../../lib/copy-to-clipboard';
 import { generateSecurePassword, passwordStrength } from '../../lib/generators';
 
 export default function PasswordGeneratorPage() {
@@ -25,8 +27,8 @@ export default function PasswordGeneratorPage() {
   const strength = passwordStrength(password);
 
   const copy = async () => {
-    await navigator.clipboard.writeText(password);
-    showCopyMsg('Password copied');
+    const ok = await copyToClipboard(password);
+    showCopyMsg(ok ? 'Password copied' : 'Could not copy — select and copy manually');
   };
 
   return (

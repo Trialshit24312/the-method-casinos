@@ -10,6 +10,7 @@ import ErrorBanner from '../components/ErrorBanner';
 import CasinoCard from '../components/CasinoCard';
 import CatalogGridSkeleton from '../components/CatalogGridSkeleton';
 import NoticeBanner from '../components/NoticeBanner';
+import RecentlyViewed from '../components/RecentlyViewed';
 import { usePageTitle } from '../hooks/usePageTitle';
 import { useCasinoFavorites } from '../hooks/useCasinoFavorites';
 import { useTimedNotice } from '../hooks/useTimedNotice';
@@ -55,6 +56,8 @@ export default function NewArrivals() {
         title="New Arrivals"
         subtitle="Recently approved sweepstakes casinos added to the verified catalog"
       />
+
+      <RecentlyViewed />
 
       {error && <ErrorBanner message={error} onRetry={load} />}
 

@@ -7,8 +7,10 @@ import { BLOCK_REASON_LABELS, BLOCK_SEVERITY_COLORS } from '../types';
 import PageHeader from '../components/PageHeader';
 import EmptyState from '../components/EmptyState';
 import ErrorBanner from '../components/ErrorBanner';
+import NoticeBanner from '../components/NoticeBanner';
 import Breadcrumb from '../components/Breadcrumb';
 import StatsSkeleton from '../components/StatsSkeleton';
+import { useTimedNotice } from '../hooks/useTimedNotice';
 import { SCAM_WARNING_SIGNS } from '../lib/generators';
 import { useAuth } from '../context/AuthContext';
 import { usePageTitle } from '../hooks/usePageTitle';
@@ -51,6 +53,7 @@ export default function BlockedSitesPage() {
   const [form, setForm] = useState<FormData>(emptyForm);
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
+  const { message: notice, show: showNotice } = useTimedNotice(4000);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -111,6 +114,7 @@ export default function BlockedSitesPage() {
       setModalOpen(false);
       setEditingId(null);
       load();
+      showNotice(editingId ? 'Blocklist entry updated' : 'Site added to blocklist');
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to save');
     } finally {
@@ -120,8 +124,13 @@ export default function BlockedSitesPage() {
 
   const remove = async (id: string) => {
     if (!confirm('Remove this site from the blocklist?')) return;
-    await api.deleteBlockedSite(id);
-    load();
+    try {
+      await api.deleteBlockedSite(id);
+      load();
+      showNotice('Removed from blocklist');
+    } catch (e) {
+      setLoadError(e instanceof Error ? e.message : 'Failed to remove site');
+    }
   };
 
   return (
@@ -175,6 +184,7 @@ export default function BlockedSitesPage() {
       )}
 
       {loadError && <ErrorBanner message={loadError} onRetry={load} />}
+      {notice && <NoticeBanner message={notice} variant="success" />}
 
       {!loading && sites.length > 0 && (
         <p className="text-sm text-gray-500 mb-4">
@@ -256,7 +266,7 @@ export default function BlockedSitesPage() {
       )}
 
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="glass p-6 mt-10">
-        <h3 className="font-display font-semibold text-white mb-4">Know the Red Flags</h3>
+        <h3 className="section-heading font-display font-semibold text-white mb-4">Know the Red Flags</h3>
         <ul className="grid sm:grid-cols-2 gap-2">
           {SCAM_WARNING_SIGNS.map((sign) => (
             <li key={sign} className="text-sm text-gray-500 flex items-start gap-2">

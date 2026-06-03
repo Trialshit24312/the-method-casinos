@@ -6,6 +6,7 @@ import ToolsBreadcrumb from '../../components/ToolsBreadcrumb';
 import NoticeBanner from '../../components/NoticeBanner';
 import { useTimedNotice } from '../../hooks/useTimedNotice';
 import { usePageTitle } from '../../hooks/usePageTitle';
+import { copyToClipboard } from '../../lib/copy-to-clipboard';
 import { ServiceGrid } from '../../components/ServiceCard';
 import { generatePhones, SMS_RECEIVER_SITES, PHONE_TOOL_SITES, GENERATOR_DISCLAIMER } from '../../lib/generators';
 
@@ -30,10 +31,10 @@ export default function PhoneGeneratorPage() {
   const regenerate = () => setPhones(generatePhones(count, format));
 
   const copy = async (text: string) => {
-    await navigator.clipboard.writeText(text);
-    setCopied(text);
-    showCopyMsg('Copied to clipboard');
-    setTimeout(() => setCopied(null), 2000);
+    const ok = await copyToClipboard(text);
+    if (ok) setCopied(text);
+    showCopyMsg(ok ? 'Copied to clipboard' : 'Could not copy — select and copy manually');
+    if (ok) setTimeout(() => setCopied(null), 2000);
   };
 
   const openRandom = () => {

@@ -107,9 +107,13 @@ export default function ReviewQueue() {
 
   const recheck = async (id: string) => {
     setBusyId(id);
+    setError('');
     try {
       await api.revalidateCasino(id);
       load();
+      showNotice('Health recheck queued');
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Recheck failed');
     } finally {
       setBusyId(null);
     }
@@ -118,9 +122,13 @@ export default function ReviewQueue() {
   const unlist = async (id: string) => {
     if (!confirm('Remove this casino from the public catalog?')) return;
     setBusyId(id);
+    setError('');
     try {
       await api.unlistCasino(id);
       load();
+      showNotice('Casino unlisted from catalog');
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Unlist failed');
     } finally {
       setBusyId(null);
     }
@@ -296,12 +304,22 @@ export default function ReviewQueue() {
                 }
               }}
               onBlock={async () => {
-                await api.blockFromReport(report.id);
-                load();
+                try {
+                  await api.blockFromReport(report.id);
+                  load();
+                  showNotice('Report promoted to blocklist');
+                } catch (e) {
+                  setError(e instanceof Error ? e.message : 'Block failed');
+                }
               }}
               onDismiss={async () => {
-                await api.dismissReport(report.id);
-                load();
+                try {
+                  await api.dismissReport(report.id);
+                  load();
+                  showNotice('Report dismissed');
+                } catch (e) {
+                  setError(e instanceof Error ? e.message : 'Dismiss failed');
+                }
               }}
             />
           ))}

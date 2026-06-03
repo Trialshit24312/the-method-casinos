@@ -14,6 +14,7 @@ import { useTimedNotice } from '../hooks/useTimedNotice';
 import { useAuth } from '../context/AuthContext';
 import { usePageTitle } from '../hooks/usePageTitle';
 import { readGuestFavorites, removeGuestFavorite } from '../lib/guest-favorites';
+import { copyToClipboard } from '../lib/copy-to-clipboard';
 
 interface FavoriteRow {
   casino: Casino;
@@ -134,8 +135,9 @@ export default function MyList() {
                         : `• ${f.casino.name} — ${f.casino.url}`;
                     })
                     .join('\n');
-                  void navigator.clipboard.writeText(text);
-                  showNotice('List copied to clipboard');
+                  void copyToClipboard(text).then((ok) => {
+                    showNotice(ok ? 'List copied to clipboard' : 'Could not copy list');
+                  });
                 }}
               >
                 <Copy className="w-4 h-4" /> Copy

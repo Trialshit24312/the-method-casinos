@@ -11,6 +11,7 @@ import Breadcrumb from '../components/Breadcrumb';
 import ErrorBanner from '../components/ErrorBanner';
 import NoticeBanner from '../components/NoticeBanner';
 import { useTimedNotice } from '../hooks/useTimedNotice';
+import { copyToClipboard } from '../lib/copy-to-clipboard';
 import { useAuth } from '../context/AuthContext';
 import { usePageTitle } from '../hooks/usePageTitle';
 
@@ -510,7 +511,7 @@ export default function DiscoveryPage() {
             />
           </div>
 
-          <div className="grid grid-cols-3 sm:grid-cols-6 gap-2 mb-4">
+          <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2 mb-4 animate-stagger">
             {[
               { label: 'Added', value: liveStats.added, color: 'text-emerald-400' },
               { label: 'Scanned', value: liveStats.scanned, color: 'text-glow' },
@@ -530,7 +531,7 @@ export default function DiscoveryPage() {
           <div className="rounded-xl border border-surface-border bg-surface-terminal overflow-hidden">
             <div className="flex items-center gap-2 px-4 py-2 border-b border-surface-border bg-surface-panel">
               <Terminal className="w-4 h-4 text-glow" />
-              <span className="text-xs font-medium text-gray-400 uppercase tracking-wide">Live Activity</span>
+              <span className="section-heading text-xs font-medium text-gray-400 uppercase tracking-wide">Live Activity</span>
               <span className="text-xs text-gray-600 ml-auto">{activityLog.length} events</span>
               {activityLog.length > 0 && (
                 <button
@@ -538,8 +539,9 @@ export default function DiscoveryPage() {
                   className="text-xs text-gray-500 hover:text-glow flex items-center gap-1"
                   onClick={() => {
                     const text = activityLog.map((e) => e.message).join('\n');
-                    void navigator.clipboard.writeText(text);
-                    showCopyNotice('Activity log copied to clipboard');
+                    void copyToClipboard(text).then((ok) => {
+                      showCopyNotice(ok ? 'Activity log copied to clipboard' : 'Could not copy log');
+                    });
                   }}
                 >
                   <Copy className="w-3 h-3" /> Copy log
@@ -563,7 +565,7 @@ export default function DiscoveryPage() {
 
       {copyNotice && <NoticeBanner message={copyNotice} variant="success" />}
 
-      {error && <ErrorBanner message={error} />}
+      {error && <ErrorBanner message={error} onRetry={() => void runScan(result?.mode === 'deep')} />}
 
       {result && (
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="glass-glow p-6">

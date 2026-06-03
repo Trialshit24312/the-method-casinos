@@ -19,6 +19,7 @@ import { useTimedNotice } from '../hooks/useTimedNotice';
 import ErrorBanner from '../components/ErrorBanner';
 import CasinoDetailSkeleton from '../components/CasinoDetailSkeleton';
 import QuickLinkRow from '../components/QuickLinkRow';
+import RecentlyViewed from '../components/RecentlyViewed';
 import { FEATURE_LABELS, FEATURE_COLORS, vpnLabel, formatTrackableValue } from '../types';
 import { formatLastChecked, isCatalogStale } from '../lib/freshness';
 import { isGuestFavorite, toggleGuestFavorite } from '../lib/guest-favorites';
@@ -163,6 +164,9 @@ export default function CasinoDetail() {
           { label: casino.name },
         ]}
       />
+
+      <RecentlyViewed />
+
       <PageHeader
         title={casino.name}
         subtitle={casino.url.replace(/^https?:\/\//, '')}
@@ -286,7 +290,7 @@ export default function CasinoDetail() {
 
         {casino.signupRequirements.length > 0 && (
           <div className="mb-4">
-            <h3 className="text-sm font-medium text-gray-400 mb-2">Signup requirements</h3>
+            <h3 className="section-heading text-sm font-medium text-gray-400 mb-2">Signup requirements</h3>
             <ul className="text-sm text-gray-300 list-disc list-inside">
               {casino.signupRequirements.map((req) => (
                 <li key={req}>{req}</li>

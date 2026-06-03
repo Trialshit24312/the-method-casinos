@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { ShieldCheck, ShieldAlert, Search, ExternalLink, AlertTriangle, Flag, Clock } from 'lucide-react';
+import { ShieldCheck, ShieldAlert, Search, ExternalLink, AlertTriangle, Flag, Clock, Copy } from 'lucide-react';
 import PageHeader from '../../components/PageHeader';
 import ToolsBreadcrumb from '../../components/ToolsBreadcrumb';
 import ErrorBanner from '../../components/ErrorBanner';
@@ -13,6 +13,9 @@ import { BLOCK_REASON_LABELS } from '../../types';
 import { SCAM_WARNING_SIGNS, SWEEPS_RESEARCH } from '../../lib/generators';
 
 import { usePageTitle } from '../../hooks/usePageTitle';
+import { useTimedNotice } from '../../hooks/useTimedNotice';
+import NoticeBanner from '../../components/NoticeBanner';
+import { copyToClipboard } from '../../lib/copy-to-clipboard';
 import { useAuth } from '../../context/AuthContext';
 import { pushRecentUrlCheck, readRecentUrlChecks } from '../../lib/recent-url-checks';
 
@@ -27,6 +30,7 @@ export default function UrlCheckerPage() {
   const [reportSent, setReportSent] = useState(false);
   const [reporting, setReporting] = useState(false);
   const [recentChecks, setRecentChecks] = useState<string[]>(() => readRecentUrlChecks());
+  const { message: notice, show: showNotice } = useTimedNotice(3000);
 
   const runCheck = useCallback(async (target: string) => {
     const trimmed = target.trim();
@@ -61,11 +65,17 @@ export default function UrlCheckerPage() {
     try {
       await api.reportUrl(url.trim(), 'Reported via URL checker');
       setReportSent(true);
+      showNotice('Report submitted — admins will review');
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Report failed');
     } finally {
       setReporting(false);
     }
+  };
+
+  const copyUrl = async (target: string) => {
+    const ok = await copyToClipboard(target);
+    showNotice(ok ? 'URL copied' : 'Could not copy URL');
   };
 
   return (
@@ -76,6 +86,8 @@ export default function UrlCheckerPage() {
         title="URL Safety Checker"
         subtitle="Check if a casino URL is in our database, on the blocklist, or unknown"
       />
+
+      {notice && <NoticeBanner message={notice} variant="success" />}
 
       <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="glass-glow p-6 mb-8 border-glow/20">
         <div className="flex gap-3 mb-4">
@@ -94,14 +106,14 @@ export default function UrlCheckerPage() {
           </button>
         </div>
 
-        {error && <ErrorBanner message={error} />}
+        {error && <ErrorBanner message={error} onRetry={() => void runCheck(url)} />}
 
         {loading && <CheckResultSkeleton />}
 
         {recentChecks.length > 0 && !loading && (
           <div className="mt-4 pt-4 border-t border-surface-border">
-            <p className="text-[10px] uppercase tracking-wide text-gray-600 mb-2">Recent checks</p>
-            <div className="flex flex-wrap gap-2">
+            <p className="section-heading text-[10px] uppercase tracking-wide text-gray-600 mb-2">Recent checks</p>
+            <div className="flex flex-wrap gap-2 animate-stagger">
               {recentChecks.map((u) => (
                 <button
                   key={u}
@@ -158,11 +170,18 @@ export default function UrlCheckerPage() {
                 </div>
                 <p className="text-white font-medium">{result.casino.name}</p>
                 <p className="text-sm text-gray-500 mt-1">Rating: {result.casino.rating.toFixed(1)}/5</p>
-                <div className="flex flex-wrap gap-3 mt-3 text-sm">
+                <div className="flex flex-wrap gap-3 mt-3 text-sm items-center">
                   <a href={result.casino.url} target="_blank" rel="noopener noreferrer"
                     className="inline-flex items-center gap-1 text-glow hover:underline">
                     Visit site <ExternalLink className="w-3 h-3" />
                   </a>
+                  <button
+                    type="button"
+                    onClick={() => void copyUrl(result.casino!.url)}
+                    className="inline-flex items-center gap-1 text-gray-500 hover:text-glow"
+                  >
+                    <Copy className="w-3 h-3" /> Copy URL
+                  </button>
                   <Link to={`/casinos/${result.casino.urlNormalized ?? result.casino.id}`} className="text-glow hover:underline">
                     Catalog profile →
                   </Link>
@@ -199,8 +218,8 @@ export default function UrlCheckerPage() {
       </motion.div>
 
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="glass p-6 mb-10">
-        <h3 className="font-display font-semibold text-white mb-4 flex items-center gap-2">
-          <AlertTriangle className="w-5 h-5 text-amber-400" /> Scam Warning Signs
+        <h3 className="section-heading font-display font-semibold text-white mb-4 flex items-center gap-2">
+          <AlertTriangle className="w-5 h-5 text-amber-400 shrink-0" /> Scam Warning Signs
         </h3>
         <ul className="space-y-2">
           {SCAM_WARNING_SIGNS.map((sign) => (

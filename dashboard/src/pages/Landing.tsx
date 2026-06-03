@@ -17,6 +17,8 @@ import ActivityFeed from '../components/ActivityFeed';
 import PricingTiers from '../components/PricingTiers';
 import { usePageTitle } from '../hooks/usePageTitle';
 import { useCasinoFavorites } from '../hooks/useCasinoFavorites';
+import { useTimedNotice } from '../hooks/useTimedNotice';
+import NoticeBanner from '../components/NoticeBanner';
 
 const fadeUp = {
   initial: { opacity: 0, y: 24 },
@@ -46,6 +48,13 @@ export default function Landing() {
   const navigate = useNavigate();
   const discordInvite = discordInviteUrl();
   const { isFavorited, toggleFavorite } = useCasinoFavorites();
+  const { message: favNotice, show: showFavNotice } = useTimedNotice(3000);
+
+  const handleCarouselFavorite = (casino: Casino) => {
+    void toggleFavorite(casino)
+      .then((added) => showFavNotice(added ? 'Saved to My List' : 'Removed from My List'))
+      .catch((e) => showFavNotice(e instanceof Error ? e.message : 'Could not update My List'));
+  };
 
   useEffect(() => {
     api.getStats()
@@ -206,6 +215,11 @@ export default function Landing() {
         ) : null}
 
         <div className="mb-16 px-2">
+          {favNotice && (
+            <div className="mb-4">
+              <NoticeBanner message={favNotice} variant="success" />
+            </div>
+          )}
           <ActivityFeed />
         </div>
 
@@ -227,7 +241,7 @@ export default function Landing() {
                 </Link>
               }
               isFavorited={isFavorited}
-              onToggleFavorite={(c) => { void toggleFavorite(c); }}
+              onToggleFavorite={handleCarouselFavorite}
             />
           </motion.div>
         )}
@@ -259,7 +273,7 @@ export default function Landing() {
                 </Link>
               }
               isFavorited={isFavorited}
-              onToggleFavorite={(c) => { void toggleFavorite(c); }}
+              onToggleFavorite={handleCarouselFavorite}
             />
           </motion.div>
         )}
