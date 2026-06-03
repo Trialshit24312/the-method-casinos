@@ -1,12 +1,13 @@
 import { Link, Outlet, useLocation } from 'react-router-dom';
 import { AnimatePresence } from 'framer-motion';
-import { ScrollText, Shield, ShieldCheck, Scale, Dices, LogIn } from 'lucide-react';
+import { ScrollText, Shield, ShieldCheck, Scale, Dices, LogIn, Keyboard } from 'lucide-react';
 import SiteFooter from './SiteFooter';
 import BrandLogo from './BrandLogo';
 import BackToTop from './BackToTop';
 import GlobalSearch from './GlobalSearch';
 import MobileNav from './MobileNav';
 import PageTransition from './PageTransition';
+import ShortcutsHelp from './ShortcutsHelp';
 
 const publicNavItems = [
   { to: '/legal', icon: Scale, label: 'Legal Hub' },
@@ -32,7 +33,7 @@ export default function PublicLayout() {
           <div className="hidden sm:block flex-1 min-w-0 max-w-md">
             <GlobalSearch />
           </div>
-          <nav className="hidden md:flex flex-wrap gap-4 text-sm shrink-0 ml-auto">
+          <nav className="hidden md:flex flex-wrap gap-4 text-sm shrink-0 ml-auto items-center">
             <Link to="/legal" className="text-gray-400 hover:text-glow">
               Legal
             </Link>
@@ -45,6 +46,15 @@ export default function PublicLayout() {
             <Link to="/privacy" className="text-gray-400 hover:text-glow">
               Privacy
             </Link>
+            <button
+              type="button"
+              onClick={() => window.dispatchEvent(new Event('method-open-shortcuts'))}
+              className="p-1.5 rounded-lg border border-white/10 text-gray-500 hover:text-glow hover:border-glow/30 transition-colors hidden lg:flex items-center gap-1"
+              title="Keyboard shortcuts (?)"
+            >
+              <Keyboard className="w-3.5 h-3.5" />
+              <kbd className="kbd text-[9px]">?</kbd>
+            </button>
             <Link to="/login" className="text-glow hover:underline font-medium">
               Sign in
             </Link>
@@ -63,6 +73,7 @@ export default function PublicLayout() {
       </main>
       <SiteFooter />
       <BackToTop />
+      <ShortcutsHelp />
     </div>
   );
 }

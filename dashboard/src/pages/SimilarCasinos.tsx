@@ -14,17 +14,12 @@ import SimilarMatchesSkeleton from '../components/SimilarMatchesSkeleton';
 import { usePageTitle } from '../hooks/usePageTitle';
 import { useAuth } from '../context/AuthContext';
 
-function MatchCard({ match, index }: { match: SimilarCasinoMatch; index: number }) {
+function MatchCard({ match }: { match: SimilarCasinoMatch }) {
   const pct = match.matchPercent;
   const ringColor = pct >= 75 ? 'text-emerald-400' : pct >= 50 ? 'text-glow' : 'text-brand-light';
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 16 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: index * 0.06 }}
-      className="glass-glow p-5 border-glow/15 hover:border-glow/35 transition-all"
-    >
+    <div className="glass-glow p-5 border-glow/15 hover:border-glow/35 transition-all card-shine">
       <div className="flex items-start justify-between gap-3 mb-3">
         <div>
           <h3 className="font-display font-semibold text-lg text-white">{match.casino.name}</h3>
@@ -74,7 +69,7 @@ function MatchCard({ match, index }: { match: SimilarCasinoMatch; index: number 
           <Sparkles className="w-3.5 h-3.5" />
         </Link>
       </div>
-    </motion.div>
+    </div>
   );
 }
 
@@ -277,9 +272,9 @@ export default function SimilarCasinosPage() {
               description="Try Search web for more to find new operators like this one."
             />
           ) : (
-            <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-4">
-              {matches.map((m, i) => (
-                <MatchCard key={m.casino.id} match={m} index={i} />
+            <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-4 animate-stagger">
+              {matches.map((m) => (
+                <MatchCard key={m.casino.id} match={m} />
               ))}
             </div>
           )}

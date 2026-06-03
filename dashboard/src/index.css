@@ -273,6 +273,14 @@
     background: linear-gradient(to left, #060608, transparent);
   }
 
+  .section-heading {
+    @apply pl-3 border-l-2 border-brand;
+  }
+
+  .winner-card {
+    @apply border-brand/40 bg-brand/5 shadow-[0_0_24px_rgba(184,115,51,0.08)];
+  }
+
   .notice-enter {
     animation: noticeIn 0.35s cubic-bezier(0.22, 1, 0.36, 1);
   }

@@ -1,5 +1,4 @@
 import { useMemo, useState } from 'react';
-import { motion } from 'framer-motion';
 import { ExternalLink, Search } from 'lucide-react';
 import type { WebService } from '../lib/generators';
 
@@ -13,19 +12,14 @@ const BADGE_COLORS: Record<string, string> = {
 
 interface ServiceCardProps {
   service: WebService;
-  index?: number;
 }
 
-export default function ServiceCard({ service, index = 0 }: ServiceCardProps) {
+export default function ServiceCard({ service }: ServiceCardProps) {
   return (
-    <motion.a
+    <a
       href={service.url}
       target="_blank"
       rel="noopener noreferrer"
-      initial={{ opacity: 0, y: 12 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: index * 0.03 }}
-      whileHover={{ y: -3, scale: 1.01 }}
       className="group block p-4 rounded-xl border border-surface-border bg-gradient-to-br from-surface-raised to-surface
                  hover:border-glow/50 hover:shadow-method-glow transition-all duration-200 card-shine"
     >
@@ -48,7 +42,7 @@ export default function ServiceCard({ service, index = 0 }: ServiceCardProps) {
           </span>
         ))}
       </div>
-    </motion.a>
+    </a>
   );
 }
 
@@ -76,7 +70,7 @@ export function ServiceGrid({ title, subtitle, services, searchable = false }: S
   return (
     <section className="mb-10">
       <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3 mb-4">
-        <div className="pl-3 border-l-2 border-brand">
+        <div className="section-heading">
           <h3 className="font-display font-semibold text-lg text-white">{title}</h3>
           {subtitle && <p className="text-sm text-gray-500 mt-0.5">{subtitle}</p>}
           <p className="text-xs text-gray-600 mt-1">{filtered.length} site{filtered.length !== 1 ? 's' : ''}</p>
@@ -97,9 +91,9 @@ export function ServiceGrid({ title, subtitle, services, searchable = false }: S
       {filtered.length === 0 ? (
         <p className="text-sm text-gray-600 py-8 text-center">No sites match your search.</p>
       ) : (
-        <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-3">
-          {filtered.map((svc, i) => (
-            <ServiceCard key={svc.url} service={svc} index={i} />
+        <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-3 animate-stagger">
+          {filtered.map((svc) => (
+            <ServiceCard key={svc.url} service={svc} />
           ))}
         </div>
       )}

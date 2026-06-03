@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useState, useCallback, type ReactNode } from 'react';
 import { api } from '../api';
 import type { User } from '../types';
+import { mergeGuestFavoritesIntoAccount, readGuestFavorites } from '../lib/guest-favorites';
 
 const USER_CACHE_KEY = 'method.auth.user';
 
@@ -51,6 +52,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const { user: u } = await api.getMe();
         setUser(u);
         writeCachedUser(u);
+        if (u && readGuestFavorites().length > 0) {
+          void mergeGuestFavoritesIntoAccount((id) => api.addFavorite(id));
+        }
         setLoading(false);
         return;
       } catch {

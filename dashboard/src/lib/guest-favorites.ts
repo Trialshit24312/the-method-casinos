@@ -34,3 +34,29 @@ export function removeGuestFavorite(casinoId: string): void {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
   window.dispatchEvent(new Event('method-guest-favorites'));
 }
+
+export async function mergeGuestFavoritesIntoAccount(
+  addFavorite: (casinoId: string) => Promise<unknown>,
+): Promise<number> {
+  const guest = readGuestFavorites();
+  if (!guest.length) return 0;
+
+  let merged = 0;
+  for (const casino of guest) {
+    try {
+      await addFavorite(casino.id);
+      merged += 1;
+    } catch {
+      /* may already exist on server */
+    }
+  }
+
+  localStorage.removeItem(STORAGE_KEY);
+  window.dispatchEvent(new Event('method-guest-favorites'));
+
+  if (merged > 0) {
+    sessionStorage.setItem('method-guest-merge-notice', String(merged));
+  }
+
+  return merged;
+}

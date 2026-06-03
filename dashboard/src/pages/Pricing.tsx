@@ -35,7 +35,7 @@ export default function Pricing() {
         className="mt-14 glass-glow p-6 md:p-8 border-gradient"
       >
         <h2 className="font-display font-semibold text-lg text-white mb-4">How tiers work</h2>
-        <div className="grid md:grid-cols-3 gap-6 text-sm text-gray-400">
+        <div className="grid md:grid-cols-3 gap-6 text-sm text-gray-400 animate-stagger">
           <div>
             <p className="text-white font-medium mb-1">Stacked perks</p>
             <p>Each tier includes everything from the tiers below it. Operator gets Scout perks plus more — Strategist adds on Operator, and so on.</p>

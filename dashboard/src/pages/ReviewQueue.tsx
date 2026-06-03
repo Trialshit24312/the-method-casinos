@@ -9,6 +9,7 @@ import CatalogHealthRow from '../components/CatalogHealthRow';
 import EmptyState from '../components/EmptyState';
 import ErrorBanner from '../components/ErrorBanner';
 import NoticeBanner from '../components/NoticeBanner';
+import { useTimedNotice } from '../hooks/useTimedNotice';
 import TabPills from '../components/TabPills';
 import StatsSkeleton from '../components/StatsSkeleton';
 import { useAuth } from '../context/AuthContext';
@@ -34,14 +35,13 @@ export default function ReviewQueue() {
   const [reportHistory, setReportHistory] = useState<SiteReport[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [notice, setNotice] = useState('');
+  const { message: notice, show: showNotice } = useTimedNotice(5000);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [pendingFilter, setPendingFilter] = useState('');
 
   const load = () => {
     setLoading(true);
     setError('');
-    setNotice('');
     Promise.all([
       api.getPendingCasinos(),
       api.getReports(),
@@ -167,7 +167,7 @@ export default function ReviewQueue() {
               try {
                 const res = await api.approveAllPending(pending.length);
                 load();
-                setNotice(
+                showNotice(
                   res.approved > 0
                     ? `Approved ${res.approved} casino(s) for the public catalog.${res.remaining > 0 ? ` ${res.remaining} still pending.` : ''}`
                     : 'No casinos were approved.',
@@ -190,7 +190,7 @@ export default function ReviewQueue() {
               try {
                 await Promise.all(pending.map((c) => api.rejectCasino(c.id)));
                 load();
-                setNotice(`Rejected ${pending.length} pending casino(s).`);
+                showNotice(`Rejected ${pending.length} pending casino(s).`);
               } catch (e) {
                 setError(e instanceof Error ? e.message : 'Bulk reject failed');
               }
@@ -251,6 +251,17 @@ export default function ReviewQueue() {
             value={pendingFilter}
             onChange={(e) => setPendingFilter(e.target.value)}
           />
+        </div>
+      )}
+
+      {tab === 'discoveries' && pending.length > 0 && pendingFilter.trim() && (
+        <div className="filter-bar mb-4">
+          <span className="text-xs text-gray-500">
+            {pendingFiltered.length} of {pending.length} pending match “{pendingFilter.trim()}”
+          </span>
+          <button type="button" onClick={() => setPendingFilter('')} className="text-xs text-glow hover:underline ml-auto">
+            Clear filter
+          </button>
         </div>
       )}
 

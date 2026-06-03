@@ -172,8 +172,23 @@ export default function ComparePage() {
       {result && !loading && (
         <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="glass-glow p-6 space-y-6 border-glow/15">
           <div className="grid md:grid-cols-2 gap-6">
-            {[result.a, result.b].map((casino) => (
-              <div key={casino.id} className="p-4 rounded-xl bg-surface-muted/50 border border-surface-border">
+            {[result.a, result.b].map((casino) => {
+              const isWinner = casino.rating >= Math.max(result.a.rating, result.b.rating)
+                && result.a.rating !== result.b.rating;
+              return (
+              <div
+                key={casino.id}
+                className={`p-4 rounded-xl border transition-colors ${
+                  isWinner
+                    ? 'winner-card border-brand/40'
+                    : 'bg-surface-muted/50 border-surface-border'
+                }`}
+              >
+                {isWinner && (
+                  <span className="text-[10px] uppercase tracking-wide text-brand-light mb-2 inline-block">
+                    Higher rated
+                  </span>
+                )}
                 <h3 className="font-display font-semibold text-lg text-white mb-1">
                   <Link to={`/casinos/${casino.urlNormalized ?? casino.id}`} className="hover:text-glow transition-colors">
                     {casino.name}
@@ -186,7 +201,8 @@ export default function ComparePage() {
                   Visit <ExternalLink className="w-3 h-3" />
                 </a>
               </div>
-            ))}
+              );
+            })}
           </div>
 
           <div>
