@@ -1,6 +1,7 @@
 import type { Server } from 'http';
 import type { Client } from 'discord.js';
 import { pauseDiscoveryForShutdown } from '../discovery/shutdown-pause.js';
+import { getDatabase } from '../database/index.js';
 
 let httpServer: Server | null = null;
 let botClient: Client | null = null;
@@ -21,6 +22,12 @@ export function setupGracefulShutdown(): void {
     console.log(`\n${signal} received — shutting down gracefully…`);
 
     pauseDiscoveryForShutdown();
+
+    try {
+      getDatabase().pragma('wal_checkpoint(TRUNCATE)');
+    } catch {
+      /* db not initialized */
+    }
 
     if (botClient?.isReady()) {
       try {

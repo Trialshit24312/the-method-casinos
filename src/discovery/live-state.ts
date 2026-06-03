@@ -7,7 +7,6 @@ import {
   resetDiscoveryLiveStorage,
   updateDiscoveryLiveStorage,
 } from '../database/index.js';
-import { projectDiscoveryEvent } from '../shared/discord-live-feed.js';
 
 export type { DiscoveryLiveSnapshot };
 
@@ -19,9 +18,15 @@ export function beginDiscoveryLive(mode: 'quick' | 'deep'): void {
   resetDiscoveryLiveStorage(mode);
 }
 
+function mirrorToDiscordFeed(event: DiscoveryProgressEvent): void {
+  void import('../shared/discord-live-feed.js')
+    .then((m) => m.projectDiscoveryEvent(event))
+    .catch(() => { /* feed optional */ });
+}
+
 export function pushDiscoveryLiveEvent(event: DiscoveryProgressEvent): void {
   if (event.type === 'heartbeat') return;
-  projectDiscoveryEvent(event);
+  mirrorToDiscordFeed(event);
 
   if (event.type === 'progress') {
     updateDiscoveryLiveStorage({ stats: event.stats });

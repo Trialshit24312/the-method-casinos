@@ -39,25 +39,36 @@ Set `DISCORD_REDIRECT_URI` to the **exact** callback URL above (no trailing slas
 ### Option A: `render.yaml` (Blueprint)
 
 1. Push this repo to GitHub.
-2. In Render → **New** → **Blueprint** → connect repo.
+2. In Render → **New** → **Blueprint** → connect repo (or **Sync** on an existing Blueprint).
 3. Set secret env vars in the dashboard (never commit `.env`).
+4. **Persistent disk (required):** Blueprint attaches a 1GB disk at `/var/data` with `DATA_DIR=/var/data`. If your service was created before this, open the service → **Disks** → add disk → mount path **`/var/data`** → set env **`DATA_DIR=/var/data`** → redeploy.
+5. Set **`SESSION_SECRET`** manually to a long random string (do not let Blueprint auto-generate — rotating it logs everyone out).
+
+**Verify persistence after deploy:** open `https://YOUR-SERVICE.onrender.com/health` and check:
+
+```json
+"persistence": { "diskLikelyPersistent": true, "dataDir": "/var/data", "warnings": [] }
+```
+
+If `diskLikelyPersistent` is `false`, catalog/review-queue changes will be lost on every Render restart.
 
 ### Option B: Manual Web Service
 
 1. **New Web Service** → connect repo.
-2. **Build command:** `npm install && npm run build:all`
+2. **Build command:** `npm run render-build` (or `npm install && npm run build:all`)
 3. **Start command:** `npm run start:prod`
 4. **Environment:**
    - `NODE_ENV=production`
+   - `DATA_DIR=/var/data` (must match disk mount)
    - `DISCORD_BOT_TOKEN`, `DISCORD_CLIENT_ID`, `DISCORD_CLIENT_SECRET`
    - `DISCORD_REDIRECT_URI=https://YOUR-SERVICE.onrender.com/auth/discord/callback`
    - `PUBLIC_SITE_URL=https://your-app.pages.dev`
    - `DASHBOARD_URL=https://your-app.pages.dev`
    - `API_URL=https://YOUR-SERVICE.onrender.com`
-   - `SESSION_SECRET` (long random string)
+   - `SESSION_SECRET` (long random string — keep stable across deploys)
    - `ADMIN_DISCORD_IDS` (comma-separated Discord user IDs)
    - `DISCORD_INVITE_URL=https://discord.gg/your-invite`
-5. Add a **disk** (optional) mounted at `/opt/render/project/src/data` if you need persistent SQLite on Render.
+5. Add a **persistent disk** mounted at **`/var/data`** (not optional for SQLite).
 
 Register slash commands after deploy:
 
@@ -125,6 +136,20 @@ If the dashboard is on `pages.dev` and API on `onrender.com`, cross-site cookies
 | `VITE_API_URL` | Dashboard build | API base URL |
 | `VITE_PUBLIC_SITE_URL` | Dashboard build | Footer / absolute links |
 | `VITE_DISCORD_INVITE` | Dashboard build | Footer Discord link |
+| `DATA_DIR` | Server | SQLite path; on Render must match disk mount (`/var/data`) |
+| `DISCOVERY_CONTINUOUS` | Server | `true` = 24/7 deep discovery loop |
+| `DISCORD_LIVE_FEED` | Server | Mirror discovery log to Discord |
+| `DISCORD_FEED_CHANNEL_ID` | Server | Channel for live feed posts |
+
+---
+
+## 6b. Data not saving after Render restart?
+
+1. **Disk attached?** Render Dashboard → your web service → **Disks** → must show a disk at `/var/data`.
+2. **`DATA_DIR` env** must be exactly `/var/data` (same as mount path).
+3. **Logs on boot** should show `💾 Persistent data directory: /var/data` — not `⚠️ Data may NOT survive Render restarts`.
+4. **`/health`** → `persistence.diskLikelyPersistent` should be `true`.
+5. If you previously used `/opt/render/project/src/data`, the app auto-migrates `casinos.db` to `/var/data` on first boot with the new mount.
 
 ---
 

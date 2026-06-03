@@ -58,6 +58,7 @@ import { requireAuth, requireAdmin, exchangeCode, getDiscordAuthUrl, getAvatarUr
 import type { CasinoFeature, CasinoInput, BlockedSiteInput, DiscoveryResult } from '../shared/types.js';
 import { getAllowedCorsOrigins, getDiscordRedirectUri, getOAuthSetupInfo } from '../shared/site.js';
 import { getDbPath } from '../shared/data-path.js';
+import { assessPersistence } from '../shared/persistence.js';
 import { applySecurityMiddleware } from './middleware.js';
 import rateLimit from 'express-rate-limit';
 import {
@@ -162,10 +163,17 @@ export function createServer(): express.Application {
       getDatabase().prepare('SELECT 1').get();
       const bot = getBotHealth();
       const stats = getStats();
+      const persistence = assessPersistence();
       res.json({
         ok: true,
         db: true,
         dbPath: getDbPath(),
+        persistence: {
+          dataDir: persistence.dataDir,
+          diskLikelyPersistent: persistence.diskLikelyPersistent,
+          dbExists: persistence.dbExists,
+          warnings: persistence.warnings,
+        },
         bot: bot.connected,
         botTag: bot.tag,
         discoveryRunning: isDiscoveryRunning(),

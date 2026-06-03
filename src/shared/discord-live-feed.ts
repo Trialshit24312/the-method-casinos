@@ -15,6 +15,7 @@ function shortUrl(url: string): string {
 }
 
 export function isDiscordLiveFeedEnabled(): boolean {
+  if (process.env.VITEST === 'true') return false;
   const flag = process.env.DISCORD_LIVE_FEED?.trim().toLowerCase();
   if (flag === '1' || flag === 'true') return true;
   return Boolean(process.env.DISCORD_FEED_CHANNEL_ID?.trim() || process.env.DISCORD_WEBHOOK_URL?.trim());
@@ -234,7 +235,7 @@ export function initDiscordLiveFeed(): void {
 }
 
 export function projectDiscoveryEvent(event: DiscoveryProgressEvent): void {
-  if (!isDiscordLiveFeedEnabled()) return;
+  if (!canPostExternally() || !isDiscordLiveFeedEnabled()) return;
   if (event.type === 'heartbeat') return;
 
   if (event.type === 'progress') {

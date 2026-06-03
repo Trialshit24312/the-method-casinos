@@ -9,23 +9,24 @@ import { normalizeTrackables } from '../shared/trackables.js';
 import { rankSimilarCasinos, type SimilarCasinoMatch } from '../shared/similarity.js';
 import { STALE_CATALOG_DAYS } from '../shared/freshness.js';
 import { VERIFIED_CASINO_SEEDS } from '../shared/verified-casinos.js';
-import { getDataDir, getDbPath } from '../shared/data-path.js';
+import { getDataDir, getDbPath, maybeMigrateLegacyDatabase } from '../shared/data-path.js';
+import { logPersistenceStatus } from '../shared/persistence.js';
 import type { DiscoveryLiveStats, DiscoveryProgressEvent, DiscoveryResult } from '../shared/types.js';
 
 let db: Database.Database;
 
 export function initDatabase(): Database.Database {
   const dataDir = getDataDir();
-  const dbPath = getDbPath();
-
+  maybeMigrateLegacyDatabase(dataDir);
   if (!fs.existsSync(dataDir)) {
     fs.mkdirSync(dataDir, { recursive: true });
   }
 
+  const dbPath = path.join(dataDir, 'casinos.db');
   db = new Database(dbPath);
   db.pragma('journal_mode = WAL');
   db.pragma('foreign_keys = ON');
-  console.log(`📁 Database: ${dbPath}`);
+  logPersistenceStatus();
 
   db.exec(`
     CREATE TABLE IF NOT EXISTS casinos (

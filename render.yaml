@@ -1,5 +1,7 @@
 # Render Blueprint — https://github.com/Trialshit24312/the-method-casinos
-# 100% free stack: Discord + SQLite + free web search (no Serper/AI API keys)
+# Apply via Dashboard → Blueprint → sync repo. Existing services may need the disk added manually once.
+#
+# CRITICAL: SQLite + sessions live on the persistent disk. Without it, all data resets on deploy/restart.
 
 services:
   - type: web
@@ -11,13 +13,27 @@ services:
     buildCommand: npm run render-build
     startCommand: npm run start:prod
     healthCheckPath: /health
+
+    # Persistent disk — only files under mountPath survive restarts/deploys
     disk:
       name: casino-data
-      mountPath: /opt/render/project/src/data
+      mountPath: /var/data
       sizeGB: 1
+
     envVars:
       - key: NODE_ENV
         value: production
+      - key: RENDER
+        value: "true"
+
+      # Must match disk.mountPath exactly
+      - key: DATA_DIR
+        value: /var/data
+
+      # Set once in dashboard — do NOT use generateValue (rotates on blueprint sync → mass logout)
+      - key: SESSION_SECRET
+        sync: false
+
       - key: DISCORD_BOT_TOKEN
         sync: false
       - key: DISCORD_CLIENT_ID
@@ -30,33 +46,43 @@ services:
         sync: false
       - key: ADMIN_DISCORD_IDS
         sync: false
-      - key: SESSION_SECRET
-        generateValue: true
+
+      # After first deploy, set all three to https://YOUR-SERVICE.onrender.com (all-in-one)
       - key: PUBLIC_SITE_URL
         sync: false
       - key: DASHBOARD_URL
         sync: false
       - key: API_URL
         sync: false
+
       - key: DISCORD_INVITE_URL
         sync: false
       - key: DISCORD_WEBHOOK_URL
         sync: false
-      - key: DISCORD_LIVE_FEED
-        value: "true"
       - key: DISCORD_FEED_CHANNEL_ID
         sync: false
+
+      - key: DISCORD_LIVE_FEED
+        value: "true"
       - key: DISCORD_LIVE_FEED_PIN
         value: "true"
-      - key: REVALIDATE_INTERVAL_HOURS
-        value: "168"
+      - key: DISCORD_NOTIFY_PENDING
+        value: "false"
+
       - key: SESSION_MAX_AGE_DAYS
         value: "30"
-      - key: DATA_DIR
-        value: /opt/render/project/src/data
+
+      - key: REVALIDATE_INTERVAL_HOURS
+        value: "168"
+      - key: REVALIDATE_BATCH_SIZE
+        value: "8"
+
       - key: DISCOVERY_CONTINUOUS
         value: "true"
       - key: DISCOVERY_CONTINUOUS_COOLDOWN_SEC
         value: "90"
+      - key: DISCOVERY_CONTINUOUS_BOOT_DELAY_SEC
+        value: "45"
+
       - key: DB_BACKUP_INTERVAL_HOURS
         value: "24"
