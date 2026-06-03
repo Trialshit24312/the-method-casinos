@@ -1,16 +1,39 @@
-import { Link, Outlet } from 'react-router-dom';
+import { Link, Outlet, useLocation } from 'react-router-dom';
+import { AnimatePresence } from 'framer-motion';
+import { ScrollText, Shield, ShieldCheck, Scale, Dices, LogIn } from 'lucide-react';
 import SiteFooter from './SiteFooter';
 import BrandLogo from './BrandLogo';
 import BackToTop from './BackToTop';
+import GlobalSearch from './GlobalSearch';
+import MobileNav from './MobileNav';
+import PageTransition from './PageTransition';
+
+const publicNavItems = [
+  { to: '/legal', icon: Scale, label: 'Legal Hub' },
+  { to: '/terms', icon: ScrollText, label: 'Terms' },
+  { to: '/rules', icon: Shield, label: 'Rules' },
+  { to: '/privacy', icon: ShieldCheck, label: 'Privacy' },
+  { to: '/casinos', icon: Dices, label: 'Browse catalog' },
+  { to: '/login', icon: LogIn, label: 'Sign in' },
+];
 
 export default function PublicLayout() {
+  const location = useLocation();
+
   return (
     <div className="min-h-screen flex flex-col app-background">
-      <header className="sticky top-0 z-20 border-b border-surface-border px-6 py-4 flex items-center justify-between gap-4 bg-surface-raised/80 backdrop-blur-xl">
-        <Link to="/" className="hover:opacity-90 transition-opacity">
+      <header className="sticky top-0 z-20 border-b border-surface-border px-4 sm:px-6 py-3 flex items-center gap-3 bg-surface-raised/80 backdrop-blur-xl">
+        <MobileNav items={publicNavItems} />
+        <Link to="/" className="hover:opacity-90 transition-opacity shrink-0">
           <BrandLogo size="md" />
         </Link>
-        <nav className="flex flex-wrap gap-4 text-sm">
+        <div className="flex-1 min-w-0 max-w-md hidden sm:block">
+          <GlobalSearch />
+        </div>
+        <nav className="hidden md:flex flex-wrap gap-4 text-sm shrink-0">
+          <Link to="/legal" className="text-gray-400 hover:text-glow">
+            Legal
+          </Link>
           <Link to="/terms" className="text-gray-400 hover:text-glow">
             Terms
           </Link>
@@ -26,7 +49,11 @@ export default function PublicLayout() {
         </nav>
       </header>
       <main className="flex-1 overflow-auto">
-        <Outlet />
+        <AnimatePresence mode="wait">
+          <PageTransition key={location.pathname}>
+            <Outlet />
+          </PageTransition>
+        </AnimatePresence>
       </main>
       <SiteFooter />
       <BackToTop />

@@ -4,6 +4,7 @@ import { motion } from 'framer-motion';
 import { ShieldCheck, ShieldAlert, Search, ExternalLink, AlertTriangle, Flag, Clock } from 'lucide-react';
 import PageHeader from '../../components/PageHeader';
 import ToolsBreadcrumb from '../../components/ToolsBreadcrumb';
+import ErrorBanner from '../../components/ErrorBanner';
 import { ServiceGrid } from '../../components/ServiceCard';
 import { api } from '../../api';
 import type { UrlCheckResult } from '../../types';
@@ -92,7 +93,7 @@ export default function UrlCheckerPage() {
           </button>
         </div>
 
-        {error && <p className="text-red-400 text-sm">{error}</p>}
+        {error && <ErrorBanner message={error} />}
 
         {recentChecks.length > 0 && !loading && (
           <div className="mt-4 pt-4 border-t border-surface-border">

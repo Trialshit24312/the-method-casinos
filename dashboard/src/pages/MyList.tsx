@@ -8,6 +8,7 @@ import CasinoCard from '../components/CasinoCard';
 import EmptyState from '../components/EmptyState';
 import StatsSkeleton from '../components/StatsSkeleton';
 import ErrorBanner from '../components/ErrorBanner';
+import Breadcrumb from '../components/Breadcrumb';
 import { useAuth } from '../context/AuthContext';
 import { usePageTitle } from '../hooks/usePageTitle';
 
@@ -74,7 +75,8 @@ export default function MyList() {
   if (!user) return <Navigate to="/login?next=/mylist" replace />;
 
   return (
-    <div className="p-6 md:p-8 max-w-6xl mx-auto">
+    <div className="page-container-narrow">
+      <Breadcrumb items={[{ label: 'Catalog', to: '/casinos' }, { label: 'My list' }]} />
       <PageHeader
         title="My List"
         subtitle="Saved casinos with private notes — synced with Discord /mylist when signed in"

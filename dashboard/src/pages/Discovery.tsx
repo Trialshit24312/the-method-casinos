@@ -7,9 +7,10 @@ import {
 import { api } from '../api';
 import type { DiscoveryResult, DiscoveryProgressEvent, DiscoveryLiveStats, Stats, DiscoveryHistoryEntry } from '../types';
 import PageHeader from '../components/PageHeader';
+import Breadcrumb from '../components/Breadcrumb';
+import ErrorBanner from '../components/ErrorBanner';
 import { useAuth } from '../context/AuthContext';
 import { usePageTitle } from '../hooks/usePageTitle';
-import Breadcrumb from '../components/Breadcrumb';
 
 function formatDuration(ms: number): string {
   const mins = Math.floor(ms / 60000);
@@ -556,9 +557,7 @@ export default function DiscoveryPage() {
         </motion.div>
       )}
 
-      {error && (
-        <div className="mb-6 p-4 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400">{error}</div>
-      )}
+      {error && <ErrorBanner message={error} />}
 
       {result && (
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="glass-glow p-6">

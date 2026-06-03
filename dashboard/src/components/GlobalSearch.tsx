@@ -10,11 +10,14 @@ const QUICK_LINKS = [
   { label: 'Similar casinos', path: '/similar' },
   { label: 'Compare', path: '/compare' },
   { label: 'Random pick', path: '/random' },
+  { label: 'Compare', path: '/compare' },
+  { label: 'Catalog help', path: '/assistant' },
   { label: 'Guides', path: '/guides' },
   { label: 'URL checker', path: '/tools/checker' },
   { label: 'My list', path: '/mylist' },
-  { label: 'Catalog help', path: '/assistant' },
   { label: 'Status', path: '/status' },
+  { label: 'Blocklist', path: '/blocked' },
+  { label: 'Catalog help', path: '/assistant' },
 ];
 
 const ADMIN_LINKS = [
@@ -93,8 +96,7 @@ export default function GlobalSearch() {
           onFocus={() => setOpen(true)}
           onBlur={() => setTimeout(() => setOpen(false), 150)}
           placeholder="Search casinos… (Ctrl+K or /)"
-          className="w-full pl-9 pr-3 py-2 text-sm rounded-lg bg-surface-overlay/80 border border-surface-border
-                     text-gray-200 placeholder-gray-600 focus:border-glow/40 focus:outline-none focus:ring-1 focus:ring-glow/30"
+          className="input-field w-full pl-9 pr-3 py-2 text-sm"
         />
       </form>
       {open && (

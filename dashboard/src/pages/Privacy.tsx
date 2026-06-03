@@ -23,6 +23,14 @@ export default function PrivacyPage() {
       <motion.div
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
+        className="glass-glow p-4 mb-8 border-glow/15 text-sm"
+      >
+        <Link to="/legal" className="text-glow hover:underline">← Back to Legal Hub</Link>
+      </motion.div>
+
+      <motion.div
+        initial={{ opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
         className="glass-glow p-6 mb-8 border-glow/20"
       >
         <p className="text-sm text-gray-400">

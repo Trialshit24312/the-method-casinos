@@ -209,6 +209,22 @@
            hover:border-glow/30 hover:bg-glow/5 transition-all duration-200 card-shine;
   }
 
+  .page-container {
+    @apply p-6 md:p-8 max-w-7xl mx-auto;
+  }
+
+  .page-container-narrow {
+    @apply p-6 md:p-8 max-w-4xl mx-auto;
+  }
+
+  .chip {
+    @apply px-3 py-1.5 rounded-full text-sm border border-white/10 text-gray-400 transition-colors hover:text-white;
+  }
+
+  .chip-active {
+    @apply border-glow/40 bg-glow/10 text-glow;
+  }
+
   .hero-orb {
     position: absolute;
     border-radius: 50%;

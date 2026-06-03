@@ -27,6 +27,12 @@ export default function SiteFooter() {
               <Link to="/similar" className="text-gray-500 hover:text-glow transition-colors flex items-center gap-1.5">
                 <Sparkles className="w-3.5 h-3.5" /> Similar search
               </Link>
+              <Link to="/compare" className="text-gray-500 hover:text-glow transition-colors flex items-center gap-1.5">
+                <Scale className="w-3.5 h-3.5" /> Compare
+              </Link>
+              <Link to="/random" className="text-gray-500 hover:text-glow transition-colors">Random pick</Link>
+              <Link to="/new" className="text-gray-500 hover:text-glow transition-colors">New arrivals</Link>
+              <Link to="/assistant" className="text-gray-500 hover:text-glow transition-colors">Catalog help</Link>
               <Link to="/tools" className="text-gray-500 hover:text-glow transition-colors flex items-center gap-1.5">
                 <Wrench className="w-3.5 h-3.5" /> Tools
               </Link>
@@ -42,7 +48,9 @@ export default function SiteFooter() {
                 <ShieldCheck className="w-3.5 h-3.5" /> URL checker
               </Link>
               <Link to="/blocked" className="text-gray-500 hover:text-red-400 transition-colors">Blocklist</Link>
+              <Link to="/status" className="text-gray-500 hover:text-glow transition-colors">Status</Link>
               <Link to="/guides" className="text-gray-500 hover:text-glow transition-colors">Guides</Link>
+              <Link to="/mylist" className="text-gray-500 hover:text-glow transition-colors">My list</Link>
             </div>
           </div>
           <div>

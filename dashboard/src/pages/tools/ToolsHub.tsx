@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Mail, Phone, Wrench, ScrollText, Dices, Sparkles, Lock, Globe, Ban, KeyRound, ShieldCheck, BookOpen, Shuffle, Scale, Clock } from 'lucide-react';
 import PageHeader from '../../components/PageHeader';
+import ToolsBreadcrumb from '../../components/ToolsBreadcrumb';
 import { usePageTitle } from '../../hooks/usePageTitle';
 import { ServiceGrid } from '../../components/ServiceCard';
 import {
@@ -32,7 +33,8 @@ const quickLinks = [
 export default function ToolsHub() {
   usePageTitle('Tools Hub — The Method Casinos');
   return (
-    <div className="p-6 md:p-8 max-w-7xl mx-auto">
+    <div className="page-container">
+      <ToolsBreadcrumb page="Tools hub" />
       <PageHeader
         icon={<Wrench className="w-6 h-6 text-glow" />}
         title="Tools Hub"

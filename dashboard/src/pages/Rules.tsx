@@ -58,6 +58,14 @@ export default function RulesPage() {
         subtitle="Precision · Strategy · Execution — standards that keep The Method clean and useful"
       />
 
+      <motion.div
+        initial={{ opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="glass-glow p-4 mb-8 border-glow/15 text-sm"
+      >
+        <Link to="/legal" className="text-glow hover:underline">← Back to Legal Hub</Link>
+      </motion.div>
+
       {/* Hero */}
       <motion.div
         initial={{ opacity: 0, y: 16 }}

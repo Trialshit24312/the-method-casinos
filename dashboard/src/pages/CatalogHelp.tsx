@@ -4,6 +4,7 @@ import {
   Dices, Sparkles, ShieldCheck, Mail, Radar, Heart, Scale, Shuffle, BookOpen, ArrowRight,
 } from 'lucide-react';
 import PageHeader from '../components/PageHeader';
+import Breadcrumb from '../components/Breadcrumb';
 import { usePageTitle } from '../hooks/usePageTitle';
 import { useAuth } from '../context/AuthContext';
 
@@ -50,6 +51,20 @@ const workflows = [
     icon: Shuffle,
     accent: 'from-amber-500/10',
   },
+  {
+    title: 'Step-by-step guides',
+    desc: 'Detailed workflows for similar search, signup safety, discovery, and admin review.',
+    to: '/guides',
+    icon: BookOpen,
+    accent: 'from-brand/15',
+  },
+  {
+    title: 'Service status',
+    desc: 'Check bot online status, catalog stats, and search engine availability.',
+    to: '/status',
+    icon: ShieldCheck,
+    accent: 'from-emerald-500/15',
+  },
 ];
 
 export default function CatalogHelp() {
@@ -57,7 +72,8 @@ export default function CatalogHelp() {
   const { user } = useAuth();
 
   return (
-    <div className="p-6 md:p-8 max-w-5xl mx-auto">
+    <div className="page-container-narrow">
+      <Breadcrumb items={[{ label: 'Tools', to: '/tools' }, { label: 'Catalog help' }]} />
       <PageHeader
         title="Catalog Help"
         subtitle="Workflows for browsing, signing up safely, and expanding the verified database"
@@ -75,7 +91,7 @@ export default function CatalogHelp() {
         </p>
       </motion.div>
 
-      <div className="grid sm:grid-cols-2 gap-4 mb-10">
+      <div className="grid sm:grid-cols-2 gap-4 mb-10 animate-stagger">
         {workflows.map(({ title, desc, to, icon: Icon, accent }, i) => (
           <motion.div
             key={title}

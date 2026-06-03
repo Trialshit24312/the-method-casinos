@@ -144,7 +144,7 @@ export default function Layout() {
     ...mainNav,
     ...(user?.isAdmin ? adminNav : []),
     ...toolsNav,
-    ...legalNav.slice(0, 2),
+    ...legalNav,
   ];
 
   return (

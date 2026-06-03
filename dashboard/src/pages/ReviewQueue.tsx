@@ -7,6 +7,8 @@ import PendingCasinoRow from '../components/PendingCasinoRow';
 import ReportRow from '../components/ReportRow';
 import CatalogHealthRow from '../components/CatalogHealthRow';
 import EmptyState from '../components/EmptyState';
+import ErrorBanner from '../components/ErrorBanner';
+import NoticeBanner from '../components/NoticeBanner';
 import TabPills from '../components/TabPills';
 import StatsSkeleton from '../components/StatsSkeleton';
 import { useAuth } from '../context/AuthContext';
@@ -203,8 +205,8 @@ export default function ReviewQueue() {
         </div>
       </div>
 
-      {notice && <p className="text-emerald-400 text-sm mb-4">{notice}</p>}
-      {error && <p className="text-accent-red text-sm mb-4">{error}</p>}
+      {notice && <NoticeBanner message={notice} variant="success" />}
+      {error && <ErrorBanner message={error} onRetry={load} />}
       {loading && <StatsSkeleton count={4} />}
 
       {!loading && tab === 'discoveries' && !pending.length && (

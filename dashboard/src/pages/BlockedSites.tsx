@@ -6,6 +6,8 @@ import type { BlockedSite, BlockReason, BlockSeverity } from '../types';
 import { BLOCK_REASON_LABELS, BLOCK_SEVERITY_COLORS } from '../types';
 import PageHeader from '../components/PageHeader';
 import EmptyState from '../components/EmptyState';
+import ErrorBanner from '../components/ErrorBanner';
+import Breadcrumb from '../components/Breadcrumb';
 import StatsSkeleton from '../components/StatsSkeleton';
 import { SCAM_WARNING_SIGNS } from '../lib/generators';
 import { useAuth } from '../context/AuthContext';
@@ -48,6 +50,7 @@ export default function BlockedSitesPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<FormData>(emptyForm);
   const [error, setError] = useState('');
+  const [saving, setSaving] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -93,6 +96,7 @@ export default function BlockedSitesPage() {
       return;
     }
     try {
+      setSaving(true);
       if (editingId) {
         await api.updateBlockedSite(editingId, {
           name: form.name,
@@ -109,6 +113,8 @@ export default function BlockedSitesPage() {
       load();
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to save');
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -119,7 +125,8 @@ export default function BlockedSitesPage() {
   };
 
   return (
-    <div className="p-8 max-w-6xl mx-auto">
+    <div className="page-container">
+      <Breadcrumb items={[{ label: 'Safety', to: '/tools/checker' }, { label: 'Blocklist' }]} />
       <PageHeader
         icon={<Ban className="w-6 h-6 text-red-400" />}
         title="Blocked & Dangerous Sites"
@@ -156,7 +163,7 @@ export default function BlockedSitesPage() {
         />
       </div>
 
-      {loadError && <p className="text-red-400 text-sm mb-4">{loadError}</p>}
+      {loadError && <ErrorBanner message={loadError} onRetry={load} />}
 
       {!loading && sites.length > 0 && (
         <p className="text-sm text-gray-500 mb-4">
@@ -254,15 +261,17 @@ export default function BlockedSitesPage() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+            className="modal-overlay"
             onClick={() => setModalOpen(false)}
           >
             <motion.div
               initial={{ scale: 0.95, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.95, opacity: 0 }}
-              className="glass-glow p-6 w-full max-w-lg border-red-500/30"
+              className="modal-panel max-w-lg p-6 border-red-500/30"
               onClick={(e) => e.stopPropagation()}
+              role="dialog"
+              aria-modal
             >
               <div className="flex items-center justify-between mb-6">
                 <h2 className="font-display font-semibold text-lg text-white">
@@ -313,8 +322,10 @@ export default function BlockedSitesPage() {
               </div>
 
               <div className="flex gap-3 mt-6">
-                <button onClick={() => setModalOpen(false)} className="btn-secondary flex-1">Cancel</button>
-                <button onClick={submit} className="btn-danger flex-1">{editingId ? 'Save' : 'Block Site'}</button>
+                <button type="button" onClick={() => setModalOpen(false)} className="btn-secondary flex-1">Cancel</button>
+                <button type="button" onClick={() => void submit()} disabled={saving} className="btn-danger flex-1 disabled:opacity-50">
+                  {saving ? 'Saving…' : editingId ? 'Save' : 'Block Site'}
+                </button>
               </div>
             </motion.div>
           </motion.div>

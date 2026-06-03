@@ -1,35 +1,45 @@
+import { lazy, Suspense } from 'react';
 import { Routes, Route, Navigate, useLocation, Link } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import Layout from './components/Layout';
-import Login from './pages/Login';
-import Landing from './pages/Landing';
-import Dashboard from './pages/Dashboard';
-import Casinos from './pages/Casinos';
-import Discovery from './pages/Discovery';
-import ReviewQueue from './pages/ReviewQueue';
-import SimilarCasinos from './pages/SimilarCasinos';
-import ToolsHub from './pages/tools/ToolsHub';
-import EmailGenerator from './pages/tools/EmailGenerator';
-import PhoneGenerator from './pages/tools/PhoneGenerator';
-import Rules from './pages/Rules';
-import Terms from './pages/Terms';
-import Guides from './pages/Guides';
-import PasswordGenerator from './pages/tools/PasswordGenerator';
-import UrlChecker from './pages/tools/UrlChecker';
-import BlockedSites from './pages/BlockedSites';
-import Privacy from './pages/Privacy';
-import CasinoDetail from './pages/CasinoDetail';
-import MyList from './pages/MyList';
-import LegalHub from './pages/LegalHub';
-import Compare from './pages/Compare';
-import RandomPick from './pages/RandomPick';
-import Status from './pages/Status';
-import Pricing from './pages/Pricing';
-import NewArrivals from './pages/NewArrivals';
-import AdminInsights from './pages/AdminInsights';
-import CatalogHelp from './pages/CatalogHelp';
-import NotFound from './pages/NotFound';
 import PublicLayout from './components/PublicLayout';
+
+const Landing = lazy(() => import('./pages/Landing'));
+const Login = lazy(() => import('./pages/Login'));
+const Dashboard = lazy(() => import('./pages/Dashboard'));
+const Casinos = lazy(() => import('./pages/Casinos'));
+const Discovery = lazy(() => import('./pages/Discovery'));
+const ReviewQueue = lazy(() => import('./pages/ReviewQueue'));
+const SimilarCasinos = lazy(() => import('./pages/SimilarCasinos'));
+const ToolsHub = lazy(() => import('./pages/tools/ToolsHub'));
+const EmailGenerator = lazy(() => import('./pages/tools/EmailGenerator'));
+const PhoneGenerator = lazy(() => import('./pages/tools/PhoneGenerator'));
+const Rules = lazy(() => import('./pages/Rules'));
+const Terms = lazy(() => import('./pages/Terms'));
+const Guides = lazy(() => import('./pages/Guides'));
+const PasswordGenerator = lazy(() => import('./pages/tools/PasswordGenerator'));
+const UrlChecker = lazy(() => import('./pages/tools/UrlChecker'));
+const BlockedSites = lazy(() => import('./pages/BlockedSites'));
+const Privacy = lazy(() => import('./pages/Privacy'));
+const CasinoDetail = lazy(() => import('./pages/CasinoDetail'));
+const MyList = lazy(() => import('./pages/MyList'));
+const LegalHub = lazy(() => import('./pages/LegalHub'));
+const Compare = lazy(() => import('./pages/Compare'));
+const RandomPick = lazy(() => import('./pages/RandomPick'));
+const Status = lazy(() => import('./pages/Status'));
+const Pricing = lazy(() => import('./pages/Pricing'));
+const NewArrivals = lazy(() => import('./pages/NewArrivals'));
+const AdminInsights = lazy(() => import('./pages/AdminInsights'));
+const CatalogHelp = lazy(() => import('./pages/CatalogHelp'));
+const NotFound = lazy(() => import('./pages/NotFound'));
+
+function RouteFallback() {
+  return (
+    <div className="min-h-[40vh] flex items-center justify-center">
+      <div className="w-8 h-8 border-2 border-glow border-t-transparent rounded-full animate-spin" />
+    </div>
+  );
+}
 
 function AdminRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
@@ -66,40 +76,42 @@ function AdminRoute({ children }: { children: React.ReactNode }) {
 export default function App() {
   return (
     <AuthProvider>
-      <Routes>
-        <Route path="/" element={<Landing />} />
-        <Route path="/login" element={<Login />} />
-        <Route element={<PublicLayout />}>
-          <Route path="/terms" element={<Terms />} />
-          <Route path="/rules" element={<Rules />} />
-          <Route path="/privacy" element={<Privacy />} />
-        </Route>
-        <Route element={<Layout />}>
-          <Route path="/dashboard" element={<Dashboard />} />
-          <Route path="/casinos" element={<Casinos />} />
-          <Route path="/new" element={<NewArrivals />} />
-          <Route path="/casinos/:slug" element={<CasinoDetail />} />
-          <Route path="/mylist" element={<MyList />} />
-          <Route path="/similar" element={<SimilarCasinos />} />
-          <Route path="/compare" element={<Compare />} />
-          <Route path="/random" element={<RandomPick />} />
-          <Route path="/status" element={<Status />} />
-          <Route path="/assistant" element={<CatalogHelp />} />
-          <Route path="/blocked" element={<BlockedSites />} />
-          <Route path="/guides" element={<Guides />} />
-          <Route path="/pricing" element={<Pricing />} />
-          <Route path="/tools" element={<ToolsHub />} />
-          <Route path="/tools/email" element={<EmailGenerator />} />
-          <Route path="/tools/phone" element={<PhoneGenerator />} />
-          <Route path="/tools/password" element={<PasswordGenerator />} />
-          <Route path="/tools/checker" element={<UrlChecker />} />
-          <Route path="/legal" element={<LegalHub />} />
-          <Route path="/discovery" element={<AdminRoute><Discovery /></AdminRoute>} />
-          <Route path="/review" element={<AdminRoute><ReviewQueue /></AdminRoute>} />
-          <Route path="/insights" element={<AdminRoute><AdminInsights /></AdminRoute>} />
-          <Route path="*" element={<NotFound />} />
-        </Route>
-      </Routes>
+      <Suspense fallback={<RouteFallback />}>
+        <Routes>
+          <Route path="/" element={<Landing />} />
+          <Route path="/login" element={<Login />} />
+          <Route element={<PublicLayout />}>
+            <Route path="/terms" element={<Terms />} />
+            <Route path="/rules" element={<Rules />} />
+            <Route path="/privacy" element={<Privacy />} />
+          </Route>
+          <Route element={<Layout />}>
+            <Route path="/dashboard" element={<Dashboard />} />
+            <Route path="/casinos" element={<Casinos />} />
+            <Route path="/new" element={<NewArrivals />} />
+            <Route path="/casinos/:slug" element={<CasinoDetail />} />
+            <Route path="/mylist" element={<MyList />} />
+            <Route path="/similar" element={<SimilarCasinos />} />
+            <Route path="/compare" element={<Compare />} />
+            <Route path="/random" element={<RandomPick />} />
+            <Route path="/status" element={<Status />} />
+            <Route path="/assistant" element={<CatalogHelp />} />
+            <Route path="/blocked" element={<BlockedSites />} />
+            <Route path="/guides" element={<Guides />} />
+            <Route path="/pricing" element={<Pricing />} />
+            <Route path="/tools" element={<ToolsHub />} />
+            <Route path="/tools/email" element={<EmailGenerator />} />
+            <Route path="/tools/phone" element={<PhoneGenerator />} />
+            <Route path="/tools/password" element={<PasswordGenerator />} />
+            <Route path="/tools/checker" element={<UrlChecker />} />
+            <Route path="/legal" element={<LegalHub />} />
+            <Route path="/discovery" element={<AdminRoute><Discovery /></AdminRoute>} />
+            <Route path="/review" element={<AdminRoute><ReviewQueue /></AdminRoute>} />
+            <Route path="/insights" element={<AdminRoute><AdminInsights /></AdminRoute>} />
+            <Route path="*" element={<NotFound />} />
+          </Route>
+        </Routes>
+      </Suspense>
     </AuthProvider>
   );
 }

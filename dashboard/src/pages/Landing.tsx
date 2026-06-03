@@ -1,7 +1,7 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Dices, Shield, Radar, Wrench, ArrowRight, Sparkles, ShieldCheck, Globe, Zap, Star, Crown, Search, Bot } from 'lucide-react';
+import { Dices, Shield, Radar, Wrench, ArrowRight, Sparkles, ShieldCheck, Globe, Zap, Star, Crown, Search, Bot, Shuffle, Scale, LogIn } from 'lucide-react';
 import { api } from '../api';
 import type { Stats, Casino } from '../types';
 import { discordInviteUrl } from '../lib/site';
@@ -12,6 +12,7 @@ import CarouselSkeleton from '../components/CarouselSkeleton';
 import StatsSkeleton from '../components/StatsSkeleton';
 import BrandLogo from '../components/BrandLogo';
 import BackToTop from '../components/BackToTop';
+import MobileNav from '../components/MobileNav';
 import ActivityFeed from '../components/ActivityFeed';
 import PricingTiers from '../components/PricingTiers';
 import { usePageTitle } from '../hooks/usePageTitle';
@@ -20,6 +21,16 @@ const fadeUp = {
   initial: { opacity: 0, y: 24 },
   animate: { opacity: 1, y: 0 },
 };
+
+const landingNavItems = [
+  { to: '/casinos', icon: Dices, label: 'Browse' },
+  { to: '/similar', icon: Sparkles, label: 'Similar' },
+  { to: '/random', icon: Shuffle, label: 'Random' },
+  { to: '/compare', icon: Scale, label: 'Compare' },
+  { to: '/pricing', icon: Crown, label: 'Membership' },
+  { to: '/tools/checker', icon: ShieldCheck, label: 'URL Check' },
+  { to: '/login', icon: LogIn, label: 'Sign in' },
+];
 
 export default function Landing() {
   usePageTitle('The Method Casinos — Verified US Sweepstakes Catalog');
@@ -53,11 +64,12 @@ export default function Landing() {
       <div className="absolute inset-0 app-background-grid pointer-events-none opacity-70" />
 
       <header className="relative border-b border-white/[0.06] bg-surface-raised/50 backdrop-blur-xl sticky top-0 z-20">
-        <div className="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between">
-          <Link to="/" className="group">
+        <div className="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between gap-3">
+          <MobileNav items={landingNavItems} />
+          <Link to="/" className="group shrink-0">
             <BrandLogo size="md" />
           </Link>
-          <nav className="flex items-center gap-2 sm:gap-4">
+          <nav className="flex items-center gap-2 sm:gap-4 ml-auto">
             <Link to="/casinos" className="text-sm text-gray-400 hover:text-white transition-colors hidden sm:inline">
               Browse
             </Link>

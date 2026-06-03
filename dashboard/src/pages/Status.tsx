@@ -6,6 +6,8 @@ import { api } from '../api';
 import type { Stats } from '../types';
 import StatsSkeleton from '../components/StatsSkeleton';
 import PageHeader from '../components/PageHeader';
+import Breadcrumb from '../components/Breadcrumb';
+import ErrorBanner from '../components/ErrorBanner';
 import { usePageTitle } from '../hooks/usePageTitle';
 import { useAuth } from '../context/AuthContext';
 
@@ -56,7 +58,8 @@ export default function StatusPage() {
   }, [load]);
 
   return (
-    <div className="p-8 max-w-4xl mx-auto">
+    <div className="page-container-narrow">
+      <Breadcrumb items={[{ label: 'Tools', to: '/tools' }, { label: 'Status' }]} />
       <PageHeader
         icon={<Activity className="w-6 h-6 text-emerald-400" />}
         title="Service Status"
@@ -74,9 +77,15 @@ export default function StatusPage() {
         }
       />
 
-      {error && <p className="text-red-400 mb-4">{error}</p>}
+      {error && <ErrorBanner message={error} onRetry={() => void load()} />}
 
       {!status && !error && refreshing && <StatsSkeleton count={4} />}
+
+      {status && refreshing && (
+        <p className="text-xs text-gray-600 mb-4 flex items-center gap-1.5">
+          <RefreshCw className="w-3 h-3 animate-spin" /> Refreshing…
+        </p>
+      )}
 
       {status && (
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-4">
@@ -116,10 +125,12 @@ export default function StatusPage() {
             </div>
           )}
 
-          <div className="grid sm:grid-cols-2 gap-4">
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {[
               { icon: Shield, label: 'Verified casinos', value: status.stats.verifiedCasinos, color: 'text-emerald-400' },
               { icon: Sparkles, label: 'Total catalog', value: status.stats.totalCasinos, color: 'text-glow' },
+              { icon: Shield, label: 'Blocked scams', value: status.stats.blockedSites, color: 'text-red-400' },
+              { icon: Sparkles, label: 'No phone signup', value: status.stats.noPhoneCasinos, color: 'text-brand-light' },
               { icon: Radar, label: 'Search mode', value: status.searchMode, color: 'text-brand-light' },
               { icon: Bot, label: 'Discord bot', value: health?.botTag && status.bot ? health.botTag : (status.bot ? 'Online' : 'Offline'), color: status.bot ? 'text-discord' : 'text-gray-500' },
             ].map(({ icon: Icon, label, value, color }) => (
@@ -145,6 +156,8 @@ export default function StatusPage() {
             <Link to="/random" className="text-glow hover:underline">Random pick</Link>
             <Link to="/similar" className="text-glow hover:underline">Similar search</Link>
             <Link to="/tools/checker" className="text-glow hover:underline">URL checker</Link>
+            <Link to="/blocked" className="text-glow hover:underline">Blocklist</Link>
+            <Link to="/assistant" className="text-glow hover:underline">Catalog help</Link>
             {user?.isAdmin && (
               <Link to="/insights" className="text-amber-400 hover:underline">Admin insights</Link>
             )}

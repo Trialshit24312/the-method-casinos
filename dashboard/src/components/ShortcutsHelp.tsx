@@ -6,6 +6,7 @@ const SHORTCUTS = [
   { keys: '?', desc: 'Show this shortcuts panel' },
   { keys: 'Esc', desc: 'Close menus / dialogs' },
   { keys: '/', desc: 'Focus search (catalog filter on Browse page)' },
+  { keys: 'Enter', desc: 'Submit report modal / URL check' },
 ];
 
 export default function ShortcutsHelp() {
@@ -28,8 +29,8 @@ export default function ShortcutsHelp() {
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-[90] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm" role="dialog" aria-modal>
-      <div className="glass-glow w-full max-w-sm p-6 relative border-gradient">
+    <div className="modal-overlay" role="dialog" aria-modal aria-labelledby="shortcuts-title">
+      <div className="modal-panel max-w-sm p-6">
         <button
           type="button"
           onClick={() => setOpen(false)}
@@ -40,7 +41,7 @@ export default function ShortcutsHelp() {
         </button>
         <div className="flex items-center gap-2 text-glow mb-4">
           <Keyboard className="w-5 h-5" />
-          <h2 className="font-display font-semibold text-lg text-white">Keyboard shortcuts</h2>
+          <h2 id="shortcuts-title" className="font-display font-semibold text-lg text-white">Keyboard shortcuts</h2>
         </div>
         <ul className="space-y-3">
           {SHORTCUTS.map((s) => (

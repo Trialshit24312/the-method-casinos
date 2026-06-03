@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Sparkles, Search, Star, ExternalLink, ChevronRight, Dices, Globe, CheckCircle, XCircle, MinusCircle } from 'lucide-react';
+import { Sparkles, Star, ExternalLink, Dices, Globe, CheckCircle, XCircle, MinusCircle } from 'lucide-react';
 import { api } from '../api';
 import type { Casino, SimilarCasinoMatch, SimilarWebDiscoveryResult } from '../types';
 import { FEATURE_LABELS, FEATURE_COLORS } from '../types';
 import PageHeader from '../components/PageHeader';
+import CasinoCombobox from '../components/CasinoCombobox';
 import EmptyState from '../components/EmptyState';
 import Breadcrumb from '../components/Breadcrumb';
 import ErrorBanner from '../components/ErrorBanner';
@@ -99,7 +100,7 @@ export default function SimilarCasinosPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [allCasinos, setAllCasinos] = useState<Casino[]>([]);
   const [catalogError, setCatalogError] = useState('');
-  const [query, setQuery] = useState('');
+  const [selectedId, setSelectedId] = useState('');
   const [selected, setSelected] = useState<Casino | null>(null);
   const [matches, setMatches] = useState<SimilarCasinoMatch[]>([]);
   const [webResult, setWebResult] = useState<SimilarWebDiscoveryResult | null>(null);
@@ -113,7 +114,7 @@ export default function SimilarCasinosPage() {
     try {
       const result = await api.getSimilar({ casinoId, limit: 12 });
       setSelected(result.source);
-      setQuery(result.source.name);
+      setSelectedId(result.source.id);
       setMatches(result.matches);
       setWebResult(null);
       setSearchParams({ casino: casinoId });
@@ -138,15 +139,14 @@ export default function SimilarCasinosPage() {
 
   useEffect(() => {
     const id = searchParams.get('casino');
-    if (id) runSimilar(id);
+    if (id) {
+      setSelectedId(id);
+      runSimilar(id);
+    }
   }, [searchParams, runSimilar]);
 
-  const filtered = query.trim()
-    ? allCasinos.filter((c) => c.name.toLowerCase().includes(query.toLowerCase())).slice(0, 8)
-    : allCasinos.slice(0, 8);
-
   const pickCasino = (casino: Casino) => {
-    setQuery(casino.name);
+    setSelectedId(casino.id);
     runSimilar(casino.id);
   };
 
@@ -170,8 +170,6 @@ export default function SimilarCasinosPage() {
     }
   };
 
-  const showPicker = query.trim() && filtered.length > 0 && (!selected || !filtered.some((c) => c.id === selected.id));
-
   return (
     <div className="p-6 md:p-8 max-w-6xl mx-auto">
       <Breadcrumb items={[{ label: 'Catalog', to: '/casinos' }, { label: 'Similar' }]} />
@@ -182,42 +180,27 @@ export default function SimilarCasinosPage() {
       />
 
       <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="glass-glow p-6 mb-8 border-glow/20">
-        <label className="text-xs uppercase tracking-wide text-gray-500 mb-2 block">Find casinos like...</label>
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-600" />
-          <input
-            className="input-field pl-10"
-            placeholder="Search by name — e.g. Chumba, Pulsz, McLuck..."
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-          />
-        </div>
+        <CasinoCombobox
+          label="Find casinos like..."
+          casinos={allCasinos}
+          value={selectedId}
+          onChange={(id) => {
+            setSelectedId(id);
+            if (id) void runSimilar(id);
+          }}
+          placeholder="Search by name — e.g. Chumba, Pulsz, McLuck..."
+        />
 
-        {showPicker && (
-          <div className="mt-2 rounded-xl border border-surface-border overflow-hidden">
-            {filtered.map((c) => (
-              <button
-                key={c.id}
-                onClick={() => pickCasino(c)}
-                className="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-glow/5 border-b border-surface-border last:border-0"
-              >
-                <span className="text-white font-medium">{c.name}</span>
-                <ChevronRight className="w-4 h-4 text-gray-600" />
-              </button>
-            ))}
-          </div>
-        )}
-
-        {!query && (
+        {!selectedId && allCasinos.length > 0 && (
           <div className="mt-4">
             <p className="text-xs text-gray-600 mb-2">Popular picks</p>
             <div className="flex flex-wrap gap-2">
-              {filtered.map((c) => (
+              {allCasinos.slice(0, 8).map((c) => (
                 <button
                   key={c.id}
+                  type="button"
                   onClick={() => pickCasino(c)}
-                  className="text-sm px-3 py-1.5 rounded-full border border-surface-border bg-surface-muted
-                             hover:border-glow/40 hover:text-glow text-gray-400 transition-colors"
+                  className="chip hover:border-glow/30 hover:text-glow"
                 >
                   {c.name}
                 </button>
@@ -227,9 +210,7 @@ export default function SimilarCasinosPage() {
         )}
       </motion.div>
 
-      {error && (
-        <div className="mb-6 p-4 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400 text-sm">{error}</div>
-      )}
+      {error && <ErrorBanner message={error} onRetry={() => selectedId && void runSimilar(selectedId)} />}
       {catalogError && <ErrorBanner message={catalogError} onRetry={loadCatalog} variant="warning" />}
 
       {loading && (

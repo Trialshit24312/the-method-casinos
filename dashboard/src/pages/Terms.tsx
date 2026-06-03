@@ -35,7 +35,7 @@ const SECTION_STYLES: Record<
   privacy: { icon: Lock, accent: 'from-sky-500 to-blue-600' },
   tools: { icon: Mail, accent: 'from-glow to-cyan-500' },
   blocked: { icon: Ban, accent: 'from-red-500 to-rose-600' },
-  ip: { icon: Shield, accent: 'from-brand to-[#8b5a2b]' },
+  ip: { icon: Shield, accent: 'from-brand to-brand-dark' },
   liability: { icon: AlertTriangle, accent: 'from-gray-500 to-slate-600' },
 };
 
@@ -58,6 +58,14 @@ export default function TermsPage() {
         title="Terms of Service"
         subtitle="Legal terms governing The Method Casinos platform, tools, and community"
       />
+
+      <motion.div
+        initial={{ opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="glass-glow p-4 mb-8 border-glow/15 text-sm"
+      >
+        <Link to="/legal" className="text-glow hover:underline">← Back to Legal Hub</Link>
+      </motion.div>
 
       {/* Hero */}
       <motion.div

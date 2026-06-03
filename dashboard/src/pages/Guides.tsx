@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { BookOpen, Mail, ShieldCheck, Ban, Radar, Dices, KeyRound, AlertTriangle, Sparkles, Heart, Scale, Shuffle, HelpCircle } from 'lucide-react';
 import PageHeader from '../components/PageHeader';
+import Breadcrumb from '../components/Breadcrumb';
 import { usePageTitle } from '../hooks/usePageTitle';
 import { useAuth } from '../context/AuthContext';
 
@@ -100,7 +101,8 @@ export default function GuidesPage() {
   ];
 
   return (
-    <div className="p-6 md:p-8 max-w-5xl mx-auto">
+    <div className="page-container-narrow">
+      <Breadcrumb items={[{ label: 'Tools', to: '/tools' }, { label: 'Guides' }]} />
       <PageHeader
         icon={<BookOpen className="w-6 h-6 text-brand-light" />}
         title="The Method Guides"

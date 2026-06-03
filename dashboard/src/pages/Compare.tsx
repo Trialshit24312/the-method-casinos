@@ -10,6 +10,7 @@ import CasinoCombobox from '../components/CasinoCombobox';
 import EmptyState from '../components/EmptyState';
 import Breadcrumb from '../components/Breadcrumb';
 import ErrorBanner from '../components/ErrorBanner';
+import NoticeBanner from '../components/NoticeBanner';
 import { usePageTitle } from '../hooks/usePageTitle';
 
 export default function ComparePage() {
@@ -103,7 +104,7 @@ export default function ComparePage() {
         }
       />
 
-      {shareMsg && <p className="text-emerald-400 text-sm mb-4">{shareMsg}</p>}
+      {shareMsg && <NoticeBanner message={shareMsg} variant="success" />}
       {catalogError && <ErrorBanner message={catalogError} onRetry={loadCatalog} variant="warning" />}
 
       <div className="grid md:grid-cols-2 gap-4 mb-8">
@@ -120,7 +121,7 @@ export default function ComparePage() {
           <div className="w-8 h-8 border-2 border-glow border-t-transparent rounded-full animate-spin" />
         </div>
       )}
-      {error && <p className="text-red-400 text-sm mb-4">{error}</p>}
+      {error && <ErrorBanner message={error} variant="warning" />}
 
       {!loading && !result && !a && !b && (
         <EmptyState

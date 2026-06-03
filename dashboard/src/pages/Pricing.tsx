@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Crown, ArrowRight } from 'lucide-react';
 import PageHeader from '../components/PageHeader';
+import Breadcrumb from '../components/Breadcrumb';
 import PricingTiers from '../components/PricingTiers';
 import { usePageTitle } from '../hooks/usePageTitle';
 import { discordInviteUrl } from '../lib/site';
@@ -11,7 +12,8 @@ export default function Pricing() {
   const discordInvite = discordInviteUrl();
 
   return (
-    <div className="p-6 md:p-8 max-w-7xl mx-auto">
+    <div className="page-container">
+      <Breadcrumb items={[{ label: 'Membership' }]} />
       <PageHeader
         icon={<Crown className="w-6 h-6 text-brand-light" />}
         title="Membership tiers"
