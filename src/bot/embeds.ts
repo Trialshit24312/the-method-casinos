@@ -15,6 +15,12 @@ import { methodFooterText, sitePage, getPublicSiteUrl } from '../shared/site.js'
 import { BRAND, brandAuthorBlock, brandThumbnailUrl, brandFooter, applyBrandEmbed, BRAND_MOTTO, BRAND_TAGLINE } from './brand.js';
 import { getStats } from '../database/index.js';
 import { compareCasinos } from '../shared/compare.js';
+import {
+  SUBSCRIPTION_TIERS,
+  SUBSCRIPTIONS_LAUNCHING,
+  formatTierPrice,
+  formatTierPerks,
+} from '../shared/subscription-tiers.js';
 
 const ACCENT_GREEN = BRAND.green;
 const ACCENT_GOLD = BRAND.gold;
@@ -478,6 +484,68 @@ export function buildAskEmbed(question: string, answer: string, provider: string
     .setTimestamp();
 }
 
+export function buildTiersEmbed(planId?: string): EmbedBuilder {
+  const pricingUrl = sitePage('/pricing');
+  const tier = planId ? SUBSCRIPTION_TIERS.find((t) => t.id === planId) : undefined;
+
+  if (planId && !tier) {
+    return applyBrandEmbed(
+      new EmbedBuilder()
+        .setColor(BRAND.copper)
+        .setTitle('👑 Membership Tiers')
+        .setDescription(`Unknown tier. Use \`/tiers\` without options to see all plans.\n\n${pricingUrl}`),
+      '/tiers',
+    );
+  }
+
+  if (tier) {
+    const popular = tier.highlighted ? '\n⭐ **Most popular tier**' : '';
+    return applyBrandEmbed(
+      new EmbedBuilder()
+        .setColor(BRAND.gold)
+        .setTitle(`${tier.emoji} ${tier.name} — ${formatTierPrice(tier.priceMonthly)}/mo`)
+        .setDescription(
+          `*${tier.tagline}*${popular}\n\n${formatTierPerks(tier.perks, 12)}` +
+          (SUBSCRIPTIONS_LAUNCHING ? '\n\n🔒 **Subscribe soon** — preview pricing only, billing not live yet.' : ''),
+        )
+        .setFooter({ text: methodFooterText(`Full tier list · ${pricingUrl}`) }),
+      '/tiers',
+    );
+  }
+
+  const embed = applyBrandEmbed(
+    new EmbedBuilder()
+      .setColor(BRAND.gold)
+      .setTitle('👑 The Method — Membership Tiers')
+      .setDescription(
+        '**Preview pricing** — subscriptions launching soon. Billing is not live yet.\n' +
+          'Perks **stack** as you move up (each tier includes everything below it).',
+      ),
+    '/tiers',
+  );
+
+  for (const t of SUBSCRIPTION_TIERS) {
+    const popular = t.highlighted ? ' ⭐ Most popular' : '';
+    embed.addFields({
+      name: `${t.emoji} ${t.name} — ${formatTierPrice(t.priceMonthly)}/mo${popular}`,
+      value: `*${t.tagline}*\n${formatTierPerks(t.perks, 5)}`,
+      inline: false,
+    });
+  }
+
+  embed.addFields({
+    name: '🌐 Full breakdown',
+    value: `[View all perks on the dashboard](${pricingUrl})`,
+    inline: false,
+  });
+
+  embed.setFooter({
+    text: methodFooterText('Subscribe soon — preview only'),
+  });
+
+  return embed;
+}
+
 export function buildAboutEmbed(): EmbedBuilder {
   const stats = getStats();
   const site = getPublicSiteUrl();
@@ -496,7 +564,7 @@ export function buildAboutEmbed(): EmbedBuilder {
         { name: '🌐 Dashboard', value: site, inline: false },
         {
           name: 'Start here',
-          value: '`/search` · `/similar` · `/check` · `/featured` · `/help`',
+          value: '`/search` · `/similar` · `/check` · `/featured` · `/tiers` · `/help`',
           inline: false,
         },
       ),
@@ -550,7 +618,7 @@ export function buildHelpEmbed(): EmbedBuilder {
         value:
           '`/search` · `/random` · `/casino`\n' +
           '`/similar` · `/similar search_web:true`\n' +
-          '`/compare` · `/featured` · `/recent`',
+          '`/compare` · `/featured` · `/recent` · `/tiers`',
         inline: true,
       },
       {
@@ -575,7 +643,7 @@ export function buildHelpEmbed(): EmbedBuilder {
       },
       {
         name: '🌐 Website',
-        value: '`/website` · `/about` · `/tools` · `/legal`',
+        value: '`/website` · `/about` · `/tools` · `/tiers` · `/legal`',
         inline: true,
       },
       {

@@ -1,9 +1,9 @@
 import { SlashCommandBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } from 'discord.js';
 import type { Command } from './command-types.js';
 import { getFeaturedCasinos, getRecentCasinos, getStats } from '../database/index.js';
-import { buildAboutEmbed, buildFeaturedEmbed, buildRecentEmbed } from './embeds.js';
+import { buildAboutEmbed, buildFeaturedEmbed, buildRecentEmbed, buildTiersEmbed } from './embeds.js';
 import { brandButtonRow } from './brand.js';
-import { getPublicSiteUrl } from '../shared/site.js';
+import { getPublicSiteUrl, sitePage } from '../shared/site.js';
 
 function linkRow(): ActionRowBuilder<ButtonBuilder> {
   const row = new ActionRowBuilder<ButtonBuilder>();
@@ -48,6 +48,38 @@ export const extraCommands: Command[] = [
     async execute(interaction) {
       const casinos = getRecentCasinos(12);
       await interaction.reply({ embeds: [buildRecentEmbed(casinos)] });
+    },
+  },
+
+  {
+    data: new SlashCommandBuilder()
+      .setName('tiers')
+      .setDescription('Preview membership tiers — Scout, Operator, Strategist, Architect')
+      .addStringOption((option) =>
+        option
+          .setName('plan')
+          .setDescription('Show one tier in detail (optional)')
+          .addChoices(
+            { name: 'Scout — $7/mo', value: 'scout' },
+            { name: 'Operator — $15/mo', value: 'operator' },
+            { name: 'Strategist — $29/mo', value: 'strategist' },
+            { name: 'Architect — $59/mo', value: 'architect' },
+          ),
+      ),
+
+    async execute(interaction) {
+      const plan = interaction.options.getString('plan') ?? undefined;
+      const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
+        new ButtonBuilder()
+          .setLabel('View on website')
+          .setStyle(ButtonStyle.Link)
+          .setURL(sitePage('/pricing'))
+          .setEmoji('👑'),
+      );
+      await interaction.reply({
+        embeds: [buildTiersEmbed(plan ?? undefined)],
+        components: [row],
+      });
     },
   },
 
