@@ -7,7 +7,7 @@ import {
 import { api } from '../api';
 import type { Casino, SimilarCasinosResult } from '../types';
 import PageHeader from '../components/PageHeader';
-import CasinoCard from '../components/CasinoCard';
+import CasinoCarousel from '../components/CasinoCarousel';
 import { useAuth } from '../context/AuthContext';
 import { FEATURE_LABELS, FEATURE_COLORS, vpnLabel, formatTrackableValue } from '../types';
 import { formatLastChecked, isCatalogStale } from '../lib/freshness';
@@ -193,19 +193,17 @@ export default function CasinoDetail() {
       </motion.div>
 
       {similar && similar.matches.length > 0 && (
-        <section>
-          <h2 className="font-display font-semibold text-lg text-white mb-4 flex items-center gap-2">
-            <Sparkles className="w-5 h-5 text-[#00aeef]" /> Similar Casinos
-          </h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {similar.matches.map((m, i) => (
-              <CasinoCard key={m.casino.id} casino={m.casino} index={i} />
-            ))}
-          </div>
-          <Link to={`/similar?casino=${casino.id}`} className="inline-block mt-4 text-sm text-glow hover:underline">
-            View all similar →
-          </Link>
-        </section>
+        <CasinoCarousel
+          title="Similar Casinos"
+          subtitle="Based on shared features and signup profile"
+          casinos={similar.matches.map((m) => m.casino)}
+          icon={<Sparkles className="w-5 h-5 text-glow" />}
+          action={
+            <Link to={`/similar?casino=${casino.id}`} className="text-sm text-glow hover:underline">
+              View all →
+            </Link>
+          }
+        />
       )}
 
       <Link to="/casinos" className="inline-block mt-8 text-sm text-gray-500 hover:text-white">

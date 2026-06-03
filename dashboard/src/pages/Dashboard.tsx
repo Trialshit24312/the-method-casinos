@@ -25,6 +25,7 @@ import FeatureStrip from '../components/FeatureStrip';
 import PageHeader from '../components/PageHeader';
 import StatCard from '../components/StatCard';
 import CasinoCarousel from '../components/CasinoCarousel';
+import CarouselSkeleton from '../components/CarouselSkeleton';
 import { useAuth } from '../context/AuthContext';
 
 export default function DashboardPage() {
@@ -32,11 +33,21 @@ export default function DashboardPage() {
   const [stats, setStats] = useState<Stats | null>(null);
   const [featured, setFeatured] = useState<Casino[]>([]);
   const [recent, setRecent] = useState<Casino[]>([]);
+  const [carouselsLoading, setCarouselsLoading] = useState(true);
 
   useEffect(() => {
     api.getStats().then(setStats).catch(console.error);
-    api.getFeaturedCasinos(8).then(setFeatured).catch(console.error);
-    api.getRecentCasinos(8).then(setRecent).catch(console.error);
+    setCarouselsLoading(true);
+    Promise.all([
+      api.getFeaturedCasinos(8),
+      api.getRecentCasinos(8),
+    ])
+      .then(([f, r]) => {
+        setFeatured(f);
+        setRecent(r);
+      })
+      .catch(console.error)
+      .finally(() => setCarouselsLoading(false));
   }, []);
 
   const greeting = user ? `Welcome, ${user.username}` : 'The Method Casinos';
@@ -98,20 +109,29 @@ export default function DashboardPage() {
         </div>
       )}
 
-      <CasinoCarousel
-        title="Featured"
-        subtitle="Top-rated verified operators"
-        casinos={featured}
-        icon={<Star className="w-5 h-5 text-brand-light" />}
-        action={<Link to="/casinos" className="text-sm text-glow hover:underline">View all</Link>}
-      />
+      {carouselsLoading ? (
+        <>
+          <CarouselSkeleton title="Featured" />
+          <CarouselSkeleton title="Recently Added" />
+        </>
+      ) : (
+        <>
+          <CasinoCarousel
+            title="Featured"
+            subtitle="Top-rated verified operators"
+            casinos={featured}
+            icon={<Star className="w-5 h-5 text-brand-light" />}
+            action={<Link to="/casinos" className="text-sm text-glow hover:underline">View all</Link>}
+          />
 
-      <CasinoCarousel
-        title="Recently Added"
-        subtitle="Newest catalog entries"
-        casinos={recent}
-        icon={<Clock className="w-5 h-5 text-glow" />}
-      />
+          <CasinoCarousel
+            title="Recently Added"
+            subtitle="Newest catalog entries"
+            casinos={recent}
+            icon={<Clock className="w-5 h-5 text-glow" />}
+          />
+        </>
+      )}
 
       <motion.div
         initial={{ opacity: 0, y: 20 }}

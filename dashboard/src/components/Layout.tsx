@@ -130,7 +130,8 @@ export default function Layout() {
   const mobileNavItems = [
     ...mainNav,
     ...(user?.isAdmin ? adminNav : []),
-    ...toolsNav.slice(0, 4),
+    ...toolsNav,
+    ...legalNav.slice(0, 2),
   ];
 
   return (
@@ -223,9 +224,24 @@ export default function Layout() {
               <Link to="/login" className="btn-glow w-full text-center text-sm block">Sign in</Link>
             )}
           />
+          <Link to="/dashboard" className="lg:hidden shrink-0 font-display font-bold text-sm tracking-wide text-white hover:text-glow transition-colors">
+            METHOD
+          </Link>
           <div className="flex-1 min-w-0">
             <GlobalSearch />
           </div>
+          {user?.isAdmin && notifyTotal > 0 && (
+            <Link
+              to="/review"
+              className="lg:hidden shrink-0 relative p-2 rounded-xl border border-amber-500/30 bg-amber-500/10 text-amber-400"
+              aria-label={`${notifyTotal} review items`}
+            >
+              <Bell className="w-4 h-4" />
+              <span className="absolute -top-1 -right-1 min-w-[1.1rem] h-[1.1rem] px-0.5 rounded-full bg-amber-500 text-[10px] font-bold text-black flex items-center justify-center">
+                {notifyTotal > 99 ? '99+' : notifyTotal}
+              </span>
+            </Link>
+          )}
         </header>
         <div className="flex-1 relative z-10 p-1">
           <AnimatePresence mode="wait">

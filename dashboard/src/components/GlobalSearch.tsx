@@ -14,7 +14,7 @@ export default function GlobalSearch() {
   };
 
   return (
-    <form onSubmit={submit} className="relative w-full max-w-md">
+    <form onSubmit={submit} className="relative w-full lg:max-w-md">
       <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-600 pointer-events-none" />
       <input
         value={q}

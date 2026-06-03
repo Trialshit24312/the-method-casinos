@@ -8,6 +8,7 @@ import { discordInviteUrl } from '../lib/site';
 import SiteFooter from '../components/SiteFooter';
 import FeatureStrip from '../components/FeatureStrip';
 import CasinoCarousel from '../components/CasinoCarousel';
+import CarouselSkeleton from '../components/CarouselSkeleton';
 import { usePageTitle } from '../hooks/usePageTitle';
 
 const fadeUp = {
@@ -19,11 +20,16 @@ export default function Landing() {
   usePageTitle('The Method Casinos — Verified US Sweepstakes Catalog');
   const [stats, setStats] = useState<Stats | null>(null);
   const [featured, setFeatured] = useState<Casino[]>([]);
+  const [featuredLoading, setFeaturedLoading] = useState(true);
   const discordInvite = discordInviteUrl();
 
   useEffect(() => {
     api.getStats().then(setStats).catch(() => {});
-    api.getFeaturedCasinos(6).then(setFeatured).catch(() => {});
+    setFeaturedLoading(true);
+    api.getFeaturedCasinos(6)
+      .then(setFeatured)
+      .catch(() => {})
+      .finally(() => setFeaturedLoading(false));
   }, []);
 
   return (
@@ -135,7 +141,11 @@ export default function Landing() {
           </motion.div>
         )}
 
-        {featured.length > 0 && (
+        {featuredLoading ? (
+          <div className="mb-16 px-2">
+            <CarouselSkeleton title="Featured casinos" cards={3} />
+          </div>
+        ) : featured.length > 0 && (
           <motion.div
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}

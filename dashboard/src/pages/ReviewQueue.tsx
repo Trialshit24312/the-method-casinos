@@ -49,6 +49,14 @@ export default function ReviewQueue() {
 
   useEffect(() => { load(); }, []);
 
+  useEffect(() => {
+    const next =
+      tabParam === 'reports' || tabParam === 'health' || tabParam === 'history' || tabParam === 'discoveries'
+        ? tabParam
+        : 'discoveries';
+    setTab(next);
+  }, [tabParam]);
+
   if (!user) return <Navigate to="/login" replace />;
   if (!user.isAdmin) return <Navigate to="/dashboard" replace />;
 
