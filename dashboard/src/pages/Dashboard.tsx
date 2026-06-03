@@ -16,6 +16,8 @@ import {
   Star,
   Clock,
   Flag,
+  Activity,
+  Scale,
 } from 'lucide-react';
 import { api } from '../api';
 import type { Stats, Casino } from '../types';
@@ -121,6 +123,8 @@ export default function DashboardPage() {
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
           {[
             { title: 'Similar Casinos', desc: 'Match by features — or search the web for casinos like any operator.', path: '/similar', icon: Sparkles, accent: 'border-[#00aeef]/30 hover:border-[#00aeef]/60' },
+            { title: 'Compare Casinos', desc: 'Side-by-side feature and signup comparison.', path: '/compare', icon: Scale, accent: 'border-brand/30 hover:border-brand/60' },
+            { title: 'Service Status', desc: 'Bot online, search engines, catalog stats.', path: '/status', icon: Activity, accent: 'border-emerald-500/30 hover:border-emerald-500/60' },
             { title: 'Browse Casinos', desc: 'Verified catalog — filter by VPN, slots, email-only.', path: '/casinos', icon: Dices, accent: 'border-[#b87333]/30 hover:border-[#b87333]/60' },
             { title: 'URL Safety Checker', desc: 'Check if a link is safe before visiting.', path: '/tools/checker', icon: ShieldCheck, accent: 'border-emerald-500/30 hover:border-emerald-500/60' },
             { title: 'The Method Guides', desc: 'Step-by-step signup & safety workflows.', path: '/guides', icon: BookOpen, accent: 'border-[#b87333]/30 hover:border-[#b87333]/60' },

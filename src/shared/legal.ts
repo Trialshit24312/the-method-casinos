@@ -360,7 +360,8 @@ export const WEBSITE_FEATURES = [
   { name: 'Blocked Sites', path: '/blocked', desc: 'Scam, phishing, and dangerous URL list' },
   { name: 'Tools Hub', path: '/tools', desc: 'Email gen, SMS sites, passwords, and more' },
   { name: 'Guides', path: '/guides', desc: 'Step-by-step signup workflows' },
-  { name: 'My List', path: '/mylist', desc: 'Save favorite casinos to your personal list' },
+  { name: 'Compare Casinos', path: '/compare', desc: 'Side-by-side feature and signup comparison' },
+  { name: 'Service Status', path: '/status', desc: 'Live bot, search engine, and catalog status' },
 ];
 
 export const TOOLS_PATHS = [

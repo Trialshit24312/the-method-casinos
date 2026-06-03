@@ -32,6 +32,8 @@ import { parseAdminIds, ensureHttps } from '../shared/utils.js';
 import { notifySiteReport, notifyCasinoApproved } from '../shared/notify.js';
 import { checkCasinoUrl } from '../shared/url-check.js';
 import { siteCommands } from './site-commands.js';
+import { extraCommands } from './extra-commands.js';
+import { BRAND_MOTTO } from './brand.js';
 
 function isAdmin(userId: string): boolean {
   const admins = parseAdminIds(process.env.ADMIN_DISCORD_IDS);
@@ -773,6 +775,8 @@ export const commands: Command[] = [
 
   ...siteCommands,
 
+  ...extraCommands,
+
   {
     data: new SlashCommandBuilder()
       .setName('help')
@@ -835,7 +839,7 @@ export function setupCommandHandler(client: Client): void {
 
     if (casino) {
       await interaction.reply({
-        content: `🎰 **${casino.name}** — ${casino.url}`,
+        content: `🎰 **The Method** — **${casino.name}**\n${casino.url}\n_${BRAND_MOTTO}_`,
         ephemeral: false,
       });
     }

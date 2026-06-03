@@ -4,6 +4,20 @@ import { getStats } from '../database/index.js';
 import { getPublicSiteUrl } from '../shared/site.js';
 import { setBotClient, setBotReady } from './state.js';
 import { registerBotForShutdown } from '../shared/shutdown.js';
+import { BRAND_MOTTO } from './brand.js';
+
+function buildActivities(): { name: string; type: ActivityType }[] {
+  const stats = getStats();
+  const site = getPublicSiteUrl();
+  return [
+    { name: `${stats.verifiedCasinos} verified casinos`, type: ActivityType.Watching },
+    { name: '/similar · free web search', type: ActivityType.Listening },
+    { name: `${stats.noPhoneCasinos} no-phone signups`, type: ActivityType.Watching },
+    { name: BRAND_MOTTO.slice(0, 128), type: ActivityType.Playing },
+    { name: site.replace(/^https?:\/\//, ''), type: ActivityType.Watching },
+    { name: '/check · URL safety', type: ActivityType.Listening },
+  ];
+}
 
 export async function startBot(): Promise<Client> {
   const token = process.env.DISCORD_BOT_TOKEN;
@@ -19,15 +33,15 @@ export async function startBot(): Promise<Client> {
     setBotReady(true);
     console.log(`🤖 Bot logged in as ${client.user?.tag}`);
 
-    const stats = getStats();
-    const siteUrl = process.env.PUBLIC_SITE_URL || process.env.DASHBOARD_URL;
-    const activityName = siteUrl
-      ? `${stats.totalCasinos} casinos | ${getPublicSiteUrl()}`
-      : `${stats.totalCasinos} casinos | /help`;
-    client.user?.setActivity({
-      name: activityName.slice(0, 128),
-      type: ActivityType.Watching,
-    });
+    const activities = buildActivities();
+    let idx = 0;
+    const setActivity = () => {
+      const a = activities[idx % activities.length]!;
+      client.user?.setActivity({ name: a.name.slice(0, 128), type: a.type });
+      idx++;
+    };
+    setActivity();
+    setInterval(setActivity, 45_000);
 
     if (process.env.DISCORD_CLIENT_ID) {
       try {

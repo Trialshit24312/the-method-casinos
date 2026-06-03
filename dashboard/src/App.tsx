@@ -21,6 +21,8 @@ import Privacy from './pages/Privacy';
 import CasinoDetail from './pages/CasinoDetail';
 import MyList from './pages/MyList';
 import LegalHub from './pages/LegalHub';
+import Compare from './pages/Compare';
+import Status from './pages/Status';
 import PublicLayout from './components/PublicLayout';
 
 function AdminRoute({ children }: { children: React.ReactNode }) {
@@ -72,6 +74,8 @@ export default function App() {
           <Route path="/casinos/:slug" element={<CasinoDetail />} />
           <Route path="/mylist" element={<MyList />} />
           <Route path="/similar" element={<SimilarCasinos />} />
+          <Route path="/compare" element={<Compare />} />
+          <Route path="/status" element={<Status />} />
           <Route path="/assistant" element={<Navigate to="/similar" replace />} />
           <Route path="/blocked" element={<BlockedSites />} />
           <Route path="/guides" element={<Guides />} />

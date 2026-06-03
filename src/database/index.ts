@@ -529,6 +529,22 @@ export function getPendingCasinos(): Casino[] {
   return searchCasinos({ pendingOnly: true, limit: 200 });
 }
 
+/** Top-rated verified catalog entries. */
+export function getFeaturedCasinos(limit = 10): Casino[] {
+  return searchCasinos({ catalogOnly: true, limit: Math.min(limit, 25) });
+}
+
+/** Newest catalog additions (approved or pending). */
+export function getRecentCasinos(limit = 10): Casino[] {
+  const rows = db.prepare(`
+    SELECT * FROM casinos
+    WHERE active = 1 AND review_status IN ('approved', 'pending')
+    ORDER BY created_at DESC
+    LIMIT @limit
+  `).all({ limit: Math.min(limit, 25) });
+  return rows.map((r) => rowToCasino(r as Record<string, unknown>));
+}
+
 /** Verified catalog entries not checked within STALE_CATALOG_DAYS (or never). */
 export function getStaleCatalogCasinos(limit = 20, maxAgeDays = 90): Casino[] {
   const cutoff = new Date(Date.now() - maxAgeDays * 24 * 60 * 60 * 1000).toISOString();

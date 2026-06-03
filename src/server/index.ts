@@ -39,6 +39,8 @@ import {
   addUserFavorite,
   removeUserFavorite,
   getClosedSiteReports,
+  getFeaturedCasinos,
+  getRecentCasinos,
 } from '../database/index.js';
 import { runDiscovery } from '../discovery/engine.js';
 import { cancelDiscoveryRun, isDiscoveryRunning } from '../discovery/run-state.js';
@@ -54,6 +56,7 @@ import { notifySiteReport, notifyCasinoApproved } from '../shared/notify.js';
 import { checkCasinoUrl } from '../shared/url-check.js';
 import { redirectToDashboardPath } from './request-origin.js';
 import { discoverSimilarOnWeb } from '../discovery/similar-search.js';
+import { compareCasinos } from '../shared/compare.js';
 
 export function createServer(): express.Application {
   const app = express();
@@ -320,6 +323,50 @@ export function createServer(): express.Application {
       failedHealth: stats.failedHealthCasinos,
       total: stats.pendingReview + stats.openReports + stats.failedHealthCasinos,
     });
+  });
+
+  app.get('/api/status', (_req, res) => {
+    try {
+      const stats = getStats();
+      const bot = getBotHealth();
+      res.json({
+        ok: true,
+        searchMode: 'free',
+        searchEngines: ['duckduckgo_lite', 'duckduckgo', 'bing', 'brave'],
+        bot: bot.connected,
+        stats: {
+          verifiedCasinos: stats.verifiedCasinos,
+          totalCasinos: stats.totalCasinos,
+          noPhoneCasinos: stats.noPhoneCasinos,
+          blockedSites: stats.blockedSites,
+        },
+        uptime: process.uptime(),
+      });
+    } catch {
+      res.status(503).json({ ok: false });
+    }
+  });
+
+  app.get('/api/casinos/featured', (_req, res) => {
+    const limit = Math.min(25, Math.max(1, parseInt(String(_req.query.limit ?? '10'), 10) || 10));
+    res.json(getFeaturedCasinos(limit));
+  });
+
+  app.get('/api/casinos/recent', (_req, res) => {
+    const limit = Math.min(25, Math.max(1, parseInt(String(_req.query.limit ?? '10'), 10) || 10));
+    res.json(getRecentCasinos(limit));
+  });
+
+  app.get('/api/compare', (req, res) => {
+    const idA = String(req.query.a ?? req.query.casino_a ?? '');
+    const idB = String(req.query.b ?? req.query.casino_b ?? '');
+    const casinoA = getCasinoById(idA) ?? getCasinoBySlug(idA);
+    const casinoB = getCasinoById(idB) ?? getCasinoBySlug(idB);
+    if (!casinoA || !casinoB) {
+      res.status(404).json({ error: 'One or both casinos not found' });
+      return;
+    }
+    res.json(compareCasinos(casinoA, casinoB));
   });
 
   app.get('/api/similar', (req, res) => {

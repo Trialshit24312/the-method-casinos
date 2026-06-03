@@ -11,8 +11,10 @@ import { FEATURE_EMOJI, FEATURE_LABELS } from '../shared/types.js';
 import { truncate } from '../shared/utils.js';
 import { buildTrackablesText } from '../shared/trackables.js';
 import type { SimilarCasinoMatch } from '../shared/similarity.js';
-import { methodFooterText, sitePage } from '../shared/site.js';
-import { BRAND, brandAuthorBlock, brandThumbnailUrl } from './brand.js';
+import { methodFooterText, sitePage, getPublicSiteUrl } from '../shared/site.js';
+import { BRAND, brandAuthorBlock, brandThumbnailUrl, brandFooter, applyBrandEmbed, BRAND_MOTTO, BRAND_TAGLINE } from './brand.js';
+import { getStats } from '../database/index.js';
+import { compareCasinos } from '../shared/compare.js';
 
 const ACCENT_GREEN = BRAND.green;
 const ACCENT_GOLD = BRAND.gold;
@@ -200,44 +202,45 @@ export function buildSimilarButtons(source: Casino): ActionRowBuilder<ButtonBuil
 }
 
 export function buildCompareEmbed(a: Casino, b: Casino): EmbedBuilder {
-  const shared = a.features.filter((f) => b.features.includes(f));
-  const onlyA = a.features.filter((f) => !b.features.includes(f)).slice(0, 6);
-  const onlyB = b.features.filter((f) => !a.features.includes(f)).slice(0, 6);
+  const cmp = compareCasinos(a, b);
+  const shared = cmp.sharedFeatures;
+  const onlyA = cmp.onlyA.slice(0, 6);
+  const onlyB = cmp.onlyB.slice(0, 6);
 
-  return new EmbedBuilder()
-    .setColor(BRAND.gold)
-    .setAuthor(brandAuthorBlock())
-    .setTitle(`⚖️ ${a.name} vs ${b.name}`)
-    .addFields(
-      { name: a.name, value: `⭐ ${a.rating.toFixed(1)}\n${a.url}`, inline: true },
-      { name: b.name, value: `⭐ ${b.rating.toFixed(1)}\n${b.url}`, inline: true },
-      { name: '\u200b', value: '\u200b', inline: true },
-      {
-        name: 'Signup',
-        value: [
-          `**${a.name}:** ${a.signupRequirements.join(', ') || '—'}`,
-          `**${b.name}:** ${b.signupRequirements.join(', ') || '—'}`,
-        ].join('\n'),
-        inline: false,
-      },
-      {
-        name: `Shared features (${shared.length})`,
-        value: shared.slice(0, 10).map((f) => FEATURE_EMOJI[f] + ' ' + f.replace(/_/g, ' ')).join(' · ') || 'None',
-        inline: false,
-      },
-      {
-        name: `Only on ${a.name}`,
-        value: onlyA.map((f) => f.replace(/_/g, ' ')).join(', ') || '—',
-        inline: true,
-      },
-      {
-        name: `Only on ${b.name}`,
-        value: onlyB.map((f) => f.replace(/_/g, ' ')).join(', ') || '—',
-        inline: true,
-      },
-    )
-    .setFooter({ text: methodFooterText('/compare') })
-    .setTimestamp();
+  return applyBrandEmbed(
+    new EmbedBuilder()
+      .setColor(BRAND.gold)
+      .setTitle(`⚖️ ${a.name} vs ${b.name}`)
+      .addFields(
+        { name: a.name, value: `⭐ ${a.rating.toFixed(1)}\n${a.url}`, inline: true },
+        { name: b.name, value: `⭐ ${b.rating.toFixed(1)}\n${b.url}`, inline: true },
+        { name: '\u200b', value: '\u200b', inline: true },
+        {
+          name: 'Signup',
+          value: [
+            `**${a.name}:** ${a.signupRequirements.join(', ') || '—'}`,
+            `**${b.name}:** ${b.signupRequirements.join(', ') || '—'}`,
+          ].join('\n'),
+          inline: false,
+        },
+        {
+          name: `Shared features (${shared.length})`,
+          value: shared.slice(0, 10).map((f) => FEATURE_EMOJI[f] + ' ' + f.replace(/_/g, ' ')).join(' · ') || 'None',
+          inline: false,
+        },
+        {
+          name: `Only on ${a.name}`,
+          value: onlyA.map((f) => f.replace(/_/g, ' ')).join(', ') || '—',
+          inline: true,
+        },
+        {
+          name: `Only on ${b.name}`,
+          value: onlyB.map((f) => f.replace(/_/g, ' ')).join(', ') || '—',
+          inline: true,
+        },
+      ),
+    '/compare',
+  );
 }
 
 export function buildMyListEmbed(casinos: Casino[]): EmbedBuilder {
@@ -475,6 +478,60 @@ export function buildAskEmbed(question: string, answer: string, provider: string
     .setTimestamp();
 }
 
+export function buildAboutEmbed(): EmbedBuilder {
+  const stats = getStats();
+  const site = getPublicSiteUrl();
+  return applyBrandEmbed(
+    new EmbedBuilder()
+      .setColor(BRAND.copper)
+      .setTitle('🎰 The Method Casinos')
+      .setDescription(
+        `**${BRAND_TAGLINE}**\n${BRAND_MOTTO}\n\n` +
+          `Admin-reviewed US sweepstakes catalog with Discord bot + web dashboard. ` +
+          `Find casinos with easy signup, check URLs for scams, discover similar operators via **free web search** — no paid APIs.`,
+      )
+      .addFields(
+        { name: '📊 Catalog', value: `${stats.verifiedCasinos} verified · ${stats.noPhoneCasinos} no-phone · ${stats.blockedSites} blocked`, inline: true },
+        { name: '🔍 Discovery', value: 'DDG · Bing · Brave', inline: true },
+        { name: '🌐 Dashboard', value: site, inline: false },
+        {
+          name: 'Start here',
+          value: '`/search` · `/similar` · `/check` · `/featured` · `/help`',
+          inline: false,
+        },
+      ),
+    '/about',
+  );
+}
+
+export function buildFeaturedEmbed(casinos: Casino[]): EmbedBuilder {
+  const lines = casinos.slice(0, 12).map((c, i) =>
+    `\`${String(i + 1).padStart(2, ' ')}\` ⭐ **${c.name}** — ${c.rating.toFixed(1)}${c.features.includes('slots') ? ' 🎰' : ''}${c.features.includes('no_phone') ? ' 📵' : ''}`,
+  );
+  return applyBrandEmbed(
+    new EmbedBuilder()
+      .setColor(BRAND.gold)
+      .setTitle('⭐ Featured — Top Rated')
+      .setDescription(lines.join('\n') || 'No verified casinos yet.'),
+    '/featured',
+  );
+}
+
+export function buildRecentEmbed(casinos: Casino[]): EmbedBuilder {
+  const lines = casinos.slice(0, 12).map((c) => {
+    const age = Math.max(0, Math.floor((Date.now() - new Date(c.createdAt).getTime()) / 86400000));
+    const when = age === 0 ? 'today' : age === 1 ? 'yesterday' : `${age}d ago`;
+    return `• **${c.name}** ${c.verified ? '✅' : '⏳'} — added ${when}`;
+  });
+  return applyBrandEmbed(
+    new EmbedBuilder()
+      .setColor(BRAND.cyan)
+      .setTitle('🆕 Recently Added')
+      .setDescription(lines.join('\n') || 'No recent additions.'),
+    '/recent',
+  );
+}
+
 export function buildHelpEmbed(): EmbedBuilder {
   const site = sitePage('/');
   return new EmbedBuilder()
@@ -491,10 +548,9 @@ export function buildHelpEmbed(): EmbedBuilder {
       {
         name: '🔍 Search & Match',
         value:
-          '`/search` — find in catalog\n' +
-          '`/similar` — match by features\n' +
-          '`/similar search_web:true` — **free web search** for alike casinos\n' +
-          '`/compare` · `/casino` · `/random` · `/stats`',
+          '`/search` · `/random` · `/casino`\n' +
+          '`/similar` · `/similar search_web:true`\n' +
+          '`/compare` · `/featured` · `/recent`',
         inline: true,
       },
       {
@@ -519,7 +575,7 @@ export function buildHelpEmbed(): EmbedBuilder {
       },
       {
         name: '🌐 Website',
-        value: '`/website` · `/tools` · `/legal`',
+        value: '`/website` · `/about` · `/tools` · `/legal`',
         inline: true,
       },
       {
@@ -528,7 +584,7 @@ export function buildHelpEmbed(): EmbedBuilder {
         inline: true,
       },
     )
-    .setFooter({ text: methodFooterText('100% free · No API keys required') })
+    .setFooter({ text: brandFooter('/help') })
     .setTimestamp();
 }
 

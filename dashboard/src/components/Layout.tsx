@@ -20,9 +20,11 @@ import {
   Heart,
   Bell,
   Scale,
+  Activity,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import SiteFooter from './SiteFooter';
+import GlobalSearch from './GlobalSearch';
 import { discordInviteUrl } from '../lib/site';
 import { api } from '../api';
 
@@ -31,6 +33,7 @@ const mainNav = [
   { to: '/casinos', icon: Dices, label: 'Casinos' },
   { to: '/mylist', icon: Heart, label: 'My List' },
   { to: '/similar', icon: Sparkles, label: 'Similar Casinos' },
+  { to: '/compare', icon: Scale, label: 'Compare' },
   { to: '/blocked', icon: Ban, label: 'Blocked Sites' },
 ];
 
@@ -45,6 +48,7 @@ const toolsNav = [
   { to: '/tools/phone', icon: Phone, label: 'Phone Generator' },
   { to: '/tools/password', icon: KeyRound, label: 'Password Generator' },
   { to: '/tools/checker', icon: ShieldCheck, label: 'URL Checker' },
+  { to: '/status', icon: Activity, label: 'Status' },
   { to: '/guides', icon: BookOpen, label: 'Guides' },
 ];
 
@@ -205,6 +209,9 @@ export default function Layout() {
 
       <main className="flex-1 overflow-auto flex flex-col relative">
         <div className="absolute inset-0 app-background-grid pointer-events-none opacity-40" />
+        <header className="relative z-10 border-b border-surface-border/60 bg-surface-raised/30 backdrop-blur-md px-6 py-3 hidden lg:block">
+          <GlobalSearch />
+        </header>
         <div className="flex-1 relative z-10">
           <Outlet />
         </div>

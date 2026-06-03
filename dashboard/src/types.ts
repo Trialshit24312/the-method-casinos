@@ -227,6 +227,15 @@ export interface SimilarCasinosResult {
   matches: SimilarCasinoMatch[];
 }
 
+export interface CasinoCompareResult {
+  a: Casino;
+  b: Casino;
+  sharedFeatures: CasinoFeature[];
+  onlyA: CasinoFeature[];
+  onlyB: CasinoFeature[];
+  ratingDiff: number;
+}
+
 export interface SimilarWebDiscoveryResult {
   source: Casino;
   catalogMatches: SimilarCasinoMatch[];

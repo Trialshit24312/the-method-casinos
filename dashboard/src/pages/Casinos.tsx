@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Plus, Search, X, Trash2 } from 'lucide-react';
 import { api } from '../api';
@@ -38,9 +39,10 @@ const emptyForm: FormData = {
 
 export default function CasinosPage() {
   const { user } = useAuth();
+  const [searchParams] = useSearchParams();
   usePageTitle('Browse Casinos — The Method');
   const [casinos, setCasinos] = useState<Casino[]>([]);
-  const [search, setSearch] = useState('');
+  const [search, setSearch] = useState(searchParams.get('q') ?? '');
   const [filter, setFilter] = useState<CasinoFeature | ''>('');
   const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
@@ -49,6 +51,11 @@ export default function CasinosPage() {
   const [error, setError] = useState('');
   const [showAll, setShowAll] = useState(false);
   const [staleOnly, setStaleOnly] = useState(false);
+
+  useEffect(() => {
+    const q = searchParams.get('q');
+    if (q) setSearch(q);
+  }, [searchParams]);
 
   const load = useCallback(async () => {
     setLoading(true);

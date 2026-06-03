@@ -1,4 +1,4 @@
-import type { Casino, Stats, User, DiscoveryResult, DiscoveryProgressEvent, DiscoveryLiveStats, BlockedSite, BlockReason, BlockSeverity, UrlCheckResult, SimilarCasinosResult, SimilarWebDiscoveryResult, SiteReport, DiscoveryHistoryEntry } from './types';
+import type { Casino, Stats, User, DiscoveryResult, DiscoveryProgressEvent, DiscoveryLiveStats, BlockedSite, BlockReason, BlockSeverity, UrlCheckResult, SimilarCasinosResult, SimilarWebDiscoveryResult, SiteReport, DiscoveryHistoryEntry, CasinoCompareResult } from './types';
 
 import { apiBaseUrl } from './lib/site';
 
@@ -23,6 +23,10 @@ export const api = {
   getMe: () => request<{ user: User | null }>('/auth/me'),
   logout: () => request<{ ok: boolean }>('/auth/logout', { method: 'POST' }),
   getStats: () => request<Stats>('/api/stats'),
+  getStatus: () => request<{ ok: boolean; searchMode: string; searchEngines: string[]; bot: boolean; stats: Pick<Stats, 'verifiedCasinos' | 'totalCasinos' | 'noPhoneCasinos' | 'blockedSites'>; uptime: number }>('/api/status'),
+  getFeaturedCasinos: (limit = 10) => request<Casino[]>(`/api/casinos/featured?limit=${limit}`),
+  getRecentCasinos: (limit = 10) => request<Casino[]>(`/api/casinos/recent?limit=${limit}`),
+  compareCasinos: (a: string, b: string) => request<CasinoCompareResult>(`/api/compare?a=${encodeURIComponent(a)}&b=${encodeURIComponent(b)}`),
   getCasinos: (q?: string, all?: boolean) =>
     request<Casino[]>(
       all ? `/api/casinos?all=1${q ? `&q=${encodeURIComponent(q)}` : ''}` : (q ? `/api/casinos?q=${encodeURIComponent(q)}` : '/api/casinos'),
