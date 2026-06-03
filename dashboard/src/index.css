@@ -237,6 +237,17 @@
     @apply border-glow/40 bg-glow/10 text-glow;
   }
 
+  .kbd {
+    @apply inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-mono font-medium;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    color: rgba(156, 163, 175, 0.9);
+  }
+
+  .filter-bar {
+    @apply flex flex-wrap items-center gap-2 mb-4 p-3 rounded-xl border border-glow/20 bg-glow/5;
+  }
+
   .notice-enter {
     animation: noticeIn 0.35s cubic-bezier(0.22, 1, 0.36, 1);
   }

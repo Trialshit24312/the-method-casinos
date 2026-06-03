@@ -5,6 +5,7 @@ import { ShieldCheck, ShieldAlert, Search, ExternalLink, AlertTriangle, Flag, Cl
 import PageHeader from '../../components/PageHeader';
 import ToolsBreadcrumb from '../../components/ToolsBreadcrumb';
 import ErrorBanner from '../../components/ErrorBanner';
+import CheckResultSkeleton from '../../components/CheckResultSkeleton';
 import { ServiceGrid } from '../../components/ServiceCard';
 import { api } from '../../api';
 import type { UrlCheckResult } from '../../types';
@@ -95,6 +96,8 @@ export default function UrlCheckerPage() {
 
         {error && <ErrorBanner message={error} />}
 
+        {loading && <CheckResultSkeleton />}
+
         {recentChecks.length > 0 && !loading && (
           <div className="mt-4 pt-4 border-t border-surface-border">
             <p className="text-[10px] uppercase tracking-wide text-gray-600 mb-2">Recent checks</p>
@@ -107,7 +110,7 @@ export default function UrlCheckerPage() {
                     setUrl(u);
                     void runCheck(u);
                   }}
-                  className="text-xs px-2.5 py-1 rounded-full border border-surface-border bg-surface-muted text-gray-400 hover:text-glow hover:border-glow/30 transition-colors truncate max-w-full"
+                  className="chip text-xs truncate max-w-full"
                   title={u}
                 >
                   {u.replace(/^https?:\/\//, '').slice(0, 48)}
@@ -117,7 +120,7 @@ export default function UrlCheckerPage() {
           </div>
         )}
 
-        {result && (
+        {result && !loading && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mt-4">
             {result.blocked ? (
               <div className="p-5 rounded-xl bg-red-500/10 border border-red-500/30">

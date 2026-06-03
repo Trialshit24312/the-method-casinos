@@ -8,7 +8,8 @@ export default function NotFound() {
   usePageTitle('Page Not Found — The Method Casinos');
 
   return (
-    <div className="page-container-narrow min-h-[60vh] flex flex-col justify-center">
+    <div className="page-container-narrow min-h-[60vh] flex flex-col justify-center relative">
+      <div className="hero-orb w-[200px] h-[200px] bg-glow/10 top-0 right-0 pointer-events-none" />
       <Breadcrumb items={[{ label: 'Not found' }]} />
       <EmptyState
         icon={Compass}

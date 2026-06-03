@@ -125,7 +125,7 @@ export default function StatusPage() {
             </div>
           )}
 
-          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4 animate-stagger">
             {[
               { icon: Shield, label: 'Verified casinos', value: status.stats.verifiedCasinos, color: 'text-emerald-400' },
               { icon: Sparkles, label: 'Total catalog', value: status.stats.totalCasinos, color: 'text-glow' },

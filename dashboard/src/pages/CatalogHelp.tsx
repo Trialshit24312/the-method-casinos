@@ -92,24 +92,18 @@ export default function CatalogHelp() {
       </motion.div>
 
       <div className="grid sm:grid-cols-2 gap-4 mb-10 animate-stagger">
-        {workflows.map(({ title, desc, to, icon: Icon, accent }, i) => (
-          <motion.div
+        {workflows.map(({ title, desc, to, icon: Icon, accent }) => (
+          <Link
             key={title}
-            initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: i * 0.04 }}
+            to={to}
+            className={`glass-glow p-5 h-full block card-shine bg-gradient-to-br ${accent} to-transparent hover:border-glow/35 transition-all group`}
           >
-            <Link
-              to={to}
-              className={`glass-glow p-5 h-full block card-shine bg-gradient-to-br ${accent} to-transparent hover:border-glow/35 transition-all group`}
-            >
-              <div className="p-2.5 rounded-lg bg-surface-overlay/80 border border-surface-border w-fit mb-3 group-hover:border-glow/30 transition-colors">
-                <Icon className="w-5 h-5 text-glow" />
-              </div>
-              <h3 className="font-display font-semibold mb-1.5 group-hover:text-glow transition-colors">{title}</h3>
-              <p className="text-sm text-gray-500 leading-relaxed">{desc}</p>
-            </Link>
-          </motion.div>
+            <div className="p-2.5 rounded-lg bg-surface-overlay/80 border border-surface-border w-fit mb-3 group-hover:border-glow/30 transition-colors">
+              <Icon className="w-5 h-5 text-glow" />
+            </div>
+            <h3 className="font-display font-semibold mb-1.5 group-hover:text-glow transition-colors">{title}</h3>
+            <p className="text-sm text-gray-500 leading-relaxed">{desc}</p>
+          </Link>
         ))}
       </div>
 

@@ -3,6 +3,7 @@ import { Routes, Route, Navigate, useLocation, Link } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import Layout from './components/Layout';
 import PublicLayout from './components/PublicLayout';
+import PageLoadingFallback from './components/PageLoadingFallback';
 
 const Landing = lazy(() => import('./pages/Landing'));
 const Login = lazy(() => import('./pages/Login'));
@@ -34,30 +35,22 @@ const CatalogHelp = lazy(() => import('./pages/CatalogHelp'));
 const NotFound = lazy(() => import('./pages/NotFound'));
 
 function RouteFallback() {
-  return (
-    <div className="min-h-[40vh] flex items-center justify-center">
-      <div className="w-8 h-8 border-2 border-glow border-t-transparent rounded-full animate-spin" />
-    </div>
-  );
+  return <PageLoadingFallback />;
 }
 
 function AdminRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
   const location = useLocation();
   if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center app-background">
-        <div className="w-8 h-8 border-2 border-glow border-t-transparent rounded-full animate-spin" />
-      </div>
-    );
+    return <PageLoadingFallback />;
   }
   if (!user) {
     return <Navigate to={`/login?next=${encodeURIComponent(location.pathname)}`} replace />;
   }
   if (!user.isAdmin) {
     return (
-      <div className="p-8 max-w-lg mx-auto">
-        <div className="glass-glow p-8 text-center border-amber-500/30">
+      <div className="page-container-narrow min-h-[60vh] flex flex-col justify-center">
+        <div className="glass-glow p-8 text-center border-amber-500/30 border-gradient">
           <h1 className="font-display text-xl font-bold text-white mb-2">Admin access required</h1>
           <p className="text-gray-400 text-sm mb-4">
             You&apos;re signed in as <span className="text-white">{user.username}</span>, but this page is for catalog admins only.

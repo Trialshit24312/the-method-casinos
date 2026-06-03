@@ -292,6 +292,13 @@ export default function CasinosPage() {
 
   const hasActiveFilters = Boolean(search.trim() || filter || noPhoneOnly || staleOnly);
 
+  const clearAllFilters = () => {
+    setSearch('');
+    setFilter('');
+    setNoPhoneOnly(false);
+    setStaleOnly(false);
+  };
+
   return (
     <div className="page-container">
       {hasActiveFilters && (
@@ -376,6 +383,21 @@ export default function CasinosPage() {
           </>
         )}
       </div>
+
+      {hasActiveFilters && (
+        <div className="filter-bar">
+          <span className="text-xs text-gray-500 mr-1">Showing {filtered.length} result{filtered.length === 1 ? '' : 's'}</span>
+          {search.trim() && (
+            <span className="chip chip-active text-xs">“{search.trim()}”</span>
+          )}
+          {noPhoneOnly && <span className="chip chip-active text-xs">No phone</span>}
+          {filter && <span className="chip chip-active text-xs">{FEATURE_LABELS[filter]}</span>}
+          {staleOnly && <span className="chip chip-active text-xs">Stale only</span>}
+          <button type="button" onClick={clearAllFilters} className="text-xs text-glow hover:underline ml-auto">
+            Clear all
+          </button>
+        </div>
+      )}
 
       <div className="flex flex-wrap gap-2 mb-3">
         <span className="text-xs text-gray-600 self-center mr-1">Browse:</span>

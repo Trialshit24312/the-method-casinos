@@ -41,16 +41,16 @@ export default function ToolsHub() {
         subtitle="Everything for sweepstakes casino signup — working websites, generators, VPN, and security"
       />
 
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 mb-10">
-        {quickLinks.map((item, i) => (
-          <motion.div key={item.to} initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: i * 0.05 }}>
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 mb-10 animate-stagger">
+        {quickLinks.map((item) => (
+          <div key={item.to}>
             <Link to={item.to} className="block p-4 rounded-xl border border-surface-border bg-surface-raised/80
               hover:border-glow/40 hover:shadow-method-glow transition-all h-full text-center group card-shine">
               <item.icon className={`w-6 h-6 mx-auto mb-2 ${item.color} group-hover:scale-110 transition-transform`} />
               <p className="font-medium text-sm text-white">{item.label}</p>
               <p className="text-[10px] text-gray-600 mt-1">{item.desc}</p>
             </Link>
-          </motion.div>
+          </div>
         ))}
       </div>
 

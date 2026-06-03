@@ -21,8 +21,9 @@ export default function PublicLayout() {
   const location = useLocation();
 
   return (
-    <div className="min-h-screen flex flex-col app-background">
-      <header className="sticky top-0 z-20 border-b border-surface-border px-4 sm:px-6 py-3 bg-surface-raised/80 backdrop-blur-xl">
+    <div className="min-h-screen flex flex-col app-background relative">
+      <div className="absolute inset-0 app-background-grid pointer-events-none opacity-30" />
+      <header className="sticky top-0 z-20 border-b border-surface-border px-4 sm:px-6 py-3 bg-surface-raised/80 backdrop-blur-xl relative">
         <div className="flex items-center gap-3">
           <MobileNav items={publicNavItems} />
           <Link to="/" className="hover:opacity-90 transition-opacity shrink-0">
@@ -53,7 +54,7 @@ export default function PublicLayout() {
           <GlobalSearch />
         </div>
       </header>
-      <main className="flex-1 overflow-auto">
+      <main className="flex-1 overflow-auto relative z-10">
         <AnimatePresence mode="wait">
           <PageTransition key={location.pathname}>
             <Outlet />

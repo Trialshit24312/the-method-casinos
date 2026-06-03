@@ -10,6 +10,7 @@ import CasinoCombobox from '../components/CasinoCombobox';
 import EmptyState from '../components/EmptyState';
 import Breadcrumb from '../components/Breadcrumb';
 import ErrorBanner from '../components/ErrorBanner';
+import SimilarMatchesSkeleton from '../components/SimilarMatchesSkeleton';
 import { usePageTitle } from '../hooks/usePageTitle';
 import { useAuth } from '../context/AuthContext';
 
@@ -215,11 +216,7 @@ export default function SimilarCasinosPage() {
       {error && <ErrorBanner message={error} onRetry={() => selectedId && void runSimilar(selectedId)} />}
       {catalogError && <ErrorBanner message={catalogError} onRetry={loadCatalog} variant="warning" />}
 
-      {loading && (
-        <div className="flex justify-center py-16">
-          <div className="w-8 h-8 border-2 border-glow border-t-transparent rounded-full animate-spin" />
-        </div>
-      )}
+      {loading && <SimilarMatchesSkeleton count={6} />}
 
       {selected && !loading && (
         <>

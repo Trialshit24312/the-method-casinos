@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { ExternalLink, Star, ShieldCheck, Ban, Sparkles, Heart } from 'lucide-react';
+import { ExternalLink, Star, ShieldCheck, Ban, Sparkles, Heart, Scale } from 'lucide-react';
 import type { Casino } from '../types';
 import { FEATURE_LABELS, FEATURE_COLORS, vpnLabel, formatTrackableValue } from '../types';
 import { formatLastChecked, isCatalogStale } from '../lib/freshness';
@@ -159,6 +159,13 @@ export default function CasinoCard({
             </button>
           )
         )}
+        <Link
+          to={`/compare?a=${encodeURIComponent(casino.id)}`}
+          className="p-2 rounded-lg text-gray-500 hover:text-brand-light hover:bg-brand/10 transition-colors"
+          title="Compare this casino"
+        >
+          <Scale className="w-4 h-4" />
+        </Link>
         <Link
           to={`/similar?casino=${casino.id}`}
           className="p-2 rounded-lg text-gray-500 hover:text-glow hover:bg-glow/10 transition-colors"
