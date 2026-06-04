@@ -146,6 +146,11 @@ function migrateSchema(): void {
   if (!names.has('approved_at')) {
     db.exec('ALTER TABLE casinos ADD COLUMN approved_at TEXT');
   }
+  db.exec(`
+    UPDATE casinos
+    SET approved_at = COALESCE(approved_at, created_at)
+    WHERE verified = 1 AND review_status = 'approved' AND approved_at IS NULL
+  `);
   if (!names.has('health_status')) {
     db.exec("ALTER TABLE casinos ADD COLUMN health_status TEXT NOT NULL DEFAULT 'ok'");
   }
@@ -329,6 +334,7 @@ function rowToCasino(row: Record<string, unknown>): Casino {
     active: Boolean(row.active),
     createdAt: row.created_at as string,
     updatedAt: row.updated_at as string,
+    approvedAt: (row.approved_at as string) || null,
     lastCheckedAt: (row.last_checked_at as string) || null,
     healthStatus: ((row.health_status as string) || 'ok') as Casino['healthStatus'],
     healthNote: (row.health_note as string) || '',
@@ -616,12 +622,13 @@ export function getFeaturedCasinos(limit = 10): Casino[] {
   return searchCasinos({ catalogOnly: true, limit: Math.min(limit, 25) });
 }
 
-/** Newest catalog additions (approved or pending). */
+/** Recently approved verified catalog entries (same ordering as new arrivals). */
 export function getRecentCasinos(limit = 10): Casino[] {
   const rows = db.prepare(`
     SELECT * FROM casinos
-    WHERE active = 1 AND review_status IN ('approved', 'pending')
-    ORDER BY created_at DESC
+    WHERE active = 1 AND review_status = 'approved' AND verified = 1
+      AND approved_at IS NOT NULL
+    ORDER BY approved_at DESC
     LIMIT @limit
   `).all({ limit: Math.min(limit, 25) });
   return rows.map((r) => rowToCasino(r as Record<string, unknown>));
@@ -1031,7 +1038,7 @@ export function getPublicFeed(limit = 10): PublicFeedItem[] {
   for (const c of getRecentlyApprovedCasinos(Math.min(limit, 8))) {
     items.push({
       type: 'approval',
-      at: c.updatedAt,
+      at: c.approvedAt ?? c.updatedAt,
       title: c.name,
       detail: 'Approved to catalog',
       casinoId: c.id,

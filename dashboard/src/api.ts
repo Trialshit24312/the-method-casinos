@@ -78,6 +78,14 @@ export const api = {
       bot: boolean;
       botTag: string | null;
       discoveryRunning: boolean;
+      discovery?: {
+        enabled: boolean;
+        activeWorkers: number;
+        maxWorkers: number;
+        systemWorkers: number;
+        maxSystemWorkers: number;
+        userWorkers: number;
+      };
       pendingReview: number;
       openReports: number;
       staleCatalog: number;

@@ -121,6 +121,7 @@ export interface Casino {
   active: boolean;
   createdAt: string;
   updatedAt: string;
+  approvedAt: string | null;
   lastCheckedAt: string | null;
   healthStatus: CatalogHealthStatus;
   healthNote: string;

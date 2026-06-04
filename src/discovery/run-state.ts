@@ -72,6 +72,16 @@ export function ensureUserDiscoverySlot(): boolean {
   return canStartDiscoveryRun('user');
 }
 
+/** Preempt a 24/7 worker if needed and register a user run in one synchronous step. */
+export function claimUserDiscoverySlot(): { runId: string; signal: AbortSignal } | null {
+  if (!ensureUserDiscoverySlot()) return null;
+  try {
+    return beginDiscoveryRun(undefined, 'user');
+  } catch {
+    return null;
+  }
+}
+
 /** Register a discovery run. Does not cancel other active runs. */
 export function beginDiscoveryRun(
   existingRunId?: string,

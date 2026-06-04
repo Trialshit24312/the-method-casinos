@@ -56,10 +56,12 @@ import {
   cancelDiscoveryRun,
   ensureUserDiscoverySlot,
   getActiveDiscoveryRunCount,
+  getActiveUserRunCount,
   getMaxConcurrentDiscoveries,
   getMaxSystemDiscoveries,
   isDiscoveryRunning,
 } from '../discovery/run-state.js';
+import { getContinuousDiscoveryStatus } from '../discovery/continuous.js';
 import { runRevalidationBatch, revalidateCasinoById } from '../discovery/revalidate.js';
 import { requireAuth, requireAdmin, exchangeCode, getDiscordAuthUrl, getAvatarUrl, createOAuthState, parseOAuthState } from './auth.js';
 import type { CasinoFeature, CasinoInput, BlockedSiteInput, DiscoveryResult } from '../shared/types.js';
@@ -186,6 +188,10 @@ export function createServer(): express.Application {
         bot: bot.connected,
         botTag: bot.tag,
         discoveryRunning: isDiscoveryRunning(),
+        discovery: {
+          ...getContinuousDiscoveryStatus(),
+          userWorkers: getActiveUserRunCount(),
+        },
         searchMode: 'free',
         searchEngines: ['duckduckgo_lite', 'duckduckgo', 'bing', 'brave'],
         pendingReview: stats.pendingReview,
@@ -636,13 +642,6 @@ export function createServer(): express.Application {
 
   app.post('/api/discover/client/start', discoverStartLimit, requireAuth, requireAdmin, (req, res) => {
     const deep = Boolean(req.body?.deep);
-    if (!ensureUserDiscoverySlot()) {
-      res.status(409).json({
-        error: `Discovery slots full (${getActiveDiscoveryRunCount()}/${getMaxConcurrentDiscoveries()} — ${getMaxSystemDiscoveries()} reserved for 24/7 workers). Try again shortly or cancel a running scan.`,
-        active: getActiveDiscoveryRunCount(),
-      });
-      return;
-    }
     if (hasDiscoverySession()) {
       res.status(409).json({ error: 'Paused scan saved — use Resume on the Discovery page' });
       return;
@@ -651,7 +650,16 @@ export function createServer(): express.Application {
       startClientDiscovery(deep);
       res.status(202).json({ started: true, mode: deep ? 'deep' : 'quick', client: true });
     } catch (err) {
-      res.status(500).json({ error: err instanceof Error ? err.message : 'Failed to start scan' });
+      const msg = err instanceof Error ? err.message : 'Failed to start scan';
+      if (msg.includes('slots full')) {
+        res.status(409).json({
+          error: msg,
+          active: getActiveDiscoveryRunCount(),
+          max: getMaxConcurrentDiscoveries(),
+        });
+        return;
+      }
+      res.status(500).json({ error: msg });
     }
   });
 
@@ -668,6 +676,16 @@ export function createServer(): express.Application {
       phase: session?.phase,
       phaseLabel: live.phaseLabel,
       stats: live.stats,
+      slots: (() => {
+        const d = getContinuousDiscoveryStatus();
+        return {
+          active: getActiveDiscoveryRunCount(),
+          max: getMaxConcurrentDiscoveries(),
+          system: d.systemWorkers,
+          maxSystem: d.maxSystemWorkers,
+          user: getActiveUserRunCount(),
+        };
+      })(),
     });
   });
 
@@ -676,15 +694,20 @@ export function createServer(): express.Application {
       res.status(404).json({ error: 'No saved scan to resume' });
       return;
     }
-    if (!ensureUserDiscoverySlot()) {
-      res.status(409).json({ error: `Discovery slots full — 24/7 workers are using all slots. A slot will free up when you start a scan (oldest worker paused) or wait for completion.` });
-      return;
-    }
     try {
       resumeClientDiscovery();
       res.status(202).json({ resumed: true });
     } catch (err) {
-      res.status(500).json({ error: err instanceof Error ? err.message : 'Failed to resume scan' });
+      const msg = err instanceof Error ? err.message : 'Failed to resume scan';
+      if (msg.includes('slots full')) {
+        res.status(409).json({
+          error: msg,
+          active: getActiveDiscoveryRunCount(),
+          max: getMaxConcurrentDiscoveries(),
+        });
+        return;
+      }
+      res.status(500).json({ error: msg });
     }
   });
 

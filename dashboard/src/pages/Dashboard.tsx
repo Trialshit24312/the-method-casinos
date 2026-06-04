@@ -65,7 +65,7 @@ export default function DashboardPage() {
     setCarouselError(false);
     Promise.all([
       api.getFeaturedCasinos(8),
-      api.getRecentCasinos(8),
+      api.getNewArrivals(8),
     ])
       .then(([f, r]) => {
         setFeatured(f);
@@ -186,7 +186,7 @@ export default function DashboardPage() {
 
           <CasinoCarousel
             title="Recently Added"
-            subtitle="Newest catalog entries"
+            subtitle="Recently approved for the catalog"
             casinos={recent}
             icon={<Clock className="w-5 h-5 text-glow" />}
             action={<Link to="/new" className="text-sm text-glow hover:underline">All new arrivals</Link>}

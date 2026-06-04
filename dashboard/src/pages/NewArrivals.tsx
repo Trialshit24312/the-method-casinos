@@ -18,8 +18,8 @@ import { useTimedNotice } from '../hooks/useTimedNotice';
 function formatAdded(iso: string): string {
   const diff = Date.now() - new Date(iso).getTime();
   const days = Math.floor(diff / 86400000);
-  if (days <= 0) return 'Added today';
-  if (days === 1) return 'Added yesterday';
+  if (days <= 0) return 'Approved today';
+  if (days === 1) return 'Approved yesterday';
   if (days < 14) return `${days}d ago`;
   return new Date(iso).toLocaleDateString();
 }
@@ -69,7 +69,7 @@ export default function NewArrivals() {
         <EmptyState
           icon={Sparkles}
           title="No new arrivals yet"
-          description="Recently approved operators appear here after admins clear the Review Queue — seed catalog entries are excluded."
+          description="Recently approved operators appear here after admins clear the Review Queue."
           action={<Link to="/casinos" className="btn-glow text-sm">Browse catalog</Link>}
         />
       ) : (
@@ -82,10 +82,10 @@ export default function NewArrivals() {
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 animate-stagger">
             {casinos.map((casino, i) => (
               <div key={casino.id} className="relative">
-                {casino.createdAt && (
+                {(casino.approvedAt ?? casino.createdAt) && (
                   <span className="absolute top-3 right-3 z-10 text-[10px] px-2 py-0.5 rounded-full border border-glow/25 bg-surface-raised/90 text-glow flex items-center gap-1">
                     <Clock className="w-3 h-3" />
-                    {formatAdded(casino.createdAt)}
+                    {formatAdded(casino.approvedAt ?? casino.createdAt!)}
                   </span>
                 )}
                 <CasinoCard

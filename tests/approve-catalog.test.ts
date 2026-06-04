@@ -7,6 +7,7 @@ import {
   approveCasino,
   getPendingCasinos,
   searchCasinos,
+  getRecentlyApprovedCasinos,
 } from '../src/database/index.js';
 import { saveDiscoveryCandidateForReview } from '../src/discovery/engine.js';
 import { getKnownHosts } from '../src/database/index.js';
@@ -41,5 +42,11 @@ describe('approve casino catalog inclusion', () => {
 
     const catalog = searchCasinos({ catalogOnly: true, limit: 500 });
     expect(catalog.some((c) => c.url.includes('approvedcatalogtest.us'))).toBe(true);
+
+    const arrivals = getRecentlyApprovedCasinos(50);
+    const match = arrivals.find((c) => c.url.includes('approvedcatalogtest.us'));
+    expect(match).toBeDefined();
+    expect(match?.approvedAt).toBeTruthy();
+    expect(new Date(match!.approvedAt!).getTime()).toBeGreaterThan(Date.now() - 60_000);
   });
 });

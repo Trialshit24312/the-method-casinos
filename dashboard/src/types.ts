@@ -93,6 +93,7 @@ export interface Casino {
   active: boolean;
   createdAt: string;
   updatedAt: string;
+  approvedAt?: string | null;
   lastCheckedAt?: string | null;
   healthStatus?: 'ok' | 'stale' | 'failed';
   healthNote?: string;

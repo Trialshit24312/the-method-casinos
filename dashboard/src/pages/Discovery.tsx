@@ -145,6 +145,7 @@ export default function DiscoveryPage() {
   const [adminToolsMsg, setAdminToolsMsg] = useState('');
   const { message: copyNotice, show: showCopyNotice } = useTimedNotice(4000);
   const [queueCounts, setQueueCounts] = useState({ pending: 0, reports: 0 });
+  const [discoverySlots, setDiscoverySlots] = useState<{ active: number; max: number; system: number; maxSystem: number } | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const logRef = useRef<HTMLDivElement>(null);
   const logIdRef = useRef(0);
@@ -156,6 +157,22 @@ export default function DiscoveryPage() {
   useEffect(() => {
     api.getStats().then(setDbStats).catch(() => {});
     api.getDiscoveryHistory(10).then(setHistory).catch(() => {});
+    const refreshSlots = () => {
+      api.getHealth()
+        .then((h) => {
+          if (h.discovery) {
+            setDiscoverySlots({
+              active: h.discovery.activeWorkers,
+              max: h.discovery.maxWorkers,
+              system: h.discovery.systemWorkers,
+              maxSystem: h.discovery.maxSystemWorkers,
+            });
+          }
+        })
+        .catch(() => {});
+    };
+    refreshSlots();
+    const slotTimer = setInterval(refreshSlots, 15_000);
     if (user?.isAdmin) {
       api.getDiscoveryLive(0).then((snap) => {
         if (snap.result && !snap.running) setResult(snap.result);
@@ -169,7 +186,8 @@ export default function DiscoveryPage() {
         }
       }).catch(() => {});
     }
-  }, [result, user?.isAdmin]);
+    return () => clearInterval(slotTimer);
+  }, [user?.isAdmin]);
 
   const refreshQueueCounts = () => {
     if (!user?.isAdmin) return;
@@ -324,6 +342,23 @@ export default function DiscoveryPage() {
               {queueCounts.reports} ban review {queueCounts.reports === 1 ? 'URL' : 'URLs'}
             </Link>
           )}
+        </div>
+      )}
+
+      {discoverySlots && discoverySlots.active > 0 && !isScanning && (
+        <div className="mb-6 p-4 rounded-xl border border-amber-500/30 bg-amber-500/10 text-center text-sm">
+          <p className="text-amber-200 flex items-center justify-center gap-2">
+            <Radar className="w-4 h-4 animate-pulse shrink-0" />
+            Discovery slots in use: {discoverySlots.active}/{discoverySlots.max}
+            {discoverySlots.system > 0 && (
+              <span className="text-gray-400">
+                ({discoverySlots.system} 24/7 worker{discoverySlots.system === 1 ? '' : 's'})
+              </span>
+            )}
+          </p>
+          <p className="text-xs text-gray-500 mt-1">
+            Starting a scan preempts the oldest 24/7 worker when slots are full.
+          </p>
         </div>
       )}
 

@@ -29,7 +29,21 @@ export default function ActivityFeed() {
     api.getPublicFeed(8).then(setItems).catch(() => setItems([]));
   }, []);
 
-  if (!items.length) return null;
+  if (!items.length) {
+    return (
+      <motion.div
+        initial={{ opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="glass-glow p-5 mb-8 border-glow/10 text-center"
+      >
+        <Radar className="w-5 h-5 text-gray-600 mx-auto mb-2" />
+        <p className="text-sm text-gray-500">No recent catalog activity yet.</p>
+        <Link to="/casinos" className="text-xs text-glow hover:underline mt-2 inline-block">
+          Browse verified catalog →
+        </Link>
+      </motion.div>
+    );
+  }
 
   return (
     <motion.div

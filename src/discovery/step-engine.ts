@@ -23,7 +23,7 @@ import { buildSearchQueries, SEARCH_PAGES_DEEP, SEARCH_PAGES_QUICK } from './que
 import { collectFreeSearchLinks, extractCasinoUrlsFromHtml, normalizeSearchLink } from './free-search.js';
 import { extractOperatorLinksFromListPage, mineOperatorsFromDirectoryPage } from './directory-miner.js';
 import { isListSiteDiscoveryEnabled, isWebSearchDiscoveryEnabled } from './list-sources.js';
-import { beginDiscoveryRun, ensureUserDiscoverySlot, endDiscoveryRun, getMaxConcurrentDiscoveries, throwIfCancelled } from './run-state.js';
+import { beginDiscoveryRun, claimUserDiscoverySlot, endDiscoveryRun, getMaxConcurrentDiscoveries, throwIfCancelled } from './run-state.js';
 import { claimListSitesForRun, markListSiteCrawled, releaseListSitesForRun } from './list-site-coordinator.js';
 import { beginDiscoveryLive, pushDiscoveryLiveEvent, finishDiscoveryLive } from './live-state.js';
 import { resumeDiscoveryLiveStorage } from '../database/index.js';
@@ -391,10 +391,11 @@ export function startClientDiscovery(deep: boolean): void {
   if (hasDiscoverySession()) {
     throw new Error('Discovery session already active');
   }
-  if (!ensureUserDiscoverySlot()) {
+  const claimed = claimUserDiscoverySlot();
+  if (!claimed) {
     throw new Error(`Discovery slots full (${getMaxConcurrentDiscoveries()} max — 24/7 workers may be active)`);
   }
-  const { runId } = beginDiscoveryRun(undefined, 'user');
+  const { runId } = claimed;
   const state = buildInitialState(deep, runId);
   beginDiscoveryLive(deep ? 'deep' : 'quick');
   saveDiscoverySession(state);
@@ -409,11 +410,11 @@ export function resumeClientDiscovery(): void {
   }
   resumeDiscoveryLiveStorage(state.mode);
   if (!state.discoveryRunId) {
-    if (!ensureUserDiscoverySlot()) {
+    const claimed = claimUserDiscoverySlot();
+    if (!claimed) {
       throw new Error(`Discovery slots full (${getMaxConcurrentDiscoveries()} max)`);
     }
-    const { runId } = beginDiscoveryRun(undefined, 'user');
-    state.discoveryRunId = runId;
+    state.discoveryRunId = claimed.runId;
   } else {
     beginDiscoveryRun(state.discoveryRunId, 'user');
   }

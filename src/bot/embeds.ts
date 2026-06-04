@@ -273,8 +273,9 @@ export function buildMyListEmbed(
 
 export function buildArrivalsEmbed(casinos: Casino[]): EmbedBuilder {
   const lines = casinos.slice(0, 12).map((c, i) => {
-    const when = c.updatedAt
-      ? `<t:${Math.floor(new Date(c.updatedAt).getTime() / 1000)}:R>`
+    const whenIso = c.approvedAt ?? c.updatedAt;
+    const when = whenIso
+      ? `<t:${Math.floor(new Date(whenIso).getTime() / 1000)}:R>`
       : 'recently';
     return `\`${String(i + 1).padStart(2, ' ')}\` **${c.name}** ⭐ ${c.rating.toFixed(1)} — approved ${when}`;
   });

@@ -223,7 +223,7 @@ export default function Landing() {
           <ActivityFeed />
         </div>
 
-        {newArrivals.length > 0 && (
+        {newArrivals.length > 0 ? (
           <motion.div
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
@@ -243,6 +243,24 @@ export default function Landing() {
               isFavorited={isFavorited}
               onToggleFavorite={handleCarouselFavorite}
             />
+          </motion.div>
+        ) : !featuredLoading && (
+          <motion.div
+            initial={{ opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.28 }}
+            className="mb-16 px-2 text-center"
+          >
+            <p className="text-sm text-gray-500 mb-3">
+              New approvals land here after review
+              {(stats?.pendingReview ?? 0) > 0 && (
+                <> — {stats!.pendingReview} pending in queue</>
+              )}
+              .
+            </p>
+            <Link to="/casinos" className="btn-glow text-sm inline-flex items-center gap-1.5">
+              Browse verified catalog <ArrowRight className="w-3.5 h-3.5" />
+            </Link>
           </motion.div>
         )}
 

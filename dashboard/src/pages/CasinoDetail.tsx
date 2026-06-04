@@ -25,6 +25,12 @@ import { formatLastChecked, isCatalogStale } from '../lib/freshness';
 import { isGuestFavorite, toggleGuestFavorite } from '../lib/guest-favorites';
 import { copyToClipboard } from '../lib/copy-to-clipboard';
 
+function isRecentlyApproved(casino: Casino, days = 14): boolean {
+  if (!casino.approvedAt) return false;
+  const diff = Date.now() - new Date(casino.approvedAt).getTime();
+  return diff >= 0 && diff < days * 86400000;
+}
+
 export default function CasinoDetail() {
   const { slug } = useParams<{ slug: string }>();
   const { user } = useAuth();
@@ -171,6 +177,11 @@ export default function CasinoDetail() {
         title={casino.name}
         subtitle={casino.url.replace(/^https?:\/\//, '')}
         icon={<ShieldCheck className="w-6 h-6 text-emerald-400" />}
+        badge={isRecentlyApproved(casino) ? (
+          <span className="text-xs px-2 py-0.5 rounded-full bg-glow/15 text-glow border border-glow/30">
+            New arrival
+          </span>
+        ) : undefined}
       />
 
       <QuickLinkRow
