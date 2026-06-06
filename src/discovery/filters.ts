@@ -27,7 +27,37 @@ const BLOCKED_DOMAIN_FRAGMENTS = [
   'sportsbook', 'draftkings.', 'fanduel.',
   'nj.com', 'al.com', 'silive.', 'mlive.', 'pennlive.', 'cleveland.com',
   'syracuse.com', 'masslive.', 'oregonlive.', 'chicagotribune.',
+  // Third-party scripts, CDNs, widgets — never sweepstakes operators
+  'googletagmanager.', 'google-analytics.', 'googleadservices.', 'doubleclick.',
+  'googleapis.', 'gstatic.', 'googleusercontent.', 'facebook.', 'fbcdn.',
+  'whatsapp.', 'rankmath.', 'optinmonster.', 'yoast.', 'fontawesome.',
+  'cloudflare.', 'cloudfront.', 'jsdelivr.', 'unpkg.', 'bootstrapcdn.',
+  'jquery.', 'typekit.', 'hotjar.', 'segment.', 'sentry.io', 'stripe.com',
+  'addthis.', 'sharethis.', 'disqus.', 'gravatar.', 'wp-content', 'wp-includes',
+  'elementor.', 'wordfence.', 'jetpack.', 'scoresandodds.', 'oddsshark.',
+  'scoreboard.', 'sportradar.', 'taboola.', 'outbrain.', 'criteo.',
 ];
+
+/** Hostname substrings / labels that are never casino operators (analytics, CDNs, plugins). */
+const NON_OPERATOR_HOST_FRAGMENTS = [
+  'googletagmanager', 'google-analytics', 'gtag', 'doubleclick', 'googleadservices',
+  'googleapis', 'gstatic', 'facebook', 'fbcdn', 'whatsapp', 'rankmath', 'optinmonster',
+  'yoast', 'fontawesome', 'cloudflare', 'cloudfront', 'jsdelivr', 'unpkg', 'bootstrap',
+  'jquery', 'typekit', 'hotjar', 'segment.', 'addthis', 'sharethis', 'disqus',
+  'gravatar', 'wp-content', 'wp-includes', 'elementor', 'wordfence', 'scoresandodds',
+  'oddsshark', 'taboola', 'outbrain', 'criteo', 'mailchimp', 'hubspot', 'intercom',
+  'zendesk', 'recaptcha', 'newrelic', 'datadog', 'cookiebot', 'onetrust',
+];
+
+const NON_OPERATOR_HOST_PREFIXES = ['cdn', 'static', 'assets', 'js.', 'img.', 'media.', 'track.', 'analytics.'];
+
+const LONG_CASINO_BRAND_HINTS = [
+  'sweep', 'sweeps', 'casino', 'slots', 'spin', 'coins', 'social', 'vegas', 'bonanza',
+  'fortune', 'million', 'jackpot', 'chumba', 'pulsz', 'mcluck', 'wowvegas', 'crowncoin',
+  'stake', 'luckyland', 'modo', 'sportzino', 'realprize', 'funzpoints', 'high5',
+];
+
+const SHORT_CASINO_BRAND_PREFIXES = ['play', 'win', 'luck', 'game', 'fun', 'gold', 'roll', 'prize', 'spin'];
 
 const STRONG_HOST_HINTS = [
   'casino', 'sweep', 'sweeps', 'chumba', 'pulsz', 'mcluck', 'stake.us', 'stakeus',
@@ -105,10 +135,51 @@ export function isBlockedDomain(url: string): boolean {
   if (isSweepstakesDirectoryUrl(url)) return false;
   try {
     const host = new URL(url).hostname.toLowerCase();
+    if (isNonOperatorInfrastructureHost(host)) return true;
     return BLOCKED_DOMAIN_FRAGMENTS.some((frag) => host.includes(frag));
   } catch {
     return true;
   }
+}
+
+/** Analytics, CDNs, WordPress plugins, social widgets — not sweepstakes operators. */
+export function isNonOperatorInfrastructureHost(hostOrUrl: string): boolean {
+  try {
+    const host = hostOrUrl.includes('://')
+      ? new URL(hostOrUrl).hostname.toLowerCase()
+      : hostOrUrl.toLowerCase().replace(/^www\./, '');
+    const operatorRoot = getOperatorRootHost(host) ?? host;
+    const brand = operatorRoot.split('.')[0] ?? host;
+
+    if (NON_OPERATOR_HOST_FRAGMENTS.some(
+      (frag) => host.includes(frag) || brand === frag || brand.startsWith(frag),
+    )) {
+      return true;
+    }
+
+    if (brandMatchesCasinoPattern(brand, operatorRoot)) {
+      return false;
+    }
+
+    if (NON_OPERATOR_HOST_PREFIXES.some((p) => host.startsWith(p) || host.includes(`.${p}`))) {
+      return true;
+    }
+
+    return false;
+  } catch {
+    return true;
+  }
+}
+
+function brandMatchesCasinoPattern(brand: string, operatorRoot: string): boolean {
+  if (STRONG_HOST_HINTS.some((hint) => {
+    const needle = hint.replace('.', '');
+    return brand.includes(needle) || operatorRoot.includes(hint);
+  })) {
+    return true;
+  }
+  if (LONG_CASINO_BRAND_HINTS.some((h) => brand.includes(h))) return true;
+  return SHORT_CASINO_BRAND_PREFIXES.some((h) => brand.startsWith(h) || brand.endsWith(h));
 }
 
 /** Queue from search results — operators or sweepstakes list pages (mined for links). */
@@ -130,33 +201,18 @@ export function isDiscoveryCandidateUrl(url: string): boolean {
   if (isBlockedDomain(url)) return false;
   try {
     const host = new URL(url.startsWith('http') ? url : `https://${url}`).hostname.toLowerCase().replace(/^www\./, '');
+    if (isNonOperatorInfrastructureHost(host)) return false;
     const operatorRoot = getOperatorRootHost(host);
     if (!operatorRoot) return false;
-
-    if (STRONG_HOST_HINTS.some((hint) => operatorRoot.includes(hint.replace('.', '')))) {
-      return true;
-    }
 
     const parts = operatorRoot.split('.');
     const tld = parts[parts.length - 1] ?? '';
     const brand = parts[0] ?? '';
 
+    if (brandMatchesCasinoPattern(brand, operatorRoot)) return true;
+
     // Most US sweepstakes operators use .us domains
     if (tld === 'us' && brand.length >= 3 && /^[a-z0-9-]+$/.test(brand)) {
-      return true;
-    }
-
-    const discoveryHints = [
-      'sweep', 'sweeps', 'casino', 'slots', 'spin', 'coins', 'social',
-      'play', 'win', 'luck', 'vegas', 'bonanza', 'fortune', 'million', 'jackpot', 'game',
-      'prize', 'gold', 'heart', 'fun', 'roll', 'stack', 'modo', 'crow', 'ruby',
-    ];
-    if ((tld === 'com' || tld === 'io' || tld === 'gg') && discoveryHints.some((h) => operatorRoot.includes(h))) {
-      return true;
-    }
-
-    // Short brand .com (e.g. pulsz.com) — queue if 5+ chars, validate on page fetch
-    if (tld === 'com' && brand.length >= 5 && /^[a-z0-9]+$/.test(brand)) {
       return true;
     }
 
@@ -177,6 +233,10 @@ export function validateSweepstakesPage(
 
   if (isBlockedDomain(url)) {
     return { valid: false, reason: 'blocked domain', sweepsKeywordCount: 0 };
+  }
+
+  if (isNonOperatorInfrastructureHost(host)) {
+    return { valid: false, reason: 'third-party / infrastructure host', sweepsKeywordCount: 0 };
   }
 
   if (ADULT_KEYWORDS.some((k) => combined.includes(k))) {

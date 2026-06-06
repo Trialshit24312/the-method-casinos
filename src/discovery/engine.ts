@@ -19,6 +19,7 @@ import { inferRating } from '../shared/rating.js';
 import {
   isDiscoveryCandidateUrl,
   isBlockedDomain,
+  isNonOperatorInfrastructureHost,
   validateSweepstakesPage,
   sanitizeCasinoName,
   shouldQueueSearchUrl,
@@ -259,6 +260,7 @@ export function saveDiscoveryCandidateForReview(
   const host = casinoHostKey(root);
   if (knownHosts.has(host) || !isValidCasinoHost(host)) return null;
   if (isUrlBlocked(root) || !isDiscoveryCandidateUrl(root)) return null;
+  if (isNonOperatorInfrastructureHost(host)) return null;
 
   const brand = host.split('.')[0] ?? host;
   const name = brand.charAt(0).toUpperCase() + brand.slice(1);
@@ -504,20 +506,6 @@ export async function runDiscovery(
   emitProgress();
 
   const handleListOperator = (url: string): ListOperatorResult => {
-    const savedPending = saveDiscoveryCandidateForReview(url, 'from sweepstakes list site', knownHosts);
-    if (savedPending) {
-      added++;
-      found++;
-      addedCasinos.push(savedPending);
-      onProgress?.({
-        type: 'url_added',
-        url: savedPending.url,
-        name: savedPending.name,
-        needsReview: true,
-        reviewNote: 'Listed on roundup site',
-      });
-      return 'saved';
-    }
     if (enqueue(url)) return 'queued';
     return 'skipped';
   };
@@ -545,7 +533,7 @@ export async function runDiscovery(
       type: 'crawl_summary',
       crawled: sitesCrawled,
       linksQueued: listSaved + listQueued,
-      label: `List sites done: ${listSaved} saved to Review Queue, ${listQueued} queued for scan`,
+      label: `List sites done: ${listQueued} queued for validation scan`,
     });
     emitProgress();
 
