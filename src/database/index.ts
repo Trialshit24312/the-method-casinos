@@ -444,6 +444,7 @@ export function addCasino(input: CasinoInput): Casino | null {
     active: reviewStatus !== 'rejected',
     createdAt: now,
     updatedAt: now,
+    approvedAt: reviewStatus === 'approved' ? now : null,
     lastCheckedAt: null,
     healthStatus: 'ok',
     healthNote: '',

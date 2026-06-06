@@ -16,7 +16,7 @@ import {
   getDistinguishingFeatures,
   type SimilarCasinoMatch,
 } from '../shared/similarity.js';
-import type { Casino } from '../shared/types.js';
+import type { Casino, CasinoFeature } from '../shared/types.js';
 import { buildSimilarWebQueries, normalizeSearchLink, collectFreeSearchLinks } from './free-search.js';
 import { isBlockedDomain, shouldQueueSearchUrl, sanitizeCasinoName } from './filters.js';
 import { inferRating } from '../shared/rating.js';
@@ -266,7 +266,7 @@ async function analyzeSimilarUrl(
     description: raw.description,
     features: raw.features,
     signupRequirements: raw.signupRequirements,
-    bonusInfo: raw.bonusInfo,
+    bonusInfo: raw.bonusInfo ?? '',
     rating: raw.rating ?? inferRating(raw.features, { source: 'similar_web' }),
   });
 
@@ -287,7 +287,7 @@ async function analyzeSimilarUrl(
     description: raw.description || `Found via web search similar to ${source.name}`,
     features: raw.features,
     signupRequirements: raw.signupRequirements,
-    bonusInfo: raw.bonusInfo,
+    bonusInfo: raw.bonusInfo ?? '',
     source: 'similar_web',
     verified: false,
     reviewStatus: 'pending',
