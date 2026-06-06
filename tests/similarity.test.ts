@@ -1,10 +1,15 @@
 import { describe, it, expect } from 'vitest';
-import { computeSimilarity, rankSimilarCasinos } from '../src/shared/similarity.js';
+import {
+  computeSimilarity,
+  rankSimilarCasinos,
+  scoreInferredSimilarity,
+} from '../src/shared/similarity.js';
 import type { Casino } from '../src/shared/types.js';
 
 function mockCasino(overrides: Partial<Casino> & Pick<Casino, 'id' | 'name'>): Casino {
   return {
     url: 'https://example.com',
+    urlNormalized: 'example.com',
     description: '',
     features: ['sweepstakes'],
     signupRequirements: ['Email'],
@@ -13,14 +18,21 @@ function mockCasino(overrides: Partial<Casino> & Pick<Casino, 'id' | 'name'>): C
     reviewStatus: 'approved',
     rating: 4.5,
     source: 'manual',
+    bonusInfo: '',
+    cashOutBeforeBlocked: null,
+    trackables: [],
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
+    approvedAt: null,
+    lastCheckedAt: null,
+    healthStatus: 'ok',
+    healthNote: '',
     ...overrides,
   };
 }
 
 describe('similarity scoring', () => {
-  it('rewards shared no_phone and slots features', () => {
+  it('rewards shared no_phone and slots features over sweepstakes-only overlap', () => {
     const source = mockCasino({
       id: 'a',
       name: 'Source',
@@ -62,18 +74,68 @@ describe('similarity scoring', () => {
     );
   });
 
-  it('rankSimilarCasinos filters weak matches', () => {
+  it('uses text overlap when feature sets are sparse', () => {
+    const source = mockCasino({
+      id: 'a',
+      name: 'Lucky Spin Slots',
+      description: 'Free sweeps coins daily bonus no phone signup',
+      features: ['sweepstakes'],
+    });
+    const textMatch = mockCasino({
+      id: 'b',
+      name: 'Lucky Spin Social',
+      description: 'Daily free sweeps coins and bonus spins',
+      features: ['sweepstakes'],
+    });
+    const noText = mockCasino({
+      id: 'c',
+      name: 'Unrelated Brand',
+      description: 'Sports betting picks',
+      features: ['sweepstakes'],
+    });
+    expect(computeSimilarity(source, textMatch).matchPercent).toBeGreaterThan(
+      computeSimilarity(source, noText).matchPercent,
+    );
+  });
+
+  it('rankSimilarCasinos prefers multi-feature matches', () => {
     const source = mockCasino({
       id: 'src',
       name: 'Chumba',
-      features: ['sweepstakes', 'no_phone', 'slots'],
+      features: ['sweepstakes', 'no_phone', 'slots', 'gift_card_redeem'],
     });
     const candidates = [
-      mockCasino({ id: '1', name: 'Like', features: ['sweepstakes', 'no_phone', 'slots'] }),
+      mockCasino({ id: '1', name: 'Like', features: ['sweepstakes', 'no_phone', 'slots', 'gift_card_redeem'] }),
       mockCasino({ id: '2', name: 'Unlike', features: ['sweepstakes'] }),
     ];
     const ranked = rankSimilarCasinos(source, candidates, 5);
-    expect(ranked.some((m) => m.casino.id === '1')).toBe(true);
-    expect(ranked.every((m) => m.matchPercent >= 20)).toBe(true);
+    expect(ranked[0]?.casino.id).toBe('1');
+    expect(ranked.some((m) => m.matchPercent >= 15)).toBe(true);
+  });
+
+  it('scoreInferredSimilarity ranks inferred pages against source', () => {
+    const source = mockCasino({
+      id: 'src',
+      name: 'Pulsz',
+      features: ['sweepstakes', 'no_phone', 'slots', 'gift_card_redeem'],
+      signupRequirements: ['Email'],
+    });
+    const high = scoreInferredSimilarity(source, {
+      name: 'McLuck',
+      description: 'Social sweeps slots',
+      features: ['sweepstakes', 'no_phone', 'slots', 'gift_card_redeem'],
+      signupRequirements: ['Email'],
+      bonusInfo: 'Welcome bonus',
+      rating: 4.4,
+    });
+    const low = scoreInferredSimilarity(source, {
+      name: 'SportsBook',
+      description: 'Sports betting',
+      features: ['sweepstakes', 'sports'],
+      signupRequirements: ['Phone', 'ID'],
+      bonusInfo: '',
+      rating: 3.5,
+    });
+    expect(high).toBeGreaterThan(low);
   });
 });

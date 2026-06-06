@@ -10,11 +10,17 @@ import {
   banRejectedDiscovery,
 } from '../database/index.js';
 import { casinoHostKey, toCasinoRootUrl, isValidCasinoHost } from '../shared/utils.js';
-import { rankSimilarCasinos, type SimilarCasinoMatch } from '../shared/similarity.js';
+import {
+  rankSimilarCasinos,
+  scoreInferredSimilarity,
+  getDistinguishingFeatures,
+  type SimilarCasinoMatch,
+} from '../shared/similarity.js';
 import type { Casino } from '../shared/types.js';
 import { buildSimilarWebQueries, normalizeSearchLink, collectFreeSearchLinks } from './free-search.js';
-import { isBlockedDomain, isDiscoveryCandidateUrl, validateSweepstakesPage, sanitizeCasinoName } from './filters.js';
+import { isBlockedDomain, shouldQueueSearchUrl, sanitizeCasinoName } from './filters.js';
 import { inferRating } from '../shared/rating.js';
+import { isSerperEnabled } from './serper.js';
 import {
   analyzeUrlFromClientHtml,
   saveDiscoveryCandidateForReview,
@@ -23,25 +29,61 @@ import {
 
 const ANALYZE_TIMEOUT_MS = 18_000;
 
-const HOST_SCORE_HINTS = ['sweep', 'sweeps', 'casino', 'slots', 'coin', 'spin', 'vegas', 'luck', 'play', 'win'];
+const HOST_SCORE_HINTS = ['sweep', 'sweeps', 'casino', 'slots', 'coin', 'spin', 'vegas', 'luck', 'play', 'win', 'prize', 'social', 'gold'];
+
+const FEATURE_HOST_HINTS: Partial<Record<CasinoFeature, string[]>> = {
+  slots: ['slot', 'spin', 'reel'],
+  fish_games: ['fish', 'ocean', 'arcade'],
+  live_games: ['live', 'dealer'],
+  gift_card_redeem: ['gift', 'card'],
+  paypal_redeem: ['pay'],
+  no_phone: ['mail', 'email'],
+};
 
 function sleep(ms: number): Promise<void> {
   return new Promise((r) => setTimeout(r, ms));
 }
 
-function scoreUrlForSource(url: string, source: Casino): number {
+function nameTokens(name: string): string[] {
+  return name
+    .toLowerCase()
+    .replace(/\s+casino$/i, '')
+    .split(/[\s-]+/)
+    .filter((t) => t.length >= 3);
+}
+
+function scoreUrlForSource(url: string, source: Casino, query?: string): number {
   const host = casinoHostKey(url);
   const label = host.split('.')[0];
   let score = 0;
+
   for (const hint of HOST_SCORE_HINTS) {
     if (label.includes(hint)) score += 2;
   }
+
   const sourceLabel = casinoHostKey(source.url).split('.')[0];
-  if (label.length >= 5 && label !== sourceLabel) score += 1;
-  for (const feature of source.features) {
-    if (feature === 'slots' && label.includes('slot')) score += 1;
-    if (feature === 'no_phone' && (label.includes('mail') || label.includes('email'))) score += 1;
+  if (label.length >= 5 && label !== sourceLabel) score += 2;
+
+  for (const token of nameTokens(source.name)) {
+    if (label.includes(token)) score += 4;
   }
+
+  for (const feature of getDistinguishingFeatures(source, 8)) {
+    const hints = FEATURE_HOST_HINTS[feature];
+    if (hints?.some((h) => label.includes(h))) score += 3;
+  }
+
+  if (query) {
+    const q = query.toLowerCase();
+    for (const token of nameTokens(source.name)) {
+      if (q.includes(token)) score += 1;
+    }
+    if (q.includes('reddit') && label.includes('play')) score += 1;
+  }
+
+  const tld = host.split('.').pop() ?? '';
+  if (tld === 'us') score += 2;
+
   return score;
 }
 
@@ -82,7 +124,13 @@ export interface SimilarWebDiscoveryResult {
   analyzed: number;
   added: number;
   rejected: number;
-  candidates: { name: string; url: string; status: 'added' | 'rejected' | 'skipped'; reason?: string }[];
+  candidates: {
+    name: string;
+    url: string;
+    status: 'added' | 'rejected' | 'skipped';
+    reason?: string;
+    matchPercent?: number;
+  }[];
   queries: string[];
   searchMode: 'browser' | 'server' | 'mixed';
 }
@@ -92,13 +140,14 @@ export interface SimilarBrowserSearchHit {
   links: string[];
 }
 
-export function getSimilarWebQueries(casinoId: string, maxQueries = 6): { source: Casino; queries: string[] } | null {
+export function getSimilarWebQueries(casinoId: string, maxQueries = 8): { source: Casino; queries: string[] } | null {
   const source = getCasinoById(casinoId);
   if (!source) return null;
   const host = casinoHostKey(source.url);
+  const features = getDistinguishingFeatures(source, 10);
   return {
     source,
-    queries: buildSimilarWebQueries(source.name, host).slice(0, maxQueries),
+    queries: buildSimilarWebQueries(source.name, host, features).slice(0, maxQueries),
   };
 }
 
@@ -112,15 +161,16 @@ async function collectUrlScores(
   const blockedUrls = getBlockedUrls();
   const host = casinoHostKey(source.url);
   const urlScores = new Map<string, number>();
+  const queriesWithBrowserLinks = new Set<string>();
 
-  const ingestLink = (link: string, baseUrl: string) => {
+  const ingestLink = (link: string, baseUrl: string, query?: string) => {
     const normalized = normalizeSearchLink(link, baseUrl) ?? (link.startsWith('http') ? toCasinoRootUrl(link) : null);
     if (!normalized) return;
     const h = casinoHostKey(normalized);
     if (h === host || knownHosts.has(h)) return;
     if (blockedUrls.has(h) || isUrlBlocked(normalized)) return;
-    if (!isDiscoveryCandidateUrl(normalized) || isBlockedDomain(normalized)) return;
-    const score = scoreUrlForSource(normalized, source);
+    if (!shouldQueueSearchUrl(normalized)) return;
+    const score = scoreUrlForSource(normalized, source, query);
     urlScores.set(normalized, Math.max(urlScores.get(normalized) ?? 0, score));
   };
 
@@ -129,24 +179,26 @@ async function collectUrlScores(
   if (browserResults?.length) {
     searchMode = 'browser';
     for (const hit of browserResults) {
+      if (hit.links.length > 0) queriesWithBrowserLinks.add(hit.query);
       for (const link of hit.links) {
-        ingestLink(link, 'https://html.duckduckgo.com/html/');
+        ingestLink(link, 'https://html.duckduckgo.com/html/', hit.query);
       }
     }
   }
 
-  if (urlScores.size < 8) {
-    for (const query of queries) {
-      const links = await collectFreeSearchLinks(
-        query,
-        searchPages,
-        undefined,
-        { maxLinks: 40, useSerper: false },
-      );
-      for (const link of links) ingestLink(link, 'https://html.duckduckgo.com/html/');
-      await sleep(180);
-    }
-    if (browserResults?.length && urlScores.size > 0) searchMode = 'mixed';
+  for (const query of queries) {
+    const needsServer = !queriesWithBrowserLinks.has(query) || urlScores.size < 4;
+    if (!needsServer && queriesWithBrowserLinks.has(query)) continue;
+
+    const links = await collectFreeSearchLinks(
+      query,
+      searchPages,
+      undefined,
+      { maxLinks: 50, useSerper: isSerperEnabled() },
+    );
+    for (const link of links) ingestLink(link, 'https://html.duckduckgo.com/html/', query);
+    if (browserResults?.length && links.length > 0) searchMode = 'mixed';
+    await sleep(160);
   }
 
   return { urlScores, searchMode };
@@ -157,7 +209,7 @@ async function analyzeSimilarUrl(
   source: Casino,
   knownHosts: Set<string>,
   clientHtml?: string,
-): Promise<{ name: string; url: string; status: 'added' | 'rejected' | 'skipped'; reason?: string }> {
+): Promise<{ name: string; url: string; status: 'added' | 'rejected' | 'skipped'; reason?: string; matchPercent?: number }> {
   const root = toCasinoRootUrl(url);
   const h = casinoHostKey(root);
   if (!isValidCasinoHost(h) || knownHosts.has(h)) {
@@ -197,9 +249,9 @@ async function analyzeSimilarUrl(
     if (!isSoftDiscoveryReject(reason)) {
       banRejectedDiscovery(root, reason);
     }
-    const { title, metaDesc, bodyText } = clientHtml
+    const { title } = clientHtml
       ? parsePageSignals(clientHtml, root, h)
-      : { title: h, metaDesc: '', bodyText: '' };
+      : { title: h };
     return {
       name: sanitizeCasinoName(title, root),
       url: root,
@@ -209,6 +261,26 @@ async function analyzeSimilarUrl(
   }
 
   const { raw } = rawResult;
+  const matchPercent = scoreInferredSimilarity(source, {
+    name: raw.name,
+    description: raw.description,
+    features: raw.features,
+    signupRequirements: raw.signupRequirements,
+    bonusInfo: raw.bonusInfo,
+    rating: raw.rating ?? inferRating(raw.features, { source: 'similar_web' }),
+  });
+
+  if (matchPercent < 15) {
+    markDiscoverySeen(root, 'rejected', `low similarity (${matchPercent}%)`);
+    return {
+      name: raw.name,
+      url: root,
+      status: 'rejected',
+      reason: `low similarity to ${source.name} (${matchPercent}%)`,
+      matchPercent,
+    };
+  }
+
   const casino = addCasino({
     name: raw.name,
     url: raw.url,
@@ -224,10 +296,10 @@ async function analyzeSimilarUrl(
 
   if (casino) {
     knownHosts.add(h);
-    markDiscoverySeen(root, 'added', `similar to ${source.name}`);
-    return { name: casino.name, url: root, status: 'added' };
+    markDiscoverySeen(root, 'added', `similar to ${source.name} (${matchPercent}%)`);
+    return { name: casino.name, url: root, status: 'added', matchPercent };
   }
-  return { name: raw.name, url: root, status: 'skipped', reason: 'duplicate or blocked' };
+  return { name: raw.name, url: root, status: 'skipped', reason: 'duplicate or blocked', matchPercent };
 }
 
 export async function discoverSimilarOnWeb(
@@ -242,14 +314,15 @@ export async function discoverSimilarOnWeb(
   const source = getCasinoById(casinoId);
   if (!source) return null;
 
-  const maxQueries = options.maxQueries ?? 6;
-  const maxAnalyze = options.maxAnalyze ?? 15;
+  const maxQueries = options.maxQueries ?? 8;
+  const maxAnalyze = options.maxAnalyze ?? 18;
   const searchPages = options.searchPages ?? 2;
 
   const catalog = getAllCasinos(true);
   const catalogMatches = rankSimilarCasinos(source, catalog.filter((c) => c.id !== source.id), 12);
 
-  const queries = buildSimilarWebQueries(source.name, casinoHostKey(source.url)).slice(0, maxQueries);
+  const distinguishing = getDistinguishingFeatures(source, 10);
+  const queries = buildSimilarWebQueries(source.name, casinoHostKey(source.url), distinguishing).slice(0, maxQueries);
   const { urlScores, searchMode } = await collectUrlScores(
     source,
     queries,
@@ -278,6 +351,8 @@ export async function discoverSimilarOnWeb(
 
     await sleep(200);
   }
+
+  candidates.sort((a, b) => (b.matchPercent ?? 0) - (a.matchPercent ?? 0));
 
   return {
     source,

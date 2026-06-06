@@ -50,6 +50,21 @@ const BROWSER_VALIDATE_BATCH = 3;
 
 let stepLock: Promise<void> = Promise.resolve();
 
+async function withStepLock<T>(fn: () => Promise<T> | T): Promise<T> {
+  let release!: () => void;
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const prev = stepLock;
+  stepLock = prev.then(() => gate);
+  await prev;
+  try {
+    return await fn();
+  } finally {
+    release();
+  }
+}
+
 function publish(onProgress: ProgressPublisher | undefined, event: DiscoveryProgressEvent): void {
   const sink = onProgress ?? pushDiscoveryLiveEvent;
   sink(event);
@@ -548,7 +563,7 @@ async function runClientDiscoveryStepInner(
     } else if (!state.browserCrawlUrls.includes(siteUrl)) {
       state.browserCrawlUrls.push(siteUrl);
     }
-    markListSiteCrawled(siteUrl);
+    if (html) markListSiteCrawled(siteUrl);
     if (savedCount > 0) void commitCatalogWriteAndWait('discovery:client-list-page');
     publish(onProgress, {
       type: 'crawl_summary',
@@ -677,18 +692,7 @@ export async function runClientDiscoveryStep(
   browserValidate?: string[];
   browserCrawl?: string[];
 }> {
-  let release!: () => void;
-  const gate = new Promise<void>((resolve) => {
-    release = resolve;
-  });
-  const prev = stepLock;
-  stepLock = prev.then(() => gate);
-  await prev;
-  try {
-    return await runClientDiscoveryStepInner(onProgress);
-  } finally {
-    release();
-  }
+  return withStepLock(() => runClientDiscoveryStepInner(onProgress));
 }
 
 async function processOneUrl(state: DiscoverySessionState, onProgress?: ProgressPublisher): Promise<void> {
@@ -879,6 +883,7 @@ export async function submitClientSerpResults(
   results: ClientSerpResult[],
   onProgress?: ProgressPublisher,
 ): Promise<{ queued: number }> {
+  return withStepLock(async () => {
   const state = loadDiscoverySession() as DiscoverySessionState | null;
   if (!state?.pendingClientSearch) {
     throw new Error('No pending browser search batch');
@@ -928,6 +933,7 @@ export async function submitClientSerpResults(
 
   const totalQueued = [...linksByQuery.values()].reduce((a, b) => a + b, 0);
   return { queued: totalQueued };
+  });
 }
 
 /** HTML fetched in the user's browser for URLs the server could not reach. */
@@ -935,6 +941,7 @@ export async function submitBrowserValidatedPages(
   pages: ClientPageHtml[],
   onProgress?: ProgressPublisher,
 ): Promise<{ added: number }> {
+  return withStepLock(async () => {
   const state = loadDiscoverySession() as DiscoverySessionState | null;
   if (!state) {
     throw new Error('No active discovery session');
@@ -975,13 +982,15 @@ export async function submitBrowserValidatedPages(
   saveDiscoverySession(state);
   emitProgress(state, onProgress);
   return { added };
+  });
 }
 
 /** HTML from browser for catalog pages the server could not crawl. */
-export function submitBrowserCrawlPages(
+export async function submitBrowserCrawlPages(
   pages: ClientPageHtml[],
   onProgress?: ProgressPublisher,
-): { linksQueued: number } {
+): Promise<{ linksQueued: number }> {
+  return withStepLock(async () => {
   const state = loadDiscoverySession() as DiscoverySessionState | null;
   if (!state) {
     throw new Error('No active discovery session');
@@ -1011,6 +1020,7 @@ export function submitBrowserCrawlPages(
   saveDiscoverySession(state);
   emitProgress(state, onProgress);
   return { linksQueued };
+  });
 }
 
 /** Manually pasted URLs — works with or without an active scan. */
@@ -1031,10 +1041,11 @@ export function quickAddDiscoveryUrls(urls: string[]): { queued: number } {
 }
 
 /** Manually pasted URLs during an active scan. */
-export function ingestManualDiscoveryUrls(
+export async function ingestManualDiscoveryUrls(
   urls: string[],
   onProgress?: ProgressPublisher,
-): { queued: number } {
+): Promise<{ queued: number }> {
+  return withStepLock(async () => {
   const state = loadDiscoverySession() as DiscoverySessionState | null;
   if (!state) {
     throw new Error('No active discovery session');
@@ -1053,4 +1064,5 @@ export function ingestManualDiscoveryUrls(
   saveDiscoverySession(state);
   emitProgress(state, onProgress);
   return { queued };
+  });
 }

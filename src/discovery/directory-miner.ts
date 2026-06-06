@@ -65,18 +65,29 @@ export async function mineAllListSites(
   urls: string[],
   fetchHtml: (url: string) => Promise<string | null>,
   handleOperator: (url: string) => ListOperatorResult,
-  onPage?: (siteUrl: string, saved: number, queued: number) => void,
+  onPage?: (siteUrl: string, saved: number, queued: number, fetched: boolean) => void,
 ): Promise<{ sitesCrawled: number; saved: number; queued: number }> {
   let sitesCrawled = 0;
   let saved = 0;
   let queued = 0;
 
   for (const siteUrl of urls) {
-    const result = await mineOperatorsFromDirectoryPage(siteUrl, fetchHtml, handleOperator);
+    const html = await fetchHtml(siteUrl);
+    const fetched = Boolean(html);
+    let result = { saved: 0, queued: 0, skipped: 0 };
+    if (html) {
+      const links = extractOperatorLinksFromListPage(html, siteUrl);
+      for (const link of links) {
+        const op = handleOperator(link);
+        if (op === 'saved') result.saved++;
+        else if (op === 'queued') result.queued++;
+        else result.skipped++;
+      }
+    }
     sitesCrawled++;
     saved += result.saved;
     queued += result.queued;
-    onPage?.(siteUrl, result.saved, result.queued);
+    onPage?.(siteUrl, result.saved, result.queued, fetched);
   }
 
   return { sitesCrawled, saved, queued };

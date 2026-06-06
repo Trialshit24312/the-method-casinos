@@ -268,8 +268,14 @@ export async function collectFreeSearchLinks(
   return [...urls];
 }
 
+import type { CasinoFeature } from '../shared/types.js';
+
 /** Web queries to find casinos similar to a named operator. */
-export function buildSimilarWebQueries(casinoName: string, host?: string): string[] {
+export function buildSimilarWebQueries(
+  casinoName: string,
+  host?: string,
+  features: CasinoFeature[] = [],
+): string[] {
   const name = casinoName.replace(/\s+casino$/i, '').trim();
   const short = name.split(/\s+/)[0];
   const queries = [
@@ -278,10 +284,35 @@ export function buildSimilarWebQueries(casinoName: string, host?: string): strin
     `alternative to ${name} sweepstakes casino`,
     `${name} competitor sweepstakes casino usa`,
     `similar to ${name} no purchase necessary casino`,
+    `reddit casinos like ${name} sweeps`,
+    `best ${name} alternatives sweepstakes 2025`,
   ];
   if (host) {
+    const bareHost = host.replace(/^www\./, '').split('.')[0];
     queries.push(`casinos like ${host.replace(/^www\./, '')}`);
     queries.push(`alternative to ${short} sweeps casino`);
+    if (bareHost.length >= 4) queries.push(`sites similar to ${bareHost}.us sweepstakes`);
   }
+
+  const featureQueries: Record<string, string> = {
+    no_phone: `sweepstakes casino no phone signup like ${name}`,
+    email_only: `email only signup sweeps casino like ${name}`,
+    gift_card_redeem: `${name} alternative gift card redeem sweeps`,
+    paypal_redeem: `sweepstakes casino paypal redeem like ${name}`,
+    slots: `slots sweepstakes casino similar to ${name}`,
+    fish_games: `fish games sweeps casino like ${name}`,
+    live_games: `live dealer sweeps casino alternative ${name}`,
+    vpn_allowed: `vpn friendly sweepstakes casino like ${name}`,
+    fast_payout: `fast payout sweeps casino similar to ${name}`,
+    low_min_redeem: `low minimum redeem sweeps like ${name}`,
+    pragmatic_play: `pragmatic play sweeps casino like ${name}`,
+    no_kyc: `no kyc sweepstakes casino alternative ${name}`,
+  };
+
+  for (const feature of features) {
+    const q = featureQueries[feature];
+    if (q) queries.push(q);
+  }
+
   return [...new Set(queries)];
 }

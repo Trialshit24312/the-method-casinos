@@ -737,7 +737,7 @@ export function createServer(): express.Application {
     }
   });
 
-  app.post('/api/discover/client/crawl-pages', requireAuth, requireAdmin, (req, res) => {
+  app.post('/api/discover/client/crawl-pages', requireAuth, requireAdmin, async (req, res) => {
     if (!hasDiscoverySession()) {
       res.status(400).json({ error: 'No active discovery session' });
       return;
@@ -751,7 +751,7 @@ export function createServer(): express.Application {
       return;
     }
     try {
-      const { linksQueued } = submitBrowserCrawlPages(normalized, pushDiscoveryLiveEvent);
+      const { linksQueued } = await submitBrowserCrawlPages(normalized, pushDiscoveryLiveEvent);
       res.json({ ok: true, linksQueued, live: getDiscoveryLiveSnapshot(0) });
     } catch (err) {
       res.status(500).json({ error: err instanceof Error ? err.message : 'Crawl ingest failed' });
@@ -794,7 +794,7 @@ export function createServer(): express.Application {
     res.json({ ok: true, queued, pending: getPendingCasinos().length });
   });
 
-  app.post('/api/discover/client/manual-links', requireAuth, requireAdmin, (req, res) => {
+  app.post('/api/discover/client/manual-links', requireAuth, requireAdmin, async (req, res) => {
     if (!hasDiscoverySession()) {
       res.status(400).json({ error: 'Start or resume a scan first' });
       return;
@@ -810,7 +810,7 @@ export function createServer(): express.Application {
       return;
     }
     try {
-      const { queued } = ingestManualDiscoveryUrls(urls.slice(0, 50), pushDiscoveryLiveEvent);
+      const { queued } = await ingestManualDiscoveryUrls(urls.slice(0, 50), pushDiscoveryLiveEvent);
       res.json({ ok: true, queued, live: getDiscoveryLiveSnapshot(0) });
     } catch (err) {
       res.status(500).json({ error: err instanceof Error ? err.message : 'Failed to queue URLs' });

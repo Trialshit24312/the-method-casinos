@@ -233,6 +233,8 @@ export interface SimilarCasinoMatch {
   matchPercent: number;
   sharedFeatures: CasinoFeature[];
   reasons: string[];
+  featurePercent?: number;
+  textPercent?: number;
 }
 
 export interface SimilarCasinosResult {
@@ -256,7 +258,7 @@ export interface SimilarWebDiscoveryResult {
   analyzed: number;
   added: number;
   rejected: number;
-  candidates: { name: string; url: string; status: 'added' | 'rejected' | 'skipped'; reason?: string }[];
+  candidates: { name: string; url: string; status: 'added' | 'rejected' | 'skipped'; reason?: string; matchPercent?: number }[];
   queries: string[];
   searchMode?: 'browser' | 'server' | 'mixed';
 }

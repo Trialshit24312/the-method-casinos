@@ -824,9 +824,28 @@ export function findSimilarCasinos(casinoId: string, limit = 8): { source: Casin
 }
 
 export function findSimilarCasinosByQuery(query: string, limit = 8): { source: Casino; matches: SimilarCasinoMatch[] } | null {
-  const results = searchCasinos({ query, catalogOnly: true, limit: 1 });
+  const trimmed = query.trim();
+  if (!trimmed) return null;
+  const results = searchCasinos({ query: trimmed, catalogOnly: true, limit: 10 });
   if (!results.length) return null;
-  return findSimilarCasinos(results[0].id, limit);
+
+  const q = trimmed.toLowerCase();
+  const source = [...results].sort((a, b) => {
+    const aName = a.name.toLowerCase();
+    const bName = b.name.toLowerCase();
+    const score = (name: string) => {
+      if (name === q) return 100;
+      if (name.startsWith(q)) return 80;
+      if (name.includes(q)) return 60;
+      if (q.includes(name.split(/\s+/)[0] ?? '')) return 40;
+      return 0;
+    };
+    const diff = score(bName) - score(aName);
+    if (diff !== 0) return diff;
+    return b.rating - a.rating;
+  })[0];
+
+  return findSimilarCasinos(source.id, limit);
 }
 
 export function getKnownUrls(): Set<string> {

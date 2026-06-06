@@ -21,6 +21,7 @@ import {
   isBlockedDomain,
   validateSweepstakesPage,
   sanitizeCasinoName,
+  shouldQueueSearchUrl,
 } from './filters.js';
 import { getVerifiedCuratedDiscoveries } from '../shared/verified-casinos.js';
 import { buildSearchQueries, SEARCH_PAGES_DEEP, SEARCH_PAGES_QUICK } from './queries.js';
@@ -475,8 +476,7 @@ export async function runDiscovery(
       return false;
     }
 
-    if (!isDiscoveryCandidateUrl(root) || isBlockedDomain(root)) {
-      recordRejection(root, host, 'URL pre-filter');
+    if (!shouldQueueSearchUrl(root)) {
       return false;
     }
 
@@ -529,8 +529,8 @@ export async function runDiscovery(
       listUrls,
       fetchPage,
       handleListOperator,
-      (siteUrl, saved, queued) => {
-        markListSiteCrawled(siteUrl);
+      (siteUrl, saved, queued, fetched) => {
+        if (fetched) markListSiteCrawled(siteUrl);
         onProgress?.({
           type: 'crawl_summary',
           crawled: 1,

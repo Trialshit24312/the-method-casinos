@@ -64,6 +64,14 @@ function MatchCard({
         </div>
       )}
 
+      {(match.featurePercent != null || match.textPercent != null) && (
+        <p className="text-[10px] text-gray-600 mb-3">
+          {match.featurePercent != null && <>Features {match.featurePercent}%</>}
+          {match.featurePercent != null && match.textPercent != null && ' · '}
+          {match.textPercent != null && <>Text {match.textPercent}%</>}
+        </p>
+      )}
+
       <div className="flex flex-wrap gap-1 mb-4">
         {match.sharedFeatures.slice(0, 6).map((f) => (
           <span key={f} className={`text-[10px] px-1.5 py-0.5 rounded-full ${FEATURE_COLORS[f]}`}>
@@ -121,6 +129,7 @@ function CandidateRow({ c }: { c: SimilarWebDiscoveryResult['candidates'][0] }) 
         <p className="text-xs text-gray-600 truncate">{c.url.replace(/^https:\/\//, '')}</p>
       </div>
       <span className={`text-xs shrink-0 ${tone}`}>
+        {c.matchPercent != null && <span className="text-glow mr-2">{c.matchPercent}%</span>}
         {c.status === 'added' ? 'Queued' : c.reason ?? c.status}
       </span>
     </div>
